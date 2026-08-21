@@ -1,0 +1,13 @@
+{
+  "name": "lan-pairing-test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone local test for SAFE_Links LAN router pairing (gatewayLocator.js + routerOsClient.js) — run on your own machine, not in a remote sandbox.",
+  "main": "test.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "default-gateway": "^7.2.2"
+  }
+}

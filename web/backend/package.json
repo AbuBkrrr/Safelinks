@@ -1,0 +1,17 @@
+{
+  "name": "reslink-backend",
+  "version": "1.0.0",
+  "description": "Reslink ISP reselling platform — API backend. Two real dependencies: `pg` for Postgres (needed at hundreds-of-resellers scale) and `nodemailer` for password-reset/license-expiry emails (optional — falls back to a manual notification if SMTP_HOST isn't set, see src/email.js). Everything else is Node built-ins: node:http, node:crypto (JWT-style auth is hand-rolled with HMAC-SHA256, password hashing uses scrypt). Requires Node 22.5+.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "nodemailer": "^6.9.15"
+  }
+}

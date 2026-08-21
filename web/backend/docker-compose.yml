@@ -1,0 +1,34 @@
+# Standalone backend + its own Postgres — useful for testing the API by
+# itself without the frontend/Caddy stack. For the full production
+# stack, use ../docker-compose.yml at the repo root instead.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=reslink
+      - POSTGRES_PASSWORD=reslink
+      - POSTGRES_DB=reslink
+    volumes:
+      - reslink_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reslink"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - PORT=4000
+      - JWT_SECRET=change-this-in-production
+      - DATABASE_URL=postgres://reslink:reslink@postgres:5432/reslink
+
+volumes:
+  reslink_pgdata:

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+Output/
+android/app/build/
+android/.gradle/
+android/build/
+
+# Secrets — never commit real .env files, only .env.example
+.env
+.env.local
+*.jks
+*.keystore
+
+# OS/editor noise
+.DS_Store
+.idea/
+*.iml
+
+# Android local machine config
+android/local.properties

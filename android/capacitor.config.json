@@ -1,0 +1,12 @@
+{
+  "appId": "com.aibrainsventures.safelinks",
+  "appName": "SAFE_Links",
+  "webDir": "www",
+  "server": {
+    "url": "https://REPLACE-WITH-YOUR-DOMAIN.com/",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
