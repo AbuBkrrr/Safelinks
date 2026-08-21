@@ -1,0 +1,81 @@
+# Full stack: Postgres + backend (API) + frontend (static build, served
+# by its own nginx) + Caddy in front of everything for automatic HTTPS.
+#
+# Quick start on a fresh VPS:
+#   1. Point your domain's A record at the VPS's IP.
+#   2. Edit Caddyfile: replace "yourdomain.com" with your real domain.
+#   3. cp .env.example .env, then set real values (see .env.example) —
+#      at minimum a real JWT_SECRET (openssl rand -hex 32) and a real
+#      Postgres password.
+#   4. docker compose up -d --build
+# Caddy gets you a valid Let's Encrypt certificate automatically — no
+# certbot setup needed. If you'd rather run your own nginx + certbot,
+# see deploy/README.md for that path instead; just skip the caddy
+# service and expose frontend:80 directly behind it.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=reslink
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set a real POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=reslink
+    volumes:
+      - reslink_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reslink"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "5432"
+
+  backend:
+    build: ./reslink-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:?set a real JWT_SECRET in .env — see .env.example}
+      - DATABASE_URL=postgres://reslink:${POSTGRES_PASSWORD}@postgres:5432/reslink
+      # Optional — all blank is fine, falls back to manual notifications.
+      # See reslink-backend/README.md "Email sending".
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+    volumes:
+      - reslink_uploads:/app/uploads
+    expose:
+      - "4000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  reslink_pgdata:
+  reslink_uploads:
+  caddy_data:
+  caddy_config:
