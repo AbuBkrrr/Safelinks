@@ -391,11 +391,11 @@ export function registerSuperAdminRoutes(router) {
   // Status now only moves via the dedicated .../status endpoint below.
   router.post("/api/admin/support/:id/messages", async (req, res, { params, body }) => {
     if (!requireSuperAdmin(req, res)) return;
-    if (!body.message) return json(res, 400, { error: "message is required" });
+    if (!body.message && !body.attachmentUrl) return json(res, 400, { error: "Enter a message or attach a file/voice note" });
     const ticket = await db.prepare("SELECT id FROM support_tickets WHERE id = ? AND source = 'reseller'").get(params.id);
     if (!ticket) return json(res, 404, { error: "Ticket not found" });
     await db.prepare("INSERT INTO support_messages (id,ticket_id,sender,message,time,attachment_url) VALUES (?,?,?,?,?,?)")
-      .run(id("m"), params.id, "admin", body.message, Date.now(), body.attachmentUrl || null);
+      .run(id("m"), params.id, "admin", body.message || "", Date.now(), body.attachmentUrl || null);
     json(res, 201, { ok: true });
   });
 

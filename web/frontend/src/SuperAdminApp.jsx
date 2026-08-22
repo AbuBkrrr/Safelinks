@@ -98,9 +98,10 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   }
   async function sendReply(id) {
     const msg = reply[id];
-    if (!msg) return;
+    const attachment = replyAttachment[id];
+    if (!msg && !attachment) return;
     try {
-      await api.admin.sendSupportMessage(id, msg, replyAttachment[id] || null);
+      await api.admin.sendSupportMessage(id, msg || "", attachment || null);
       setReply((r) => ({ ...r, [id]: "" }));
       setReplyAttachment((r) => ({ ...r, [id]: null }));
       support.refetch();
@@ -573,7 +574,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                     borderLeft: m.sender === "admin" ? `3px solid ${T.secondary}` : "none",
                     marginLeft: m.sender === "admin" ? 0 : 16,
                   }}>
-                    <b>{m.sender === "admin" ? "You" : t.company_name}:</b> {m.message}
+                    <b>{m.sender === "admin" ? "You" : t.company_name}:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
                       <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
