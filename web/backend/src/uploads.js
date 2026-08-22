@@ -49,7 +49,12 @@ export async function saveUpload({ filename, mimeType, dataBase64 }) {
   if (!dataBase64 || typeof dataBase64 !== "string") {
     throw new Error("No file data received");
   }
-  const ext = ALLOWED_TYPES[mimeType];
+  // Browsers append codec params to the mimeType they report back from
+  // MediaRecorder (e.g. "audio/webm;codecs=opus" in Chrome, "audio/ogg;
+  // codecs=opus" in Firefox) — strip everything from ";" on before
+  // matching against ALLOWED_TYPES, which only lists the bare types.
+  const baseMimeType = typeof mimeType === "string" ? mimeType.split(";")[0].trim() : mimeType;
+  const ext = ALLOWED_TYPES[baseMimeType];
   if (!ext) {
     throw new Error("Unsupported file type — use a JPEG, PNG, WebP, PDF, or a voice note");
   }
