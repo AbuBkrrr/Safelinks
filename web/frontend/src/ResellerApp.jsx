@@ -50,7 +50,13 @@ export default function ResellerApp({ session, onExit, notify }) {
   // sourced from bankInfo, not assumed to be USD).
   const currency = portalSettingsRes.data?.currency || "USD";
   const platformCurrency = bankInfo.data?.platformCurrency || "USD";
-  const dashboardLang = portalSettingsRes.data?.dashboardLanguage || portalSettingsRes.data?.dashboard_language || "en";
+  // One language field now drives both this dashboard and the captive
+  // portal end-users see — a reseller running their business in French
+  // shouldn't have to separately tell us their own screen is French too.
+  // `language` is the single source of truth; the legacy dashboardLanguage
+  // fallbacks stay here only for accounts that saved a value under the
+  // old split before this changed.
+  const dashboardLang = portalSettingsRes.data?.language || portalSettingsRes.data?.dashboardLanguage || portalSettingsRes.data?.dashboard_language || "en";
   const companyName = session?.user?.companyName || "";
 
   const tabs = [
@@ -136,9 +142,16 @@ export default function ResellerApp({ session, onExit, notify }) {
       await api.reseller.updatePortalSettings({
         ssid: portal.ssid, portalTitle: portal.portalTitle ?? portal.portal_title,
         color: portal.color, currency: portal.currency, language: portal.language,
-        dashboardLanguage: portal.dashboardLanguage ?? portal.dashboard_language,
+        // Kept in sync with `language` rather than exposed as its own
+        // field — see the note by `dashboardLang` above for why the two
+        // were merged.
+        dashboardLanguage: portal.language,
         contactEmail: portal.contactEmail ?? portal.contact_email,
         contactWhatsapp: portal.contactWhatsapp ?? portal.contact_whatsapp,
+        bankName: portal.bankName ?? portal.bank_name,
+        bankAccountName: portal.bankAccountName ?? portal.bank_account_name,
+        bankAccountNumber: portal.bankAccountNumber ?? portal.bank_account_number,
+        ussdCode: portal.ussdCode ?? portal.ussd_code,
       });
       notify("Captive portal settings saved.");
       // Wait for the refetch to actually land before dropping the local
@@ -508,14 +521,32 @@ export default function ResellerApp({ session, onExit, notify }) {
                     </Field>
                   </div>
                 </div>
-                <Field label={dt(dashboardLang, "fieldDashboardLanguage")}>
-                  <select style={inputStyle} value={portal.dashboardLanguage ?? portal.dashboard_language ?? "en"} onChange={(e) => setPortalForm({ ...portal, dashboardLanguage: e.target.value })}>
-                    {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-                  </select>
-                </Field>
                 <Field label={dt(dashboardLang, "fieldContactEmail")}><input style={inputStyle} value={portal.contactEmail ?? portal.contact_email ?? ""} onChange={(e) => setPortalForm({ ...portal, contactEmail: e.target.value })} /></Field>
                 <Field label={dt(dashboardLang, "fieldContactWhatsapp")}><input style={inputStyle} value={portal.contactWhatsapp ?? portal.contact_whatsapp ?? ""} onChange={(e) => setPortalForm({ ...portal, contactWhatsapp: e.target.value })} /></Field>
-                <Btn onClick={savePortal}><Save size={14} /> {dt(dashboardLang, "saveSettings")}</Btn>
+
+                {/* Payout details — where a customer's Bank Transfer/USSD
+                    payment on the captive portal actually goes. These map
+                    straight onto CaptivePortal.jsx's TransferPayBlock via
+                    the public /api/portal/:id endpoint (bankAccount.*,
+                    ussdCode); until a reseller fills these in, their
+                    customers see blank payment details with nowhere to
+                    send money. */}
+                <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{dt(dashboardLang, "payoutDetailsTitle")}</div>
+                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>{dt(dashboardLang, "payoutDetailsHint")}</div>
+                  <Field label={dt(dashboardLang, "fieldBankName")}><input style={inputStyle} value={portal.bankName ?? portal.bank_name ?? ""} onChange={(e) => setPortalForm({ ...portal, bankName: e.target.value })} /></Field>
+                  <Field label={dt(dashboardLang, "fieldBankAccountName")}><input style={inputStyle} value={portal.bankAccountName ?? portal.bank_account_name ?? ""} onChange={(e) => setPortalForm({ ...portal, bankAccountName: e.target.value })} /></Field>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <Field label={dt(dashboardLang, "fieldBankAccountNumber")}><input style={inputStyle} value={portal.bankAccountNumber ?? portal.bank_account_number ?? ""} onChange={(e) => setPortalForm({ ...portal, bankAccountNumber: e.target.value })} /></Field>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Field label={dt(dashboardLang, "fieldUssdCode")}><input style={inputStyle} value={portal.ussdCode ?? portal.ussd_code ?? ""} onChange={(e) => setPortalForm({ ...portal, ussdCode: e.target.value })} /></Field>
+                    </div>
+                  </div>
+                </div>
+
+                <Btn onClick={savePortal} style={{ marginTop: 14 }}><Save size={14} /> {dt(dashboardLang, "saveSettings")}</Btn>
               </div>
               <div style={{ flex: 1, minWidth: 260 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 8 }}>{dt(dashboardLang, "livePreview")}</div>

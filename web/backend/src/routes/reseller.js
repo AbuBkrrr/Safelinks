@@ -239,13 +239,17 @@ export function registerResellerRoutes(router) {
   // email/WhatsApp sending exists anywhere in this system).
   router.get("/api/reseller/portal-settings", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const r = await db.prepare("SELECT ssid, portal_title, color, currency, language, dashboard_language, contact_email, contact_whatsapp FROM resellers WHERE id = ?").get(resellerId);
+    // Bank fields are included here (not just on the public /api/portal/:id
+    // endpoint) because this is also the reseller's own settings screen —
+    // they need to see and edit the payout details their end-users will
+    // pay into, not just have them silently displayed to customers.
+    const r = await db.prepare("SELECT ssid, portal_title, color, currency, language, dashboard_language, contact_email, contact_whatsapp, bank_name, bank_account_name, bank_account_number, ussd_code FROM resellers WHERE id = ?").get(resellerId);
     json(res, 200, r);
   });
 
   router.put("/api/reseller/portal-settings", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp } = body;
+    const { ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode } = body;
     if (currency !== undefined && !CURRENCIES.has(currency)) {
       return json(res, 400, { error: `currency must be one of: ${[...CURRENCIES].join(", ")}` });
     }
@@ -258,9 +262,11 @@ export function registerResellerRoutes(router) {
     await db.prepare(`UPDATE resellers SET
         ssid = COALESCE(?, ssid), portal_title = COALESCE(?, portal_title), color = COALESCE(?, color),
         currency = COALESCE(?, currency), language = COALESCE(?, language), dashboard_language = COALESCE(?, dashboard_language),
-        contact_email = COALESCE(?, contact_email), contact_whatsapp = COALESCE(?, contact_whatsapp)
+        contact_email = COALESCE(?, contact_email), contact_whatsapp = COALESCE(?, contact_whatsapp),
+        bank_name = COALESCE(?, bank_name), bank_account_name = COALESCE(?, bank_account_name),
+        bank_account_number = COALESCE(?, bank_account_number), ussd_code = COALESCE(?, ussd_code)
       WHERE id = ?`)
-      .run(ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, resellerId);
+      .run(ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode, resellerId);
     json(res, 200, { ok: true });
   });
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2 } from "lucide-react";
+import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2, Paperclip, Mic, X } from "lucide-react";
 import VoiceAssistant from "./VoiceAssistant.jsx";
 import { dt, dtMatch } from "./dashboardI18n.js";
 
