@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SAFE_Links — System Demo</title>
+<style>
+  :root {
+    --primary: #667eea; --primaryDark: #5a67d8; --secondary: #764ba2;
+    --success: #48bb78; --warning: #f6ad55; --danger: #fc8181;
+    --bg: #f0f2f5; --card: #ffffff; --ink: #1f2433; --sub: #6b7488; --border: #e4e7ee;
+    --grad: linear-gradient(135deg, var(--primary), var(--secondary));
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #d6d9e2; border-radius: 4px; }
+  a { color: inherit; }
+  button { font-family: inherit; }
+
+  /* ---------- top switcher ---------- */
+  #switcher {
+    position: sticky; top: 0; z-index: 500; display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; background: var(--ink); color: #fff; flex-wrap: wrap;
+  }
+  #switcher .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14.5px; margin-right: 10px; }
+  #switcher .brand .dot { width: 24px; height: 24px; border-radius: 8px; background: var(--grad);
+    display: flex; align-items: center; justify-content: center; }
+  #switcher .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  #switcher button.switch {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #cfd3e6;
+    padding: 7px 13px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: background .15s, color .15s;
+  }
+  #switcher button.switch:hover { background: rgba(255,255,255,0.16); color: #fff; }
+  #switcher button.switch.active { background: var(--grad); color: #fff; border-color: transparent; }
+  #switcher .note { margin-left: auto; font-size: 11px; color: #8b93ad; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ---------- shared: icons ---------- */
+  svg.ic { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  /* ---------- shared: buttons / badges / cards / tables ---------- */
+  .btn { display: inline-flex; align-items: center; gap: 6px; background: var(--grad); color: #fff; border: none;
+    padding: 9px 15px; border-radius: 9px; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn:hover { filter: brightness(1.06); }
+  .btn.ghost { background: none; color: var(--sub); border: 1px solid var(--border); }
+  .btn.soft { background: #eef6f0; color: var(--success); }
+  .btn.danger { background: #fdecec; color: #d9534f; }
+  .btn.sm { padding: 6px 11px; font-size: 11.5px; }
+  .badge { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; padding: 3px 9px;
+    border-radius: 20px; text-transform: capitalize; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .panel-title { font-weight: 800; font-size: 14.5px; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: var(--sub); font-weight: 700; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.03em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 12.5px; font-family: inherit; background: #fff; color: var(--ink); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+  label.field { display: block; margin-bottom: 12px; }
+  label.field .lbl { display: block; font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 5px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .stat .n { font-size: 22px; font-weight: 800; }
+  .stat .l { font-size: 11px; color: var(--sub); font-weight: 600; margin-top: 2px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .empty { text-align: center; padding: 30px 10px; color: var(--sub); font-size: 12.5px; }
+
+  /* ---------- shell: sidebar + main (reseller / admin) ---------- */
+  .shell { display: flex; min-height: calc(100vh - 46px); }
+  .shell .side { width: 210px; flex-shrink: 0; background: var(--card); border-right: 1px solid var(--border);
+    padding: 18px 10px; display: flex; flex-direction: column; }
+  .shell .side .who { padding: 4px 10px 16px; }
+  .shell .side .who .role { font-size: 10.5px; font-weight: 700; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+  .shell .side .who .name { font-size: 13.5px; font-weight: 800; margin-top: 2px; }
+  .navitem { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px; font-size: 12.5px;
+    font-weight: 600; color: var(--sub); cursor: pointer; margin-bottom: 2px; position: relative; }
+  .navitem:hover { background: var(--bg); }
+  .navitem.active { background: var(--grad); color: #fff; }
+  .navitem .bubble { margin-left: auto; background: var(--danger); color: #fff; font-size: 9.5px; font-weight: 800;
+    border-radius: 10px; padding: 1px 6px; }
+  .navitem.active .bubble { background: rgba(255,255,255,0.3); }
+  .navexit { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 9px 11px; font-size: 12px;
+    color: var(--sub); cursor: pointer; font-weight: 600; }
+  .shell .main { flex: 1; padding: 22px; max-width: 1160px; }
+  .tabhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .tabhead h2 { font-size: 18px; margin: 0; }
+  .tabhead p { font-size: 12px; color: var(--sub); margin: 3px 0 0; }
+
+  /* ---------- toast ---------- */
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); z-index: 999;
+    background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
+    opacity: 0; transition: all .25s ease; box-shadow: 0 10px 30px rgba(0,0,0,.25); pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- landing ---------- */
+  .landing-wrap { min-height: calc(100vh - 46px); display: flex; align-items: center; justify-content: center; padding: 40px 16px; }
+  .landing-card { text-align: center; max-width: 460px; }
+  .landing-logo { width: 60px; height: 60px; border-radius: 16px; background: var(--grad); margin: 0 auto 18px;
+    display: flex; align-items: center; justify-content: center; }
+  .landing-card h1 { font-size: 26px; margin: 0 0 2px; }
+  .landing-tag { font-size: 12px; font-weight: 700; color: var(--sub); letter-spacing: .02em; margin-bottom: 12px; }
+  .landing-desc { font-size: 14px; color: var(--sub); margin-bottom: 26px; line-height: 1.55; }
+  .landing-actions { display: flex; flex-direction: column; gap: 10px; }
+  .landing-actions .btn { justify-content: center; padding: 12px; font-size: 13.5px; }
+  .landing-foot { margin-top: 26px; font-size: 11.5px; color: var(--sub); }
+
+  /* ---------- portal (phone frame) ---------- */
+  .portal-stage { min-height: calc(100vh - 46px); display: flex; align-items: flex-start; justify-content: center;
+    padding: 34px 16px; gap: 26px; flex-wrap: wrap; }
+  .phone { width: 340px; background: #0c0d12; border-radius: 34px; padding: 12px; box-shadow: 0 20px 50px rgba(20,20,43,.35); flex-shrink: 0; }
+  .phone .screen { background: var(--bg); border-radius: 24px; overflow: hidden; height: 660px; display: flex; flex-direction: column; }
+  .portal-topbar { background: var(--grad); color: #fff; padding: 20px 18px 16px; text-align: center; }
+  .portal-topbar .ic { width: 26px; height: 26px; margin: 0 auto 6px; }
+  .portal-topbar .ssid { font-size: 11px; opacity: .85; margin-top: 2px; }
+  .portal-body { flex: 1; overflow-y: auto; padding: 16px; }
+  .plan-card { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; }
+  .plan-card.selected { border-color: var(--primary); background: #f3f4ff; }
+  .plan-card .row { display: flex; justify-content: space-between; align-items: center; }
+  .plan-card .name { font-weight: 700; font-size: 13px; }
+  .plan-card .price { font-weight: 800; font-size: 13px; color: var(--primary); }
+  .plan-card .meta { font-size: 11px; color: var(--sub); margin-top: 3px; }
+  .plan-card .pop { display: inline-block; background: var(--warning); color: #fff; font-size: 9px; font-weight: 800;
+    padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+  .portal-notes { text-align: center; padding-top: 10px; }
+  .helplink { text-align: center; font-size: 11.5px; color: var(--sub); margin-top: 14px; display: flex;
+    align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
+  .portal-info { max-width: 340px; }
+
+  @media (max-width: 900px) {
+    .shell { flex-direction: column; }
+    .shell .side { width: 100%; flex-direction: row; overflow-x: auto; padding: 10px; }
+    .shell .side .who { display: none; }
+    .navexit { margin-top: 0; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="switcher">
+  <div class="brand"><span class="dot"><svg class="ic" style="stroke:#fff" viewBox="0 0 24 24"><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 16a6 6 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="#fff" stroke="none"/></svg></span>SAFE_Links</div>
+  <div class="tabs">
+    <button class="switch active" data-view="landing">Landing</button>
+    <button class="switch" data-view="reseller">Reseller Admin</button>
+    <button class="switch" data-view="admin">Super Admin</button>
+    <button class="switch" data-view="portal">Captive Portal</button>
+  </div>
+  <div class="note">Clickable demo — mock data, nothing here is saved or sent anywhere</div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ================= LANDING ================= -->
+<section class="view active" id="view-landing">
+  <div class="landing-wrap">
+    <div class="landing-card">
+      <div class="landing-logo"><svg class="ic" style="width:28px;height:28px;stroke:#fff" viewBox="0 0 24 24"><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 16a6 6 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="#fff" stroke="none"/></svg></div>
+      <h1>Welcome to SAFE_Links</h1>
+      <div class="landing-tag">A product of A I Brains Ventures</div>
+      <div class="landing-desc">Run your own branded internet business — vouchers, routers, and a payment portal your customers see under your name. Create an account or log in to get started.</div>
+      <div class="landing-actions">
+        <button class="btn" onclick="switchView('reseller'); toast('Signed in as a Reseller — this is a demo account')">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Create a Reseller account
+        </button>
+        <button class="btn ghost" onclick="switchView('reseller'); toast('Logged in — SAFE_Links demo reseller')">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+          Log in
+        </button>
+        <button class="btn ghost" onclick="switchView('admin'); toast('Logged in as Super Admin')">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 2 3 6v6c0 5 3.8 9 9 10 5.2-1 9-5 9-10V6z"/></svg>
+          Super Admin
+        </button>
+      </div>
+      <div class="landing-foot">📱 Installing a router? Go straight to <code>/install</code> on your phone instead.</div>
+      <div class="landing-foot" style="margin-top:16px">A I Brains Ventures · +234 803 254 0215 · aibrainsventures@gmail.com</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RESELLER ADMIN ================= -->
+<section class="view" id="view-reseller">
+  <div class="shell">
+    <nav class="side">
+      <div class="who"><div class="role">Reseller Admin</div><div class="name">Lagos FastNet</div></div>
+      <div class="navitem active" data-r-tab="vouchers"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>Vouchers</div>
+      <div class="navitem" data-r-tab="sessions"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Active sessions</div>
+      <div class="navitem" data-r-tab="routers"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6.01 18H6M10.01 18H10"/><path d="M15 10V6a2 2 0 0 0-2-2H8"/></svg>Routers</div>
+      <div class="navitem" data-r-tab="portal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>Captive portal</div>
+      <div class="navitem" data-r-tab="pending"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>Pending payments<span class="bubble">3</span></div>
+      <div class="navitem" data-r-tab="license"><svg class="ic" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></svg>License</div>
+      <div class="navitem" data-r-tab="referrals"><svg class="ic" viewBox="0 0 24 24"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Referrals</div>
+      <div class="navitem" data-r-tab="support"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M14.31 8 20.05 17.94M9.69 8H2.87M14.31 16 20.05 6.06M9.69 16H2.87M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></svg>Support<span class="bubble">2</span></div>
+      <div class="navitem" data-r-tab="notifications"><svg class="ic" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifications<span class="bubble">4</span></div>
+      <div class="navexit" onclick="switchView('landing')"><svg class="ic" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Log out</div>
+    </nav>
+    <main class="main">
+
+      <!-- Vouchers -->
+      <div class="rtab" id="rtab-vouchers">
+        <div class="tabhead"><div><h2>Vouchers &amp; plans</h2><p>Plans your customers see on the WiFi portal, and vouchers you've generated for offline sale.</p></div>
+          <button class="btn" onclick="toast('New plan created (demo)')"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New plan</button></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="n">4</div><div class="l">Active plans</div></div>
+          <div class="stat"><div class="n">238</div><div class="l">Vouchers redeemed (30d)</div></div>
+          <div class="stat"><div class="n">₦47,600</div><div class="l">Voucher revenue (30d)</div></div>
+        </div>
+        <div class="card">
+          <div class="panel-title">Plans</div>
+          <table><thead><tr><th>Plan</th><th>Duration</th><th>Price</th><th>Devices</th><th>Bandwidth</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Daily Pass</b></td><td>24 hours</td><td>₦300</td><td>2</td><td>10 Mbps</td><td><button class="btn ghost sm" onclick="toast('Voucher generated: SL-8K2P-QX91')">Generate voucher</button></td></tr>
+            <tr><td><b>Weekly Standard</b> <span class="badge" style="background:#fff3e0;color:#e08a1e">popular</span></td><td>7 days</td><td>₦1,500</td><td>3</td><td>15 Mbps</td><td><button class="btn ghost sm" onclick="toast('Voucher generated: SL-4M7T-LR30')">Generate voucher</button></td></tr>
+            <tr><td><b>Monthly Pro</b></td><td>30 days</td><td>₦5,000</td><td>5</td><td>25 Mbps</td><td><button class="btn ghost sm" onclick="toast('Voucher generated: SL-9J1V-ZK55')">Generate voucher</button></td></tr>
+            <tr><td><b>1 Hour Quick</b></td><td>1 hour</td><td>₦100</td><td>1</td><td>8 Mbps</td><td><button class="btn ghost sm" onclick="toast('Voucher generated: SL-2Q6B-WP18')">Generate voucher</button></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- Active sessions -->
+      <div class="rtab" id="rtab-sessions" style="display:none">
+        <div class="tabhead"><div><h2>Active sessions</h2><p>Devices currently connected across your routers.</p></div></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="n" style="color:var(--success)">31</div><div class="l">Online now</div></div>
+          <div class="stat"><div class="n">3</div><div class="l">Routers reporting</div></div>
+          <div class="stat"><div class="n">412 GB</div><div class="l">Data used today</div></div>
+        </div>
+        <div class="card">
+          <table><thead><tr><th>Device</th><th>Plan</th><th>Router</th><th>Data used</th><th>Time left</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>iPhone · A4:C1:38</td><td>Weekly Standard</td><td>Mainland-RTR-01</td><td>1.2 GB</td><td>4d 6h</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>Galaxy A14 · 9B:22:F0</td><td>Daily Pass</td><td>Mainland-RTR-01</td><td>640 MB</td><td>11h</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>Redmi 10 · 6E:71:AA</td><td>Monthly Pro</td><td>Island-RTR-02</td><td>3.8 GB</td><td>18d</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>HP Laptop · C3:90:1D</td><td>1 Hour Quick</td><td>Yaba-RTR-03</td><td>210 MB</td><td>expired</td><td><span class="badge" style="background:#f5f5f5;color:#8a8f9c">disconnected</span></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- Routers -->
+      <div class="rtab" id="rtab-routers" style="display:none">
+        <div class="tabhead"><div><h2>Routers</h2><p>Every router paired to your account, and when it last checked in.</p></div>
+          <button class="btn" onclick="toast('Opens the /install pairing wizard on your phone')"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Pair a router</button></div>
+        <div class="card">
+          <table><thead><tr><th>Name</th><th>Model</th><th>Location</th><th>Last check-in</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Mainland-RTR-01</b></td><td>MikroTik hAP ac²</td><td>Mainland office</td><td>38s ago</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td><td><button class="btn ghost sm" onclick="toast('Reboot command queued')">Reboot</button></td></tr>
+            <tr><td><b>Island-RTR-02</b></td><td>MikroTik hAP ac³</td><td>Victoria Island kiosk</td><td>2m ago</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td><td><button class="btn ghost sm" onclick="toast('Reboot command queued')">Reboot</button></td></tr>
+            <tr><td><b>Yaba-RTR-03</b></td><td>Ubuntu agent (Linux box)</td><td>Yaba shop</td><td>19m ago</td><td><span class="badge" style="background:#fff8e6;color:#c98a12">idle</span></td><td><button class="btn ghost sm" onclick="toast('Reboot command queued')">Reboot</button></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- Captive portal config -->
+      <div class="rtab" id="rtab-portal" style="display:none">
+        <div class="tabhead"><div><h2>Captive portal configuration</h2><p>What your customers see when they connect to your WiFi.</p></div></div>
+        <div class="grid-2">
+          <div class="card">
+            <label class="field"><span class="lbl">WiFi network name (SSID)</span><input id="pf-ssid" value="Lagos FastNet 5G" oninput="portalPreview()"></label>
+            <label class="field"><span class="lbl">Portal welcome title</span><input id="pf-title" value="Welcome to Lagos FastNet" oninput="portalPreview()"></label>
+            <label class="field"><span class="lbl">Brand color</span>
+              <div style="display:flex;gap:8px"><input type="color" id="pf-color" value="#667eea" style="width:44px;padding:2px" oninput="portalPreview()"><input value="#667eea" id="pf-colortext" oninput="document.getElementById('pf-color').value=this.value;portalPreview()"></div>
+            </label>
+            <div class="grid-2">
+              <label class="field"><span class="lbl">Currency charged to end-users</span><select id="pf-cur" onchange="portalPreview()"><option>NGN — Nigerian Naira</option><option>KES — Kenyan Shilling</option><option>USD — US Dollar</option><option>GHS — Ghanaian Cedi</option></select></label>
+              <label class="field"><span class="lbl">Portal language (for end-users)</span><select><option>English</option><option>Français</option><option>Kiswahili</option><option>Hausa</option><option>Yorùbá</option><option>Português</option></select></label>
+            </div>
+            <label class="field"><span class="lbl">Contact WhatsApp (shown to end-users)</span><input value="+234 803 254 0215"></label>
+            <button class="btn" onclick="toast('Captive portal settings saved')"><svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Save settings</button>
+          </div>
+          <div>
+            <div class="lbl" style="margin-bottom:8px">LIVE PREVIEW</div>
+            <div class="card" style="padding:0;overflow:hidden">
+              <div id="pf-preview-top" style="background:linear-gradient(135deg,#667eea,#764ba2);padding:26px 20px;color:#fff;text-align:center">
+                <svg class="ic" style="width:26px;height:26px;stroke:#fff;margin-bottom:8px" viewBox="0 0 24 24"><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 16a6 6 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="#fff" stroke="none"/></svg>
+                <div id="pf-preview-title" style="font-weight:700;font-size:15px">Welcome to Lagos FastNet</div>
+                <div id="pf-preview-ssid" style="font-size:12px;opacity:.85;margin-top:2px">Lagos FastNet 5G</div>
+              </div>
+              <div style="padding:16px;font-size:12.5px;color:var(--sub);text-align:center">Choose your plan — Continue to payment, e.g. <span id="pf-preview-price">₦300</span>/day</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending payments -->
+      <div class="rtab" id="rtab-pending" style="display:none">
+        <div class="tabhead"><div><h2>Pending payments</h2><p>Customers who paid via transfer/USSD from the Captive Portal — confirm once you see it land.</p></div></div>
+        <div class="card">
+          <div style="border-bottom:1px solid var(--border);padding:14px 4px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b>Ade Bankole</b><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Weekly Standard · ₦1,500 via Bank Transfer · ref: <span style="font-family:monospace">FBN-TXN-88213</span> · 6m ago · <a href="#" onclick="event.preventDefault();toast('Opens the uploaded receipt image')" style="color:var(--primary);font-weight:600">📎 view receipt</a></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn soft sm" onclick="toast('Confirmed — voucher issued to Ade Bankole')">Confirm &amp; activate</button><button class="btn danger sm" onclick="toast('Rejected — Ade Bankole notified to retry')">Reject</button></div>
+          </div>
+          <div style="border-bottom:1px solid var(--border);padding:14px 4px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b>Chiamaka Obi</b><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Daily Pass · ₦300 via USSD · ref: <span style="font-family:monospace">QWE219CONFIRM</span> · 22m ago</div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn soft sm" onclick="toast('Confirmed — voucher issued to Chiamaka Obi')">Confirm &amp; activate</button><button class="btn danger sm" onclick="toast('Rejected — Chiamaka Obi notified to retry')">Reject</button></div>
+          </div>
+          <div style="padding:14px 4px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><b>Tunde Fashola</b><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Monthly Pro · ₦5,000 via Bank Transfer · ref: <span style="font-family:monospace">GTB-556-2201</span> · 1h ago · <a href="#" onclick="event.preventDefault();toast('Opens the uploaded receipt image')" style="color:var(--primary);font-weight:600">📎 view receipt</a></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn soft sm" onclick="toast('Confirmed — voucher issued to Tunde Fashola')">Confirm &amp; activate</button><button class="btn danger sm" onclick="toast('Rejected — Tunde Fashola notified to retry')">Reject</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- License -->
+      <div class="rtab" id="rtab-license" style="display:none">
+        <div class="tabhead"><div><h2>License</h2><p>Your own subscription to SAFE_Links — billed by A I Brains Ventures.</p></div></div>
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><div style="font-weight:800;font-size:15px">Growth plan</div><div style="font-size:12px;color:var(--sub);margin-top:2px">Renews in 18 days · up to 500 active clients</div></div>
+            <span class="badge" style="background:#eafaf0;color:#2f9e5c;font-size:12px;padding:5px 12px">active</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="panel-title">Renew early / change plan</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <div style="flex:1;text-align:center;padding:9px 8px;border-radius:8px;border:1.5px solid var(--primary);color:var(--primary);font-size:12.5px;font-weight:600">Bank Transfer</div>
+            <div style="flex:1;text-align:center;padding:9px 8px;border-radius:8px;border:1.5px solid var(--border);color:var(--sub);font-size:12.5px;font-weight:600">USSD</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:14px;margin-bottom:12px;font-size:13px">
+            <b>Transfer to A I Brains Ventures' account</b>
+            <div style="color:var(--sub);line-height:1.9;margin-top:6px">Bank: <b style="color:var(--ink)">Chase Bank</b><br>Account name: <b style="color:var(--ink)">A I Brains Ventures</b><br>Account number: <b style="color:var(--ink);font-family:monospace">0099 8811 220</b><br>Amount: <b style="color:var(--ink)">$49.00</b></div>
+          </div>
+          <label class="field"><span class="lbl">Receipt reference (or upload a photo)</span>
+            <div style="display:flex;gap:8px"><input placeholder="e.g. Receipt_TXN88213.jpg"><button class="btn ghost" style="width:42px;padding:0;justify-content:center" onclick="toast('Receipt attached: chase_txn_9921.jpg')"><svg class="ic" viewBox="0 0 24 24"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button></div>
+          </label>
+          <button class="btn" style="width:100%;justify-content:center" onclick="toast('Submitted — A I Brains Ventures will confirm once the transfer lands')">Submit for confirmation</button>
+        </div>
+      </div>
+
+      <!-- Referrals -->
+      <div class="rtab" id="rtab-referrals" style="display:none">
+        <div class="tabhead"><div><h2>Referrals</h2><p>Invite other resellers — earn a bonus once they sign up and pay for a plan.</p></div></div>
+        <div class="card" style="margin-bottom:14px">
+          <div style="font-size:12px;color:var(--sub)">Your referral code</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+            <div style="font-family:monospace;font-weight:800;font-size:16px;letter-spacing:.05em">LAGOSFN2K9</div>
+            <button class="btn ghost sm" onclick="toast('Referral link copied to clipboard')">Copy link</button>
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><div class="n">6</div><div class="l">Invited</div></div>
+          <div class="stat"><div class="n">3</div><div class="l">Signed up</div></div>
+          <div class="stat"><div class="n">$30</div><div class="l">Total earned</div></div>
+        </div>
+        <div class="card">
+          <table><thead><tr><th>Reseller</th><th>Status</th><th>Bonus</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Kano Connect ISP</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">bonus paid</span></td><td>$10.00</td><td>—</td></tr>
+            <tr><td>Ibadan Broadband Co</td><td><span class="badge" style="background:#fff8e6;color:#c98a12">signed up</span></td>
+              <td id="ref-bonus-2">$10.00</td>
+              <td id="ref-bonus-btn-2"><button class="btn ghost sm" onclick="editBonus(2)">Edit</button></td></tr>
+            <tr><td>Abuja Metro Net</td><td><span class="badge" style="background:#f5f5f5;color:#8a8f9c">invited</span></td><td>—</td><td>—</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- Support -->
+      <div class="rtab" id="rtab-support" style="display:none">
+        <div class="tabhead"><div><h2>Support</h2><p>Message A I Brains Ventures directly — attach a screenshot, receipt, or voice note if it helps.</p></div></div>
+        <div class="card" style="margin-bottom:14px">
+          <label class="field"><span class="lbl">Subject</span><input id="tk-subject" placeholder="e.g. Router not checking in"></label>
+          <label class="field"><span class="lbl">Message</span><textarea rows="3" placeholder="Describe your issue or question…"></textarea></label>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="btn ghost sm" onclick="toast('Opens file picker — image, PDF up to 6MB')"><svg class="ic" viewBox="0 0 24 24"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach file</button>
+            <button class="btn ghost sm" onclick="toast('Recording… tap again to stop and attach')"><svg class="ic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>Record voice note</button>
+          </div>
+          <button class="btn" onclick="toast('Ticket sent to A I Brains Ventures')">Send to Super Admin</button>
+        </div>
+        <div class="card">
+          <div class="panel-title">Your tickets</div>
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b style="font-size:13px">Router offline since yesterday</b><span class="badge" style="background:#fff8e6;color:#c98a12">open</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Yaba-RTR-03 hasn't checked in since 6pm yesterday. Rebooted twice already.</div>
+            <div style="background:#faf5fc;border-left:3px solid var(--secondary);border-radius:6px;padding:9px;margin-top:6px;font-size:12px"><b>A I Brains Ventures:</b> Can you confirm the SIM/uplink still has data? Checking agent logs now. <div style="font-size:10.5px;color:var(--sub);margin-top:3px">18m ago</div></div>
+          </div>
+          <div style="padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b style="font-size:13px">Question about license upgrade</b><span class="badge" style="background:#eafaf0;color:#2f9e5c">resolved</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Does upgrading mid-cycle prorate the remaining days?</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="rtab" id="rtab-notifications" style="display:none">
+        <div class="tabhead"><div><h2>Notifications</h2><p></p></div><button class="btn ghost sm" onclick="toast('All marked as read')">Mark all read</button></div>
+        <div class="card">
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px;display:flex;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></div><div><b style="font-size:13px">New pending payment</b><div style="font-size:12px;color:var(--sub)">Ade Bankole submitted ₦1,500 via Bank Transfer · 6m ago</div></div></div>
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px;display:flex;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></div><div><b style="font-size:13px">Router idle warning</b><div style="font-size:12px;color:var(--sub)">Yaba-RTR-03 hasn't checked in for 15+ minutes · 19m ago</div></div></div>
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px;display:flex;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></div><div><b style="font-size:13px">Referral signed up</b><div style="font-size:12px;color:var(--sub)">Ibadan Broadband Co joined using your referral code · 2h ago</div></div></div>
+          <div style="padding:12px 4px;display:flex;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex-shrink:0"></div><div><b style="font-size:13px">Support reply</b><div style="font-size:12px;color:var(--sub)">A I Brains Ventures replied to "Router offline since yesterday" · 18m ago</div></div></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</section>
+
+<!-- ================= SUPER ADMIN ================= -->
+<section class="view" id="view-admin">
+  <div class="shell">
+    <nav class="side">
+      <div class="who"><div class="role">Super Admin</div><div class="name">A I Brains Ventures</div></div>
+      <div class="navitem active" data-a-tab="overview"><svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-4-4L3 16"/></svg>Overview</div>
+      <div class="navitem" data-a-tab="resellers"><svg class="ic" viewBox="0 0 24 24"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h.01M14 9h.01M10 13h.01M14 13h.01M10 17h.01M14 17h.01"/></svg>Resellers</div>
+      <div class="navitem" data-a-tab="plans"><svg class="ic" viewBox="0 0 24 24"><path d="M16.5 9.4 7.55 4.24M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>Platform plans</div>
+      <div class="navitem" data-a-tab="installs"><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6.01 18H6M15 10V6a2 2 0 0 0-2-2H8"/></svg>Installations</div>
+      <div class="navitem" data-a-tab="license"><svg class="ic" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>License payments<span class="bubble">2</span></div>
+      <div class="navitem" data-a-tab="support"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M14.31 8 20.05 17.94M9.69 8H2.87M14.31 16 20.05 6.06M9.69 16H2.87M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8"/></svg>Support<span class="bubble">3</span></div>
+      <div class="navitem" data-a-tab="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</div>
+      <div class="navexit" onclick="switchView('landing')"><svg class="ic" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Log out</div>
+    </nav>
+    <main class="main">
+
+      <!-- Overview -->
+      <div class="atab" id="atab-overview">
+        <div class="tabhead"><div><h2>Overview</h2><p>Platform-wide, across every reseller.</p></div></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="n">42</div><div class="l">Active resellers</div></div>
+          <div class="stat"><div class="n">6,180</div><div class="l">End-users served</div></div>
+          <div class="stat"><div class="n">$2,058</div><div class="l">License revenue (MTD)</div></div>
+          <div class="stat"><div class="n" style="color:var(--warning)">5</div><div class="l">Licenses expiring &lt;7d</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="panel-title">Reseller growth</div>
+            <svg viewBox="0 0 300 110" style="width:100%;height:110px">
+              <polyline points="0,90 40,84 80,78 120,68 160,58 200,44 240,30 280,16" fill="none" stroke="#667eea" stroke-width="3"/>
+              <polyline points="0,90 40,84 80,78 120,68 160,58 200,44 240,30 280,16 280,110 0,110" fill="#667eea" opacity=".08" stroke="none"/>
+            </svg>
+          </div>
+          <div class="card">
+            <div class="panel-title">Recent signups</div>
+            <div style="font-size:12.5px;line-height:2.1">
+              <div>🟢 <b>Kano Connect ISP</b> — 2h ago</div>
+              <div>🟢 <b>Port Harcourt Fiber Hub</b> — 6h ago</div>
+              <div>🟡 <b>Enugu Skynet</b> (pending license) — 1d ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resellers -->
+      <div class="atab" id="atab-resellers" style="display:none">
+        <div class="tabhead"><div><h2>Resellers</h2><p>Every ISP running on SAFE_Links.</p></div></div>
+        <div class="card">
+          <table><thead><tr><th>Company</th><th>Plan</th><th>End-users</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Lagos FastNet</b></td><td>Growth</td><td>612</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">active</span></td><td><button class="btn ghost sm" onclick="toast('Opens Lagos FastNet\u2019s full account')">View</button></td></tr>
+            <tr><td><b>Kano Connect ISP</b></td><td>Starter</td><td>84</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">active</span></td><td><button class="btn ghost sm" onclick="toast('Opens Kano Connect ISP\u2019s full account')">View</button></td></tr>
+            <tr><td><b>Enugu Skynet</b></td><td>—</td><td>0</td><td><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></td><td><button class="btn ghost sm" onclick="toast('Opens Enugu Skynet\u2019s full account')">View</button></td></tr>
+            <tr><td><b>Ibadan Broadband Co</b></td><td>Starter</td><td>203</td><td><span class="badge" style="background:#fdecec;color:#d9534f">suspended</span></td><td><button class="btn ghost sm" onclick="toast('Opens Ibadan Broadband Co\u2019s full account')">View</button></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- Platform plans -->
+      <div class="atab" id="atab-plans" style="display:none">
+        <div class="tabhead"><div><h2>Platform plans</h2><p>What resellers pay SAFE_Links for their own license.</p></div></div>
+        <div class="card">
+          <table><thead><tr><th>Plan</th><th>Max clients</th><th>Price / mo</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Starter</b></td><td>150</td><td>$19.00</td><td><button class="btn ghost sm" onclick="toast('Edit plan price (demo)')">Edit price</button></td></tr>
+            <tr><td><b>Growth</b></td><td>500</td><td>$49.00</td><td><button class="btn ghost sm" onclick="toast('Edit plan price (demo)')">Edit price</button></td></tr>
+            <tr><td><b>Scale</b></td><td>2,000</td><td>$129.00</td><td><button class="btn ghost sm" onclick="toast('Edit plan price (demo)')">Edit price</button></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="panel-title">Generate product keys</div>
+          <div class="grid-2">
+            <label class="field"><span class="lbl">Plan</span><select><option>Starter</option><option>Growth</option><option>Scale</option></select></label>
+            <label class="field"><span class="lbl">How many keys</span><input type="number" value="1"></label>
+          </div>
+          <button class="btn" onclick="toast('Generated 1 key: SLK-9F2C-E01A-QX7M')"><svg class="ic" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Generate keys</button>
+        </div>
+      </div>
+
+      <!-- Installations -->
+      <div class="atab" id="atab-installs" style="display:none">
+        <div class="tabhead"><div><h2>Installations</h2><p>Routers paired across all resellers.</p></div></div>
+        <div class="card">
+          <table><thead><tr><th>Router</th><th>Reseller</th><th>Model</th><th>Last check-in</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Mainland-RTR-01</td><td>Lagos FastNet</td><td>MikroTik hAP ac²</td><td>38s ago</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>Island-RTR-02</td><td>Lagos FastNet</td><td>MikroTik hAP ac³</td><td>2m ago</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>Kano-RTR-01</td><td>Kano Connect ISP</td><td>MikroTik hAP lite</td><td>4m ago</td><td><span class="badge" style="background:#eafaf0;color:#2f9e5c">online</span></td></tr>
+            <tr><td>PH-RTR-05</td><td>Port Harcourt Fiber Hub</td><td>Ubuntu agent</td><td>2h ago</td><td><span class="badge" style="background:#fdecec;color:#d9534f">offline</span></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <!-- License payments -->
+      <div class="atab" id="atab-license" style="display:none">
+        <div class="tabhead"><div><h2>Reseller license payments</h2><p></p></div><span class="badge" style="background:#fff8e6;color:#c98a12;font-size:12px;padding:5px 12px">2 pending</span></div>
+        <div class="card">
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b>Enugu Skynet — Starter</b><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">$19.00 via Bank Transfer · ref: <span style="font-family:monospace">GTB-102-771</span> · 3h ago · <a href="#" onclick="event.preventDefault();toast('Opens the uploaded receipt image')" style="color:var(--primary);font-weight:600">📎 view receipt</a></div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn soft sm" onclick="toast('Confirmed — Enugu Skynet activated')">Confirm</button><button class="btn danger sm" onclick="toast('Rejected — Enugu Skynet notified')">Reject</button></div>
+          </div>
+          <div style="padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b>Ibadan Broadband Co — Starter renewal</b><span class="badge" style="background:#fff8e6;color:#c98a12">pending</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">$19.00 via USSD · ref: <span style="font-family:monospace">UBA772201Q</span> · 1d ago</div>
+            <div style="display:flex;gap:8px;margin-top:8px"><button class="btn soft sm" onclick="toast('Confirmed — Ibadan Broadband Co reactivated')">Confirm</button><button class="btn danger sm" onclick="toast('Rejected — Ibadan Broadband Co notified')">Reject</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Support -->
+      <div class="atab" id="atab-support" style="display:none">
+        <div class="tabhead"><div><h2>Support</h2><p>Tickets from resellers.</p></div></div>
+        <div class="card">
+          <div style="border-bottom:1px solid var(--border);padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b style="font-size:13px">Lagos FastNet — Router offline since yesterday</b><span class="badge" style="background:#fff8e6;color:#c98a12">open</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Yaba-RTR-03 hasn't checked in since 6pm yesterday. Rebooted twice already.</div>
+            <div style="display:flex;gap:8px;margin-top:8px"><input placeholder="Write a reply…" style="flex:1"><button class="btn sm" onclick="toast('Reply sent to Lagos FastNet')">Send reply</button></div>
+          </div>
+          <div style="padding:12px 4px">
+            <div style="display:flex;justify-content:space-between"><b style="font-size:13px">Kano Connect ISP — Payout account change</b><span class="badge" style="background:#eafaf0;color:#2f9e5c">resolved</span></div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0">Need to update the bank account for license payments.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="atab" id="atab-settings" style="display:none">
+        <div class="tabhead"><div><h2>Platform settings</h2><p>Contact info and bank details resellers see when paying their license.</p></div></div>
+        <div class="card">
+          <label class="field"><span class="lbl">Contact email (shown to resellers)</span><input value="aibrainsventures@gmail.com"></label>
+          <label class="field"><span class="lbl">Contact WhatsApp</span><input value="+234 803 254 0215"></label>
+          <label class="field"><span class="lbl">Platform currency (license billing)</span><select><option>USD</option><option>NGN</option></select></label>
+          <button class="btn" onclick="toast('Platform settings saved')">Save settings</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</section>
+
+<!-- ================= CAPTIVE PORTAL ================= -->
+<section class="view" id="view-portal">
+  <div class="portal-stage">
+    <div class="phone">
+      <div class="screen">
+        <div class="portal-topbar">
+          <svg class="ic" style="width:26px;height:26px;stroke:#fff;margin:0 auto 6px;display:block" viewBox="0 0 24 24"><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 16a6 6 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="#fff" stroke="none"/></svg>
+          <div style="font-weight:700;font-size:15px">Welcome to Lagos FastNet</div>
+          <div class="ssid">Lagos FastNet 5G</div>
+        </div>
+        <div class="portal-body" id="portal-step-plans">
+          <div style="font-size:11.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Choose your plan</div>
+
+          <div class="plan-card" onclick="selectPlan(this,'1 Hour Quick','₦100')">
+            <div class="row"><span class="name">1 Hour Quick</span><span class="price">₦100</span></div>
+            <div class="meta">1 hour · 1 device · 8 Mbps</div>
+          </div>
+          <div class="plan-card" onclick="selectPlan(this,'Daily Pass','₦300')">
+            <div class="row"><span class="name">Daily Pass</span><span class="price">₦300</span></div>
+            <div class="meta">24 hours · 2 devices · 10 Mbps</div>
+          </div>
+          <div class="plan-card selected" onclick="selectPlan(this,'Weekly Standard','₦1,500')">
+            <div class="row"><span class="name">Weekly Standard <span class="pop">POPULAR</span></span><span class="price">₦1,500</span></div>
+            <div class="meta">7 days · 3 devices · 15 Mbps</div>
+          </div>
+          <div class="plan-card" onclick="selectPlan(this,'Monthly Pro','₦5,000')">
+            <div class="row"><span class="name">Monthly Pro</span><span class="price">₦5,000</span></div>
+            <div class="meta">30 days · 5 devices · 25 Mbps</div>
+          </div>
+
+          <button class="btn" style="width:100%;justify-content:center;margin-top:6px" onclick="goPortalStep('pay')">Continue to payment</button>
+          <div class="helplink" onclick="goPortalStep('help')"><svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>Need help?</div>
+        </div>
+
+        <div class="portal-body" id="portal-step-pay" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;color:var(--sub);font-size:12px;font-weight:600" onclick="goPortalStep('plans')"><svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Back</div>
+          <label class="field"><span class="lbl">Full name</span><input placeholder="Your name"></label>
+          <label class="field"><span class="lbl">Phone</span><input placeholder="080..."></label>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <div style="flex:1;text-align:center;padding:9px 8px;border-radius:8px;border:1.5px solid var(--primary);color:var(--primary);font-size:12px;font-weight:600">Bank Transfer</div>
+            <div style="flex:1;text-align:center;padding:9px 8px;border-radius:8px;border:1.5px solid var(--border);color:var(--sub);font-size:12px;font-weight:600">USSD</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px">
+            <b>Transfer to Lagos FastNet</b>
+            <div style="color:var(--sub);line-height:1.85;margin-top:5px">Bank: <b style="color:var(--ink)">GTBank</b><br>Account: <b style="color:var(--ink)">Lagos FastNet Ltd</b><br>Number: <b style="color:var(--ink);font-family:monospace">0221 559 812</b><br>Amount: <b id="portal-amount" style="color:var(--ink)">₦1,500</b></div>
+          </div>
+          <label class="field"><span class="lbl">Receipt reference (or upload a photo)</span>
+            <div style="display:flex;gap:8px"><input placeholder="e.g. Receipt_TXN88213.jpg"><button class="btn ghost" style="width:38px;padding:0;justify-content:center;flex-shrink:0" onclick="toast('Receipt attached: gtb_receipt.jpg')"><svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button></div>
+          </label>
+          <button class="btn" style="width:100%;justify-content:center" onclick="goPortalStep('waiting')">Submit payment</button>
+        </div>
+
+        <div class="portal-body" id="portal-step-waiting" style="display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%">
+          <div style="width:52px;height:52px;border-radius:50%;background:#fff3e0;display:flex;align-items:center;justify-content:center;margin-bottom:14px">
+            <svg class="ic" style="width:24px;height:24px;stroke:#c98a12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <div style="font-weight:700;font-size:14.5px;margin-bottom:6px">Waiting on confirmation</div>
+          <div style="font-size:12.5px;color:var(--sub);max-width:230px;line-height:1.6">Lagos FastNet will confirm once they see your transfer land — you'll be connected automatically.</div>
+          <button class="btn ghost sm" style="margin-top:16px" onclick="goPortalStep('plans')">Start over</button>
+        </div>
+
+        <div class="portal-body" id="portal-step-help" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;color:var(--sub);font-size:12px;font-weight:600" onclick="goPortalStep('plans')"><svg class="ic" style="width:13px;height:13px" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Back</div>
+          <label class="field"><span class="lbl">Your name</span><input placeholder="Your name"></label>
+          <label class="field"><span class="lbl">Phone or email</span><input placeholder="080... or you@email.com"></label>
+          <label class="field"><span class="lbl">Subject</span><input placeholder="e.g. Can't connect after paying"></label>
+          <label class="field"><span class="lbl">Message</span><textarea rows="3" placeholder="Tell us what's happening…"></textarea></label>
+          <div style="display:flex;gap:6px;margin-bottom:12px">
+            <button class="btn ghost sm" onclick="toast('Opens file picker')"><svg class="ic" style="width:12px;height:12px" viewBox="0 0 24 24"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Attach</button>
+            <button class="btn ghost sm" onclick="toast('Recording voice note…')"><svg class="ic" style="width:12px;height:12px" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg>Voice note</button>
+          </div>
+          <button class="btn" style="width:100%;justify-content:center" onclick="toast('Sent to Lagos FastNet — they\u2019ll reach you directly')">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="portal-info">
+      <h2 style="margin-top:0">Captive Portal</h2>
+      <p style="color:var(--sub);font-size:13.5px;line-height:1.6">This is what a customer sees the moment they join a reseller's WiFi — a phone screen, not a desktop dashboard. Payment is always manual (bank transfer or USSD, no card gateway), confirmed by the reseller once the money actually lands. Try the flow on the left: pick a plan, "pay", and see the pending state — or tap <b>Need help?</b> to see the support form customers use if something goes wrong.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('#switcher .switch').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+document.querySelectorAll('#switcher .switch').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ---- reseller tab switching ----
+document.querySelectorAll('#view-reseller [data-r-tab]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('#view-reseller [data-r-tab]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('#view-reseller .rtab').forEach(p => p.style.display = 'none');
+    document.getElementById('rtab-' + item.dataset.rTab).style.display = 'block';
+  });
+});
+
+// ---- admin tab switching ----
+document.querySelectorAll('#view-admin [data-a-tab]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('#view-admin [data-a-tab]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('#view-admin .atab').forEach(p => p.style.display = 'none');
+    document.getElementById('atab-' + item.dataset.aTab).style.display = 'block';
+  });
+});
+
+// ---- reseller: captive portal live preview ----
+function portalPreview() {
+  document.getElementById('pf-preview-title').textContent = document.getElementById('pf-title').value || 'Portal title';
+  document.getElementById('pf-preview-ssid').textContent = document.getElementById('pf-ssid').value;
+  const color = document.getElementById('pf-color').value;
+  document.getElementById('pf-colortext').value = color;
+  document.getElementById('pf-preview-top').style.background = `linear-gradient(135deg, ${color}, #764ba2)`;
+  const cur = document.getElementById('pf-cur').value.split(' — ')[0];
+  const symbols = { NGN: '₦', KES: 'KSh', USD: '$', GHS: 'GH₵' };
+  document.getElementById('pf-preview-price').textContent = (symbols[cur] || '$') + '300';
+}
+
+// ---- reseller: referral bonus inline edit (the exact bug we fixed — now demoed working) ----
+function editBonus(row) {
+  const cell = document.getElementById('ref-bonus-' + row);
+  cell.innerHTML = '<div style="display:flex;gap:4px;align-items:center"><input type="number" value="10.00" style="width:70px;padding:5px 7px" id="bonus-input-' + row + '"><button class="btn sm" style="padding:5px 8px" onclick="saveBonus(' + row + ')">✓</button></div>';
+  document.getElementById('bonus-input-' + row).focus();
+  const btnCell = document.getElementById('ref-bonus-btn-' + row);
+  if (btnCell) btnCell.style.visibility = 'hidden';
+}
+function saveBonus(row) {
+  const val = document.getElementById('bonus-input-' + row).value;
+  document.getElementById('ref-bonus-' + row).innerHTML = '$' + Number(val).toFixed(2);
+  const btnCell = document.getElementById('ref-bonus-btn-' + row);
+  if (btnCell) btnCell.style.visibility = 'visible';
+  toast('Referral bonus updated to $' + Number(val).toFixed(2));
+}
+
+// ---- captive portal ----
+function selectPlan(el, name, price) {
+  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('portal-amount').textContent = price;
+}
+function goPortalStep(step) {
+  ['plans', 'pay', 'waiting', 'help'].forEach(s => {
+    document.getElementById('portal-step-' + s).style.display = (s === step) ? (s === 'waiting' ? 'flex' : 'block') : 'none';
+  });
+}
+</script>
+
+</body>
+</html>

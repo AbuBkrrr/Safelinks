@@ -1,0 +1,21 @@
+{
+  "name": "safe-links-desktop",
+  "productName": "SAFE_Links",
+  "version": "1.0.0",
+  "description": "SAFE_Links desktop app — Super Admin, Reseller, and Captive Portal in one window, routed by sign-in.",
+  "main": "src/main.js",
+  "author": "A I Brains Ventures",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "package:win": "electron-packager . SAFE_Links --platform=win32 --arch=x64 --icon=build/icon.ico --out=dist --overwrite --ignore=\"^/dist\" --ignore=\"^/Output\" --ignore=\"^/README\\.md\" --ignore=\"^/\\.gitignore\" --ignore=\"^/.*\\.iss$\" --app-copyright=\"A I Brains Ventures\" --win32metadata.CompanyName=\"A I Brains Ventures\" --win32metadata.ProductName=\"SAFE_Links\" --win32metadata.FileDescription=\"SAFE_Links\""
+  },
+  "dependencies": {
+    "default-gateway": "^7.2.2"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.2.0",
+    "electron": "^43.3.0"
+  }
+}

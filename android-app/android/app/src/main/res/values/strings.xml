@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SAFE_Links</string>
+    <string name="title_activity_main">SAFE_Links</string>
+    <string name="package_name">com.aibrainsventures.safelinks</string>
+    <string name="custom_url_scheme">com.aibrainsventures.safelinks</string>
+
+    <string name="picker_title">Welcome to SAFE_Links</string>
+    <string name="picker_subtitle">What are you here to do?</string>
+    <string name="picker_reseller_admin">I\'m a Reseller / Admin</string>
+    <string name="picker_installer">I\'m pairing a router</string>
+    <string name="menu_switch_mode">Switch mode</string>
+</resources>

@@ -1,0 +1,6 @@
+# Replace yourdomain.com with your real domain (must already point at
+# this server's IP). Caddy will get and renew a Let's Encrypt cert for
+# it automatically the first time it starts.
+yourdomain.com {
+  reverse_proxy frontend:80
+}

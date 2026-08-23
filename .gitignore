@@ -1,0 +1,22 @@
+# Global, cross-project patterns only. Each subproject (web-app/,
+# android-app/, desktop-app/) has its own .gitignore scoped to its own
+# build-output paths — kept separate on purpose after a real bug was
+# found here: a blanket "build/" pattern at this level was silently
+# excluding desktop-app/build/icon.ico and icon.png, which are
+# committed *source* resources (the packaging script points
+# --icon=build/icon.ico at them), not build output. Do not re-add a
+# bare "build/", "dist/", or "Output/" line here — put output-path
+# ignores in the relevant subproject's own .gitignore instead, where
+# they can be scoped precisely.
+node_modules/
+
+# Secrets — never commit real .env files, only .env.example
+.env
+.env.local
+*.jks
+*.keystore
+
+# OS/editor noise
+.DS_Store
+.idea/
+*.iml

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SAFE_Links</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 32px;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+    -webkit-user-select: none; user-select: none;
+  }
+  h1 { font-size: 20px; margin: 16px 0 8px; }
+  p { font-size: 14px; opacity: 0.85; max-width: 340px; line-height: 1.5; }
+  .dot { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  button { margin-top: 18px; padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <!-- Shown only when the app can't reach the server configured in
+       src/main.js (SERVER_URL) — either no internet, or that URL
+       hasn't been pointed at a real deployment yet. It is NOT the app
+       itself; every real screen is always loaded live from your server. -->
+  <div class="dot">📡</div>
+  <h1>SAFE_Links</h1>
+  <p>Can't reach the server right now. Check your connection, or if
+     you're seeing this right after installing, the server address
+     hasn't been configured yet — contact your administrator.</p>
+  <button onclick="location.reload()">Try again</button>
+</body>
+</html>

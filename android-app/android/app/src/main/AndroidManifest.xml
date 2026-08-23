@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <!--
+          PickerActivity is now the launcher, not MainActivity — it
+          decides "Reseller/Admin" vs "pairing a router" on first
+          launch (see that class's own doc comment for why this needs
+          to be a native screen at all: there's no address bar in a
+          Capacitor WebView, and the web app's own text pointing
+          people to /install isn't a tappable link). On every launch
+          after the first, it reads the saved choice and hands off to
+          MainActivity immediately with no visible screen of its own.
+        -->
+        <activity
+            android:name=".PickerActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Support tickets support attaching a voice note (see AttachmentPicker
+         in the web app), recorded via the browser's getUserMedia() API.
+         Capacitor's own WebView bridge (BridgeWebChromeClient) already
+         handles the runtime permission prompt for this automatically —
+         it just needs these declared here to be allowed to ask. Without
+         them, tapping "Record voice note" would silently fail. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Required by ConnectivityManager.getActiveNetwork() /
+         getLinkProperties(), which GatewayLocator calls directly to
+         find the LAN gateway for router pairing. Without this, those
+         calls throw SecurityException at runtime (this is a normal
+         install-time permission, not a runtime prompt). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Confirms LAN router pairing is running on WiFi, not mobile
+         data (see GatewayLocator). Does not grant SSID/BSSID access -
+         that additionally requires location permission, which this
+         feature never needs. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+</manifest>
