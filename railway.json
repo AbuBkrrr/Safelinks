@@ -1,0 +1,12 @@
+﻿{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "cd web-app/frontend && npm install --legacy-peer-deps && npm run build"
+  },
+  "deploy": {
+    "startCommand": "cd web-app/frontend && npx serve -s dist -l ",
+    "healthcheckPath": "/",
+    "restartPolicyType": "ON_FAILURE",
+    "static": true
+  }
+}
