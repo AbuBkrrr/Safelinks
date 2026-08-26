@@ -7,11 +7,11 @@ piece has its own detailed README — this file is just the map.
 
 **New here? Start with [`DEPLOYMENT.md`](./DEPLOYMENT.md)** — a
 complete, no-assumptions, step-by-step guide from an empty checkout to
-a live production deployment on your own VPS (Docker Compose + Caddy).
+a live production deployment on your own VPS.
 
-**Deploying to [Railway](https://railway.app) instead?** See
-[`RAILWAY.md`](./RAILWAY.md) — no VPS to rent or Docker Compose to run
-yourself; Railway builds each piece from this repo directly.
+**Deploying via GitHub + Railway instead?** Use
+[`RAILWAY.md`](./RAILWAY.md) — no server to rent or manage yourself,
+Railway builds directly from this repo.
 
 ## Start here: deployment order matters
 
@@ -98,7 +98,7 @@ that specific feature for real.
 - **A documentation overclaim corrected**: both the Android and desktop
   LAN-pairing code originally described the generated RouterOS script
   as a "byte-identical"/"line-for-line" copy of
-  `web-app/backend/router-scripts/reslink-agent.rsc`. Actually
+  `web-app/reslink-backend/router-scripts/reslink-agent.rsc`. Actually
   diffing generated output against that file showed real (harmless)
   differences — the one-shot registration step runs inline instead of
   as a persisted script object, and log wording is paraphrased. Fixed

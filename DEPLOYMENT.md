@@ -151,7 +151,7 @@ your internet speed.
 
 ✅ **Checkpoint:** Back in your **server** terminal window, type
 `ls /root/safe-links` — you should see `docker-compose.yml`,
-`Caddyfile`, `frontend`, `backend`, `README.md`.
+`Caddyfile`, `frontend`, `reslink-backend`, `README.md`.
 
 ### Step 1.6 — Set your domain in the Caddyfile (on the server)
 
@@ -384,7 +384,7 @@ browser at `https://yourdomain.com`, and do these in order:
       only. On the server:
       ```bash
       cd /root/safe-links
-      nano backend/src/db.js
+      nano reslink-backend/src/db.js
       ```
       Find the `seed()` function and either change the demo passwords
       or delete the demo account creation entirely, then rebuild:
@@ -397,7 +397,7 @@ browser at `https://yourdomain.com`, and do these in order:
       edit `.env` on the server (`nano .env`) with your SMTP provider's
       details, then `docker compose up -d --build` again.
 - [ ] **Read the Limitations section** in
-      `web-app/backend/README.md` — most importantly, the
+      `web-app/reslink-backend/README.md` — most importantly, the
       MikroTik/Linux router-pairing scripts are real code but haven't
       been run against physical hardware yet. Test against one spare
       router before handing this to a paying reseller.

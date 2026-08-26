@@ -1,14 +1,14 @@
 # Going Live With SAFE_Links on Railway
 
 An alternative to `DEPLOYMENT.md`'s VPS path. No server to rent, no
-`docker compose up` to run yourself — Railway builds `web-app/backend`
-and `web-app/frontend` straight from this GitHub repo and gives you a
-managed Postgres database.
+`docker compose up` to run yourself — Railway builds `web/backend` and
+`web/frontend` straight from this GitHub repo and gives you a managed
+Postgres database.
 
 You're creating **one Railway project with three services**: a
 Postgres database, the backend API, and the frontend. This guide only
-covers `web-app/` — the Android and Windows apps still need a live web
-app first (same as `DEPLOYMENT.md` explains), then point at whatever
+covers `web/` — the Android and Windows apps still need a live web app
+first (same as `DEPLOYMENT.md` explains), then point at whatever
 domain Railway gives your frontend service.
 
 ---
@@ -29,11 +29,11 @@ git push -u origin main
 
 (Create the empty repo on GitHub first at github.com/new, don't
 initialize it with a README — then the commands above will push
-cleanly.)
+cleanly. If you've already got this repo on GitHub from earlier, skip
+this whole part.)
 
 ✅ **Checkpoint:** refreshing your GitHub repo page shows all the
-folders — `web-app/`, `android-app/`, `desktop-app/`, `system-demo/`,
-`tools/`.
+folders — `web/`, `android/`, `desktop/`, `system-demo/`, `tools/`.
 
 ---
 
@@ -51,8 +51,8 @@ folders — `web-app/`, `android-app/`, `desktop-app/`, `system-demo/`,
 
 1. **+ New** → **GitHub Repo** → same repo again.
 2. Click the new service → **Settings**:
-   - **Root Directory**: `web-app/backend`
-   - **Build**: leave as "Dockerfile" (Railway auto-detects `web-app/backend/Dockerfile`)
+   - **Root Directory**: `web/backend`
+   - **Build**: leave as "Dockerfile" (Railway auto-detects `web/backend/Dockerfile`)
 3. **Variables** tab — add these:
 
 ```
@@ -86,14 +86,17 @@ SMTP_FROM=SAFE_Links <no-reply@yourdomain.com>
    you need it in Part 3.
 
 5. **Add a Volume** (this is required — without it, every uploaded
-   receipt/support-ticket attachment is silently deleted on the
-   backend's next deploy or restart, since Railway containers don't
-   keep local disk changes): **Settings → Volumes → New Volume** →
-   mount path:
+   receipt/support-ticket attachment, including voice notes, is
+   silently deleted on the backend's next deploy or restart, since
+   Railway containers don't keep local disk changes): **Settings →
+   Volumes → New Volume** → mount path:
 
 ```
 /app/uploads
 ```
+
+(Verified against the backend's own source — `UPLOADS_DIR` really
+does resolve to exactly this path inside the container, not assumed.)
 
 ✅ **Checkpoint:** the backend service shows a green "Active" deploy.
 Open `https://YOUR-BACKEND-DOMAIN/health` in a browser — it should
@@ -105,7 +108,7 @@ return `{"ok":true,"service":"safe-links-backend"}`.
 
 1. **+ New** → **GitHub Repo** → same repo again.
 2. **Settings**:
-   - **Root Directory**: `web-app/frontend`
+   - **Root Directory**: `web/frontend`
    - **Build**: leave as "Dockerfile"
 3. **Variables** tab:
 
@@ -115,18 +118,32 @@ VITE_API_URL=https://YOUR-BACKEND-DOMAIN
 
 Use the real backend domain you copied in Part 2, no trailing slash.
 
-⚠️ **This one is a build-time value, not a runtime one** — Vite bakes
-it into the compiled JS during `npm run build`. If you set or change
-it *after* the first deploy, click **Deploy → Redeploy** on the
-frontend service afterward, or the old value stays baked into the
-build the browser downloads.
+⚠️ **This is a build-time value, not a runtime one** — Vite bakes it
+into the compiled JS during `npm run build`, permanently, as plain
+text in the shipped bundle. Setting it in Railway's Variables tab
+alone is not enough to make that happen — **`web/frontend/Dockerfile`
+must explicitly declare `ARG VITE_API_URL` and `ENV VITE_API_URL=$VITE_API_URL`
+before the build step**, or Railway's Variable never actually reaches
+the `npm run build` process at all (this is Railway's own documented
+behavior for Dockerfile builds, not a guess — a Dockerfile only sees a
+configured Variable if it's explicitly received via `ARG`). This
+repo's Dockerfile already has that line; if you ever rewrite this
+Dockerfile from scratch, don't drop it, or every API call the deployed
+frontend makes will silently go to its own domain instead of the
+backend's, and everything will look broken with no clear error message
+pointing at why.
+
+If you set or change `VITE_API_URL` *after* the first deploy, click
+**Deploy → Redeploy** on the frontend service afterward — editing the
+Variable alone doesn't retrigger a rebuild.
 
 4. **Settings → Networking → Generate Domain** for the frontend too.
 
 ✅ **Checkpoint:** open the frontend's Railway domain in a browser —
 the SAFE_Links login/signup screen loads, and creating an account
 actually reaches the backend (check the browser's Network tab for
-`200` responses, not CORS or connection errors).
+`200` responses to the real backend domain, not CORS errors or calls
+going to the frontend's own domain).
 
 ---
 
@@ -138,7 +155,8 @@ Networking → Custom Domain**, add e.g. `app.yourdomain.com`, then add
 the CNAME record Railway shows you at your domain registrar. Repeat
 for the backend on a subdomain like `api.yourdomain.com` if you want
 one — then update `VITE_API_URL` on the frontend to match and
-redeploy.
+redeploy (see the build-time warning in Part 3 — changing this always
+needs a redeploy, never just a restart).
 
 ---
 
@@ -150,17 +168,35 @@ redeploy.
   Railway only rebuilds a service when a file under its Root Directory
   actually changed.
 - **CORS**: the backend already sends
-  `Access-Control-Allow-Origin: *`, so the frontend and backend living
-  on two different Railway domains works without any code change.
-- **The frontend's nginx `/api/` and `/uploads/` proxy blocks
-  (`web-app/frontend/nginx.conf.template`) are dead code in this
-  specific setup** — they only matter when frontend and backend share
-  one domain (the VPS/Docker Compose path in `DEPLOYMENT.md`). On
-  Railway, the browser calls the backend's own domain directly via
-  `VITE_API_URL`, bypassing them entirely. Harmless either way, just
-  worth knowing they're not doing anything here.
+  `Access-Control-Allow-Origin: *` (confirmed in `web/backend/src/http.js`),
+  so the frontend and backend living on two different Railway domains
+  works without any code change, as long as Part 3's `ARG`/`VITE_API_URL`
+  setup is actually in place.
+- **The frontend's nginx `/api/`-proxy config (`web/frontend/nginx.conf`)
+  is dead code in this specific setup** — it only matters when frontend
+  and backend share one domain (the VPS/Docker Compose path in
+  `DEPLOYMENT.md`). On Railway, the browser calls the backend's own
+  domain directly via `VITE_API_URL`, bypassing it entirely. Harmless
+  either way, just worth knowing it's not doing anything here.
 - **Database schema**: the backend creates its own tables on first
-  boot (see `web-app/backend/src/db.js`) — nothing to run manually.
+  boot (see `web/backend/src/db.js`) — nothing to run manually.
 - **Costs**: Railway's free tier has usage limits that a Postgres +
   two always-on services will likely exceed within the trial; check
   Railway's current pricing before committing to it for a real launch.
+
+## What was actually verified before writing this, not assumed
+
+- The `ARG`/`ENV` requirement for `VITE_API_URL` — confirmed against
+  Railway's own documentation, then reproduced the actual failure
+  locally: built this exact frontend without the variable set, and
+  confirmed the compiled bundle bakes in a bare `/api/...` path (same-
+  origin, broken on a separate-domain Railway setup) — then built it
+  again with the variable set, and confirmed the real backend URL
+  shows up directly in the compiled JavaScript.
+- `/health`'s exact response shape — confirmed by actually running
+  this backend locally and hitting the endpoint for real.
+- The `/app/uploads` volume path — confirmed against the backend's own
+  `UPLOADS_DIR` resolution in source, not assumed from convention.
+- The CORS header and the real nginx config filename (`nginx.conf`,
+  not `nginx.conf.template` as an earlier draft of this guide said) —
+  both confirmed directly against the files in this repo.

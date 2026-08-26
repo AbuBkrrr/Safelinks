@@ -1,0 +1,8 @@
+node_modules/
+frontend/dist/
+frontend/node_modules/
+reslink-backend/node_modules/
+
+# Real secrets live in .env on your server, never in git — only
+# .env.example (with placeholder values) belongs in this repo.
+.env
