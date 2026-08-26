@@ -1,8 +1,9 @@
 ﻿{
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd web-app/frontend && npm install --legacy-peer-deps && npm run build"
-  },
+    "buildCommand": "cd web-app/frontend && npm ci --legacy-peer-deps && npm run build"
+  }
+},
   "deploy": {
     "startCommand": "cd web-app/frontend && npx serve -s dist -l $PORT",
     "healthcheckPath": "/",
