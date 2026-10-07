@@ -11,12 +11,32 @@ import { registerPortalRoutes } from "./routes/portal.js";
 import { registerSuperAdminRoutes } from "./routes/superAdmin.js";
 import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
+import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
 
 const UPLOAD_CONTENT_TYPES = {
   ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf",
   ".webm": "audio/webm", ".ogg": "audio/ogg", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
 };
+
+// Paths that never require a license check.
+// Rationale:
+//   /health        → monitoring endpoints must always respond
+//   /api/auth/*    → users must be able to log in before a licence is verified
+//   /api/portal/*  → captive-portal signup must work for end-users
+//   /uploads/*     → public static content for authenticated pages
+const LICENSE_EXEMPT_PREFIXES = [
+  "/health",
+  "/api/auth/",
+  "/api/portal/",
+  "/uploads/",
+];
+
+function isLicenseExempt(pathname) {
+  return LICENSE_EXEMPT_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p)
+  );
+}
 
 // Static file serving for uploaded receipts (see uploads.js). Handled
 // directly here rather than through the JSON-only router above — this
@@ -78,22 +98,42 @@ async function main() {
   registerRouterRoutes(router);
   registerAgentRoutes(router);
 
-  router.get("/health", async (req, res) => json(res, 200, { ok: true, service: "safelinks-backend" }));
+  router.get("/health", async (req, res) =>
+    json(res, 200, { ok: true, service: "safelinks-backend" })
+  );
 
   const PORT = process.env.PORT || 4000;
   const server = http.createServer((req, res) => {
     const pathname = new URL(req.url, "http://localhost").pathname;
+
+    // Static uploads bypass both the JSON router and the licence check.
     if (req.method === "GET" && pathname.startsWith("/uploads/")) {
       return serveUpload(req, res, pathname);
     }
-    return router.handle(req, res);
+
+    // Public / unauthenticated routes bypass the licence check entirely.
+    if (isLicenseExempt(pathname)) {
+      return router.handle(req, res);
+    }
+
+    // Everything else requires a valid licence (in enforce mode).
+    // In soft mode (default), licenseMiddleware logs a warning and lets
+    // the request through anyway — see modules/license-manager.js.
+    licenseMiddleware(req, res, () => router.handle(req, res));
   });
 
   server.listen(PORT, () => {
+    const enforce =
+      String(process.env.SAFELINKS_LICENSE_ENFORCE || "false").toLowerCase() === "true";
     console.log(`SAFE_Links backend listening on http://localhost:${PORT}`);
-    console.log(seedResult.seeded ? "Database seeded with demo data." : "Database already had data — skipped seeding.");
-    console.log("Demo logins: admin@SAFELINKS.io / admin123  (super admin)");
+    console.log(
+      seedResult.seeded
+        ? "Database seeded with demo data."
+        : "Database already had data — skipped seeding."
+    );
+    console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");
     console.log("             admin@nairobitech.io / reseller123  (reseller)");
+    console.log(`License enforcement: ${enforce ? "ON (hard mode)" : "OFF (soft mode — logs only)"}`);
   });
 }
 
