@@ -1,0 +1,498 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261007122637
+Username: DESKTOP-4DOU3HI\DELL
+RunAs User: DESKTOP-4DOU3HI\DELL
+Configuration Name: 
+Machine: DESKTOP-4DOU3HI (Microsoft Windows NT 10.0.22621.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 9724
+PSVersion: 5.1.22621.4249
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.4249
+BuildVersion: 10.0.22621.4249
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+PS C:\Users\DELL\Downloads\safe-links-updated> function H($t) { Write-Host "`n===== $t =====" -ForegroundColor Cyan }
+PS C:\Users\DELL\Downloads\safe-links-updated> function OK($t) { Write-Host "  [OK]   $t" -ForegroundColor Green }
+PS C:\Users\DELL\Downloads\safe-links-updated> function WARN($t) { Write-Host "  [WARN] $t" -ForegroundColor Yellow }
+PS C:\Users\DELL\Downloads\safe-links-updated> function MISS($t) { Write-Host "  [MISS] $t" -ForegroundColor Red }
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 1. FILE INVENTORY ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "1. Project structure"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "1. Project structure" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "1. Project structure" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "1. Project structure"
++   ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "1. Project structure" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "1. Project structure"
++   ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> @("web","web\backend","web\frontend","web\backend\src","web\backend\src\routes",
+  "web\backend\src\modules","web\backend\router-scripts","web\frontend\src",
+  "web\frontend\src\components","web\frontend\src\pages") | ForEach-Object {
+    if (Test-Path $_) { OK $_ } else { MISS $_ }
+}
+  [OK]   web
+  [OK]   web\backend
+  [OK]   web\frontend
+  [OK]   web\backend\src
+  [OK]   web\backend\src\routes
+  [OK]   web\backend\src\modules
+  [OK]   web\backend\router-scripts
+  [OK]   web\frontend\src
+  [OK]   web\frontend\src\components
+  [OK]   web\frontend\src\pages
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 2. BACKEND ROUTES ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "2. Backend route files"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "2. Backend route files" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "2. Backend route files" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "2. Backend route files"
++   ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "2. Backend route files" to
+type "System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "2. Backend route files"
++   ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $expectedRoutes = @("auth.js","portal.js","superAdmin.js","reseller.js","router.js","agent.js")
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($r in $expectedRoutes) {
+    $p = "web\backend\src\routes\$r"
+    if (Test-Path $p) { OK $r } else { MISS $r }
+}
+  [OK]   auth.js
+  [OK]   portal.js
+  [OK]   superAdmin.js
+  [OK]   reseller.js
+  [OK]   router.js
+  [OK]   agent.js
+PS C:\Users\DELL\Downloads\safe-links-updated> if (Test-Path "web\backend\src\routes\payment-webhook.js") {
+    $content = Get-Content "web\backend\src\routes\payment-webhook.js" -Raw
+    if ($content -match 'express\.Router') {
+        WARN "payment-webhook.js exists but uses Express (backend uses custom router) - BROKEN"
+    } else { OK "payment-webhook.js uses custom router" }
+} else { MISS "payment-webhook.js" }
+  [WARN] payment-webhook.js exists but uses Express (backend uses custom router) - BROKEN
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 3. BACKEND ENDPOINTS REGISTERED ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "3. Endpoints registered in server.js"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "3. Endpoints registered in server.js" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "3. Endpoints registered in server.js" to type 
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "3. Endpoints registered in server.js"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "3. Endpoints registered in
+server.js" to type "System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "3. Endpoints registered in server.js"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $server = Get-Content "web\backend\src\server.js" -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> $registers = @("registerAuthRoutes","registerPortalRoutes","registerSuperAdminRoutes",
+               "registerResellerRoutes","registerRouterRoutes","registerAgentRoutes")
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($r in $registers) {
+    if ($server -match $r) { OK "$r registered" } else { MISS "$r NOT registered" }
+}
+  [OK]   registerAuthRoutes registered
+  [OK]   registerPortalRoutes registered
+  [OK]   registerSuperAdminRoutes registered
+  [OK]   registerResellerRoutes registered
+  [OK]   registerRouterRoutes registered
+  [OK]   registerAgentRoutes registered
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($server -match "licenseMiddleware") { OK "licenseMiddleware wired" } else { MISS "licenseMiddleware NOT wired" }
+  [OK]   licenseMiddleware wired
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 4. PAYMENT / BILLING ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "4. Payment & billing"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "4. Payment & billing" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "4. Payment & billing" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "4. Payment & billing"
++   ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "4. Payment & billing" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "4. Payment & billing"
++   ~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $portalSrc = Get-Content "web\backend\src\routes\portal.js" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($portalSrc -match "Bank Transfer" -and $portalSrc -match "USSD") {
+    OK "Manual payment methods present (Bank Transfer + USSD)"
+} else { WARN "Manual payment methods unclear" }
+  [OK]   Manual payment methods present (Bank Transfer + USSD)
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($portalSrc -match "upload-receipt") { OK "Receipt upload endpoint exists" } else { MISS "No receipt upload" }
+  [OK]   Receipt upload endpoint exists
+PS C:\Users\DELL\Downloads\safe-links-updated> $resellerSrc = Get-Content "web\backend\src\routes\reseller.js" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($resellerSrc -match "upload-receipt") { OK "Reseller receipt upload exists" } else { MISS "No reseller receipt upload" }
+  [OK]   Reseller receipt upload exists
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($resellerSrc -match "product-key/redeem") { OK "Product key redemption exists" } else { MISS "No product key redemption" }
+  [OK]   Product key redemption exists
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($resellerSrc -match "pending-activation") { OK "Pending activation flow exists" } else { MISS "No pending activation" }
+  [OK]   Pending activation flow exists
+PS C:\Users\DELL\Downloads\safe-links-updated> # Any real gateway?
+PS C:\Users\DELL\Downloads\safe-links-updated> $allBackend = Get-ChildItem "web\backend\src" -Recurse -Filter "*.js" | Get-Content -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> $gateways = @("stripe","paystack","flutterwave","mpesa","paypal")
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($g in $gateways) {
+    if ($allBackend -match $g) { OK "Payment provider referenced: $g" }
+}
+  [OK]   Payment provider referenced: stripe
+  [OK]   Payment provider referenced: mpesa
+PS C:\Users\DELL\Downloads\safe-links-updated> # If none matched, say it explicitly
+PS C:\Users\DELL\Downloads\safe-links-updated> $foundGateway = $false
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($g in $gateways) { if ($allBackend -match $g) { $foundGateway = $true } }
+PS C:\Users\DELL\Downloads\safe-links-updated> if (-not $foundGateway) { WARN "No online payment gateway integrated (manual-only by design)" }
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 5. EMAIL / NOTIFICATIONS ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "5. Email & notification delivery"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "5. Email & notification delivery" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "5. Email & notification delivery" to type 
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "5. Email & notification delivery"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "5. Email & notification
+delivery" to type "System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "5. Email & notification delivery"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $pkg = Get-Content "web\backend\package.json" -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> @("nodemailer","sendgrid","resend","twilio","whatsapp","postmark") | ForEach-Object {
+    if ($pkg -match $_) { OK "Dependency: $_" } else { MISS "No dependency: $_" }
+}
+  [OK]   Dependency: nodemailer
+  [MISS] No dependency: sendgrid
+  [MISS] No dependency: resend
+  [MISS] No dependency: twilio
+  [MISS] No dependency: whatsapp
+  [MISS] No dependency: postmark
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($allBackend -match "smtp|SMTP_HOST") { OK "SMTP config referenced" } else { MISS "No SMTP config" }
+  [OK]   SMTP config referenced
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($allBackend -match "sendMail|sendEmail|transporter") { OK "Email send code exists" } else { MISS "No email sending code" }
+  [OK]   Email send code exists
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 6. SUPPORT SYSTEM ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "6. Support system"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "6. Support system" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "6. Support system" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "6. Support system"
++   ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "6. Support system" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "6. Support system"
++   ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($resellerSrc -match "/support") { OK "Reseller support endpoints" } else { MISS "No reseller support" }
+  [OK]   Reseller support endpoints
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($resellerSrc -match "customer-support") { OK "Customer support endpoints" } else { MISS "No customer support" }
+  [OK]   Customer support endpoints
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($portalSrc -match "/support") { OK "Portal support endpoints" } else { MISS "No portal support" }
+  [OK]   Portal support endpoints
+PS C:\Users\DELL\Downloads\safe-links-updated> $adminSrc = Get-Content "web\backend\src\routes\superAdmin.js" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($adminSrc -match "/support") { OK "Admin support endpoints" } else { MISS "No admin support" }
+  [OK]   Admin support endpoints
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($adminSrc -match "support/upload") { OK "Support attachment upload" } else { MISS "No support upload" }
+  [OK]   Support attachment upload
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 7. ROUTER AGENT FLOW ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "7. Router agent (zero-touch)"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "7. Router agent (zero-touch)" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "7. Router agent (zero-touch)" to type "System.Int64". 
+Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "7. Router agent (zero-touch)"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "7. Router agent (zero-touch)"
+to type "System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "7. Router agent (zero-touch)"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $agentSrc = Get-Content "web\backend\src\routes\agent.js" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($agentSrc -match "/api/agent/register") { OK "Agent register endpoint" } else { MISS "No agent register" }
+  [OK]   Agent register endpoint
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($agentSrc -match "/api/agent/checkin") { OK "Agent checkin endpoint" } else { MISS "No agent checkin" }
+  [OK]   Agent checkin endpoint
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($agentSrc -match "/api/agent/commands") { OK "Agent command ACK endpoint" } else { MISS "No agent ACK" }
+  [OK]   Agent command ACK endpoint
+PS C:\Users\DELL\Downloads\safe-links-updated> $routerSrc = Get-Content "web\backend\src\routes\router.js" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($routerSrc -match "/api/router/checkin") { OK "Router checkin endpoint" } else { MISS "No router checkin" }
+  [OK]   Router checkin endpoint
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($routerSrc -match "effectiveRouterStatus") { OK "Router online/offline logic" } else { WARN "No offline logic" }
+  [OK]   Router online/offline logic
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 8. DATABASE SCHEMA ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "8. Database tables"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "8. Database tables" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "8. Database tables" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "8. Database tables"
++   ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "8. Database tables" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "8. Database tables"
++   ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $dbSrc = Get-Content "web\backend\src\db.js" -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> $tables = [regex]::Matches($dbSrc, "CREATE TABLE IF NOT EXISTS (\w+)") | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($tables.Count -gt 0) {
+    foreach ($t in $tables) { OK "table: $t" }
+} else { MISS "No CREATE TABLE statements found" }
+  [OK]   table: delivery_logs
+  [OK]   table: installations
+  [OK]   table: integration_settings
+  [OK]   table: license_payment_requests
+  [OK]   table: notifications
+  [OK]   table: pairing_codes
+  [OK]   table: password_reset_tokens
+  [OK]   table: payments
+  [OK]   table: pending_activations
+  [OK]   table: plans
+  [OK]   table: platform_plans
+  [OK]   table: product_keys
+  [OK]   table: rate_limits
+  [OK]   table: referrals
+  [OK]   table: resellers
+  [OK]   table: router_commands
+  [OK]   table: routers
+  [OK]   table: sessions
+  [OK]   table: super_admins
+  [OK]   table: support_messages
+  [OK]   table: support_tickets
+  [OK]   table: vouchers
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 9. ROUTER SCRIPTS ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "9. Router scripts"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "9. Router scripts" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "9. Router scripts" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "9. Router scripts"
++   ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "9. Router scripts" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "9. Router scripts"
++   ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> $scriptDir = "web\backend\router-scripts"
+PS C:\Users\DELL\Downloads\safe-links-updated> @("safelinks-agent.rsc","safelinks-agent-linux.sh","safelinks-configure.rsc",
+  "safelinks-configure.sh","safelinks-detect.rsc","safelinks-detect.sh","README.md") | ForEach-Object {
+    if (Test-Path "$scriptDir\$_") { OK $_ } else { MISS $_ }
+}
+  [OK]   safelinks-agent.rsc
+  [OK]   safelinks-agent-linux.sh
+  [OK]   safelinks-configure.rsc
+  [OK]   safelinks-configure.sh
+  [OK]   safelinks-detect.rsc
+  [OK]   safelinks-detect.sh
+  [OK]   README.md
+PS C:\Users\DELL\Downloads\safe-links-updated> # Check MikroTik script for actual config commands
+PS C:\Users\DELL\Downloads\safe-links-updated> $rsc = Get-Content "$scriptDir\safelinks-configure.rsc" -Raw -ErrorAction SilentlyContinue
+PS C:\Users\DELL\Downloads\safe-links-updated> @("/ip dhcp-client","/interface pppoe-client","/ip address","/ip firewall nat","/interface wifi","/ip hotspot") | ForEach-Object {
+    if ($rsc -match [regex]::Escape($_)) { OK "rsc contains: $_" } else { WARN "rsc missing: $_" }
+}
+  [OK]   rsc contains: /ip dhcp-client
+  [OK]   rsc contains: /interface pppoe-client
+  [OK]   rsc contains: /ip address
+  [OK]   rsc contains: /ip firewall nat
+  [OK]   rsc contains: /interface wifi
+  [OK]   rsc contains: /ip hotspot
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 10. FRONTEND ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "10. Frontend features"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "10. Frontend features" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "10. Frontend features" to type "System.Int64". Error: 
+"Input string was not in a correct format."
+At line:1 char:3
++ H "10. Frontend features"
++   ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "10. Frontend features" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "10. Frontend features"
++   ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> @("web\frontend\src\App.jsx","web\frontend\src\api.js","web\frontend\src\i18n.js",
+  "web\frontend\src\ui.jsx","web\frontend\src\Signup.jsx","web\frontend\src\LanAutoPair.jsx",
+  "web\frontend\src\InstallerWizard.jsx","web\frontend\src\components\DownloadPrompt.jsx",
+  "web\frontend\src\pages\DownloadPage.jsx") | ForEach-Object {
+    if (Test-Path $_) { OK $_ } else { MISS $_ }
+}
+  [OK]   web\frontend\src\App.jsx
+  [OK]   web\frontend\src\api.js
+  [OK]   web\frontend\src\i18n.js
+  [OK]   web\frontend\src\ui.jsx
+  [OK]   web\frontend\src\Signup.jsx
+  [OK]   web\frontend\src\LanAutoPair.jsx
+  [OK]   web\frontend\src\InstallerWizard.jsx
+  [OK]   web\frontend\src\components\DownloadPrompt.jsx
+  [OK]   web\frontend\src\pages\DownloadPage.jsx
+PS C:\Users\DELL\Downloads\safe-links-updated> $apiJs = Get-Content "web\frontend\src\api.js" -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($apiJs -match "VITE_API_URL") { OK "Frontend reads VITE_API_URL" } else { MISS "VITE_API_URL not read" }
+  [OK]   Frontend reads VITE_API_URL
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($apiJs -match "apiBase|baseURL") { OK "API base URL configured" } else { WARN "No API base URL" }
+  [WARN] No API base URL
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 11. SECURITY ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "11. Security"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "11. Security" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "11. Security" to type "System.Int64". Error: "Input 
+string was not in a correct format."
+At line:1 char:3
++ H "11. Security"
++   ~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "11. Security" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "11. Security"
++   ~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($dbSrc -match "hashPassword|bcrypt|scrypt") { OK "Password hashing" } else { MISS "No password hashing" }
+  [OK]   Password hashing
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($allBackend -match "jwt|JWT") { OK "JWT used" } else { MISS "No JWT" }
+  [OK]   JWT used
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($allBackend -match "rateLimit|rate_limit") { OK "Rate limiting" } else { WARN "No rate limiting" }
+  [OK]   Rate limiting
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($allBackend -match "verifyPassword") { OK "Router API key verification" } else { MISS "No router auth" }
+  [OK]   Router API key verification
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- 12. FLUTTER / DEPLOYMENT ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "12. Flutter & deployment"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "12. Flutter & deployment" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "12. Flutter & deployment" to type "System.Int64". 
+Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "12. Flutter & deployment"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "12. Flutter & deployment" to
+type "System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "12. Flutter & deployment"
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> if (Test-Path "safelinks-installer") { OK "Flutter project exists" } else { MISS "safelinks-installer not created yet" }
+  [MISS] safelinks-installer not created yet
+PS C:\Users\DELL\Downloads\safe-links-updated> if (Test-Path "safelinks-installer\pubspec.yaml") { OK "pubspec.yaml exists" } else { WARN "No pubspec.yaml" }
+  [WARN] No pubspec.yaml
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- LIVE BACKEND ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "13. Live backend"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "13. Live backend" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "13. Live backend" to type "System.Int64". Error: "Input 
+string was not in a correct format."
+At line:1 char:3
++ H "13. Live backend"
++   ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "13. Live backend" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "13. Live backend"
++   ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> try {
+    $health = Invoke-RestMethod "https://backend-services-production-78d8.up.railway.app/health" -TimeoutSec 10
+    if ($health.ok) { OK "Backend health: $($health.service)" } else { WARN "Backend unhealthy" }
+} catch { MISS "Backend unreachable: $_" }
+  [OK]   Backend health: safelinks-backend
+PS C:\Users\DELL\Downloads\safe-links-updated> try {
+    $login = Invoke-RestMethod -Method Post -Uri "https://backend-services-production-78d8.up.railway.app/api/auth/login" `
+        -ContentType "application/json" -Body '{"email":"admin@reslink.io","password":"admin123"}'
+    if ($login.token) { OK "Login works (JWT issued)" } else { WARN "Login returned no token" }
+} catch { MISS "Login failed: $_" }
+  [OK]   Login works (JWT issued)
+PS C:\Users\DELL\Downloads\safe-links-updated> # ---------- SUMMARY ----------
+PS C:\Users\DELL\Downloads\safe-links-updated> H "AUDIT COMPLETE"
+>> TerminatingError(Get-History): "Cannot bind parameter 'Id'. Cannot convert value "AUDIT COMPLETE" to type "System.Int64". Error: "Input string was not in a correct format.""
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "AUDIT COMPLETE" to type "System.Int64". Error: "Input 
+string was not in a correct format."
+At line:1 char:3
++ H "AUDIT COMPLETE"
++   ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.GetHistoryCommand
+Get-History : Cannot bind parameter 'Id'. Cannot convert value "AUDIT COMPLETE" to type
+"System.Int64". Error: "Input string was not in a correct format."
+At line:1 char:3
++ H "AUDIT COMPLETE"
++   ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Get-History], ParameterBindingException
+    + FullyQualifiedErrorId : CannotConvertArgumentNoMessage,Microsoft.PowerShell.Commands.Get
+   HistoryCommand
+
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "Report saved to: $report" -ForegroundColor Magenta
+Report saved to: C:\Users\DELL\Downloads\safe-links-updated\AUDIT-REPORT-2026-10-07-1226.txt
+PS C:\Users\DELL\Downloads\safe-links-updated> Stop-Transcript | Out-Null
+**********************
+Windows PowerShell transcript end
+End time: 20261007122736
+**********************
