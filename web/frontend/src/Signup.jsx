@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { ChevronLeft, Building2, UserPlus } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
 
-// Kept in sync with SECURITY_QUESTIONS in reslink-backend/src/routes/auth.js.
+// Kept in sync with SECURITY_QUESTIONS in safelinks-backend/src/routes/auth.js.
 // "Write your own" always stays last and switches the dropdown into a
 // free-text field rather than being an actual question itself.
 const SECURITY_QUESTIONS = [

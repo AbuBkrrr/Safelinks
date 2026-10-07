@@ -1,4 +1,4 @@
-// Database layer — Postgres via the `pg` driver.
+﻿// Database layer — Postgres via the `pg` driver.
 //
 // This used to run on node:sqlite for zero external dependencies. That
 // was fine for a demo but doesn't hold up at "hundreds of resellers":
@@ -22,7 +22,7 @@ const { Pool } = pg;
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error("DATABASE_URL is not set. Example: postgres://reslink:reslink@localhost:5432/reslink");
+  console.error("DATABASE_URL is not set. Example: postgres://SAFELINKS:SAFELINKS@localhost:5432/SAFELINKS");
   process.exit(1);
 }
 
@@ -378,7 +378,7 @@ export async function seed() {
   const insertSuperAdmin = db.prepare(
     "INSERT INTO super_admins (id,email,password_hash,bank_name,bank_account_name,bank_account_number,ussd_code,created_at) VALUES (?,?,?,?,?,?,?,?)"
   );
-  await insertSuperAdmin.run(id("sa"), "admin@reslink.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
+  await insertSuperAdmin.run(id("sa"), "admin@SAFELINKS.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
 
   await db.prepare(`INSERT INTO integration_settings (id, contact_email, contact_whatsapp, platform_currency, dashboard_language, updated_at)
     VALUES ('singleton', 'aibrainsventures@gmail.com', '+2348032540215', 'USD', 'en', ?)`).run(now);

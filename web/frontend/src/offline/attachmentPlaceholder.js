@@ -1,5 +1,5 @@
-// A placeholder "URL" for an attachment that's been captured offline
-// but not uploaded yet — the real Blob lives in offlineStore's blobs
+﻿// A placeholder "URL" for an attachment that's been captured offline
+// but not uploaded yet â€” the real Blob lives in offlineStore's blobs
 // store, keyed by the same ID. This lets every existing attachmentUrl
 // field stay a plain string (used in state, sent in queued action
 // payloads, etc.) without threading a richer type through the whole

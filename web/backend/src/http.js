@@ -1,4 +1,4 @@
-// Minimal router — no Express. Matches method + path (with :params),
+﻿// Minimal router — no Express. Matches method + path (with :params),
 // parses JSON and form-encoded bodies, and gives a couple of response
 // helpers. Small enough to read top to bottom in under a minute, which
 // matters more here than pulling in a framework we can't even install.
@@ -19,7 +19,7 @@ export function json(res, status, body) {
 // (routes/agent.js). RouterOS's scripting language has no real JSON
 // parser, but splitting a fixed, flat text format on newlines and "="
 // is a couple of lines of RouterOS script — so the device-facing
-// protocol speaks this instead of JSON. See reslink-backend/router-scripts/.
+// protocol speaks this instead of JSON. See safelinks-backend/router-scripts/.
 export function text(res, status, body) {
   const payload = typeof body === "string" ? body : String(body);
   res.writeHead(status, {

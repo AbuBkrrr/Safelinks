@@ -1,4 +1,4 @@
-# Router agent scripts
+﻿# Router agent scripts
 
 Real, device-side scripts that make router provisioning zero-touch —
 no reseller ever types in a router's model, firmware, or IP by hand.
@@ -7,7 +7,7 @@ Both speak the same vendor-agnostic wire protocol
 `KEY value`-per-line text, documented in `src/routes/agent.js`); only
 the script that speaks it differs per platform.
 
-## MikroTik RouterOS (`reslink-agent.rsc`)
+## MikroTik RouterOS (`SAFELINKS-agent.rsc`)
 
 **Status: written against documented RouterOS 7 scripting syntax, not
 yet run against real hardware.** There was no RouterOS available to
@@ -17,10 +17,10 @@ production routers. It manages `/ip hotspot user` directly — RouterOS
 has its own built-in hotspot user database, so no separate
 captive-portal daemon is needed.
 
-## Generic Linux — OpenWRT, EdgeOS, any Debian/Ubuntu gateway (`reslink-agent-linux.sh`)
+## Generic Linux — OpenWRT, EdgeOS, any Debian/Ubuntu gateway (`SAFELINKS-agent-linux.sh`)
 
 **Status: registration and check-in genuinely tested end-to-end**
-against a live Reslink backend — real HTTP calls, real credential
+against a live SAFELINKS backend — real HTTP calls, real credential
 persistence to disk, real command dispatch and ack, not simulated.
 **The default command-execution backend (CoovaChilli via
 `chilli_query`) has NOT been tested** — no CoovaChilli install was
@@ -42,13 +42,13 @@ via `radclient`, OpenNDS, etc).
 **Usage:**
 ```sh
 # 1. Generate a pairing code from the reseller dashboard (Routers -> "Pair a router")
-# 2. Edit RESLINK_API_URL in the script if not using the default domain
-./reslink-agent-linux.sh register PAIRING_CODE
+# 2. Edit SAFELINKS_API_URL in the script if not using the default domain
+./SAFELINKS-agent-linux.sh register PAIRING_CODE
 
 # 3. Add to cron for 30-second check-ins (cron has no sub-minute
 #    granularity, so two offset entries get you there):
-#   * * * * *          /path/to/reslink-agent-linux.sh checkin
-#   * * * * * sleep 30; /path/to/reslink-agent-linux.sh checkin
+#   * * * * *          /path/to/SAFELINKS-agent-linux.sh checkin
+#   * * * * * sleep 30; /path/to/SAFELINKS-agent-linux.sh checkin
 ```
 
 ## What "universal" actually means here

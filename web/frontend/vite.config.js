@@ -1,7 +1,7 @@
-import { defineConfig } from "vite";
+﻿import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Dev server proxies /api (and /uploads — see reslink-backend/src/uploads.js,
+// Dev server proxies /api (and /uploads — see SAFELINKS-backend/src/uploads.js,
 // where receipt photos get served back out from) to the backend so you
 // don't need CORS during local development. In production, set
 // VITE_API_URL instead (see .env.example) and serve the built dist/

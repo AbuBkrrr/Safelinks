@@ -1,4 +1,4 @@
-# Full stack: Postgres + backend (API) + frontend (static build, served
+﻿# Full stack: Postgres + backend (API) + frontend (static build, served
 # by its own nginx) + Caddy in front of everything for automatic HTTPS.
 #
 # Quick start on a fresh VPS:
@@ -18,13 +18,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=reslink
+      - POSTGRES_USER=SAFELINKS
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set a real POSTGRES_PASSWORD in .env}
-      - POSTGRES_DB=reslink
+      - POSTGRES_DB=SAFELINKS
     volumes:
-      - reslink_pgdata:/var/lib/postgresql/data
+      - SAFELINKS_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reslink"]
+      test: ["CMD-SHELL", "pg_isready -U SAFELINKS"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -32,7 +32,7 @@ services:
       - "5432"
 
   backend:
-    build: ./reslink-backend
+    build: ./SAFELINKS-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,16 +40,16 @@ services:
     environment:
       - PORT=4000
       - JWT_SECRET=${JWT_SECRET:?set a real JWT_SECRET in .env — see .env.example}
-      - DATABASE_URL=postgres://reslink:${POSTGRES_PASSWORD}@postgres:5432/reslink
+      - DATABASE_URL=postgres://SAFELINKS:${POSTGRES_PASSWORD}@postgres:5432/SAFELINKS
       # Optional — all blank is fine, falls back to manual notifications.
-      # See reslink-backend/README.md "Email sending".
+      # See SAFELINKS-backend/README.md "Email sending".
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-}
     volumes:
-      - reslink_uploads:/app/uploads
+      - SAFELINKS_uploads:/app/uploads
     expose:
       - "4000"
 
@@ -75,7 +75,7 @@ services:
       - frontend
 
 volumes:
-  reslink_pgdata:
-  reslink_uploads:
+  SAFELINKS_pgdata:
+  SAFELINKS_uploads:
   caddy_data:
   caddy_config:

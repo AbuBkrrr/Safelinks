@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2, Mic, Paperclip, X, CloudUpload } from "lucide-react";
 import VoiceAssistant from "./VoiceAssistant.jsx";
 import { dt, dtMatch } from "./dashboardI18n.js";
@@ -38,7 +38,7 @@ export function timeAgo(ts) {
    separate from the Super Admin's platform license fee, which stays
    in USD regardless (a fixed platform-to-reseller billing relationship,
    not something a reseller localizes). Kept in sync with the backend's
-   validation set in reslink-backend/src/routes/reseller.js.
+   validation set in safelinks-backend/src/routes/reseller.js.
    ============================================================ */
 export const CURRENCIES = [
   { code: "USD", symbol: "$", label: "US Dollar (USD)" },
@@ -204,7 +204,7 @@ export function Loading({ text = "Loading…" }) {
 
    `onUploadFile`, if passed, wires up a REAL file picker for the "Upload
    receipt" button (JPEG/PNG/WebP/PDF, 6MB cap — see
-   reslink-backend/src/uploads.js): async (file) => { url, originalName }.
+   safelinks-backend/src/uploads.js): async (file) => { url, originalName }.
    Without it, the button silently does nothing — every caller here
    should pass it now that the upload endpoints exist. `receiptUrl` /
    `setReceiptUrl` track the uploaded file so the parent can include it

@@ -1,18 +1,18 @@
-// Orchestrates syncing: checks real backend reachability (not just
+﻿// Orchestrates syncing: checks real backend reachability (not just
 // navigator.onLine, which only reflects OS-level network status and
-// is notoriously unreliable — a phone can report "online" while on a
+// is notoriously unreliable â€” a phone can report "online" while on a
 // WiFi network with no actual internet, e.g. a captive portal that
 // hasn't been completed yet), then replays queued offline actions in
 // order against the real API.
 //
-// This file has ZERO knowledge of what a "voucher" or "ticket" is —
+// This file has ZERO knowledge of what a "voucher" or "ticket" is â€”
 // callers register a handler per action type. That's what makes this
 // reusable across every offline-capable feature, not just vouchers.
 
 import * as store from "./offlineStore.js";
 
 /**
- * Real reachability check — a lightweight GET against the backend's
+ * Real reachability check â€” a lightweight GET against the backend's
  * own health endpoint, with a short timeout so a hung connection
  * doesn't block the UI from knowing "actually, we're offline."
  */
@@ -34,10 +34,10 @@ export async function checkConnectivity(apiBaseUrl, { timeoutMs = 4000 } = {}) {
 
 /**
  * Replays every pending/failed queued action, in the order they were
- * created, against the real API — using the handler registered for
+ * created, against the real API â€” using the handler registered for
  * that action's `type`. Stops replaying (but doesn't discard) further
  * actions after the first failure that looks like a connectivity
- * problem, to preserve ordering — but a handler-reported REJECTION
+ * problem, to preserve ordering â€” but a handler-reported REJECTION
  * (e.g. "that voucher code already exists") is recorded as a
  * permanent failure and does NOT block subsequent actions, since
  * that's a real answer from the server, not a network hiccup.

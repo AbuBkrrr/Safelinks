@@ -1,11 +1,11 @@
-import { randomBytes, createHash } from "node:crypto";
+﻿import { randomBytes, createHash } from "node:crypto";
 import { db, id, genCode } from "../db.js";
 import { hashPassword, verifyPassword, signToken, hashAnswer, verifyAnswer } from "../auth.js";
 import { json } from "../http.js";
 import { rateLimitByIp, rateLimitByKey } from "../rateLimit.js";
 
 // Preset options shown in the Signup form's security-question dropdown
-// (it also allows a custom question — see routes/auth.js signup
+// (it also allows a custom question â€” see routes/auth.js signup
 // handler, which accepts any non-empty string here). Exported so the
 // frontend and backend can't drift out of sync on the canned list.
 export const SECURITY_QUESTIONS = [
@@ -19,23 +19,23 @@ export const SECURITY_QUESTIONS = [
 const DEFAULT_COLORS = ["#667eea", "#764ba2", "#48bb78", "#f6ad55", "#4299e1"];
 // Reset tokens need a deterministic lookup hash, not hashPassword's
 // salted scrypt (that's the right choice for passwords/API keys, which
-// are always verified against ONE known row — but a reset token has to
+// are always verified against ONE known row â€” but a reset token has to
 // be looked UP by its hash, and a fresh scryptSync call generates a new
 // random salt every time, so hashing the same raw token twice never
 // matches. SHA-256 is fine here specifically because the token itself
 // is 256 bits of real randomness, not a low-entropy secret like a
-// password — there's no rainbow-table risk to salt against.
+// password â€” there's no rainbow-table risk to salt against.
 const hashToken = (raw) => createHash("sha256").update(raw).digest("hex");
 
 // Self-referral guard: catches the classic Gmail-style abuse where
 // someone refers "someone else" who is actually themselves under a
-// trick address — "jane.doe@gmail.com" referring "janedoe+bonus@gmail.com"
-// — by stripping dots and any +tag from the local part before
+// trick address â€” "jane.doe@gmail.com" referring "janedoe+bonus@gmail.com"
+// â€” by stripping dots and any +tag from the local part before
 // comparing. This is a heuristic, not a guarantee: it does nothing
 // for someone using a genuinely different email/provider for a second
 // account, which this system has no way to detect without real
 // identity verification. It's one real check, not a complete
-// anti-fraud system — flagged referrals still get recorded (so Super
+// anti-fraud system â€” flagged referrals still get recorded (so Super
 // Admin can see the pattern) but never auto-progress to a payable
 // state.
 function normalizeEmailForSelfReferralCheck(email) {
@@ -45,11 +45,11 @@ function normalizeEmailForSelfReferralCheck(email) {
 }
 
 export function registerAuthRoutes(router) {
-  // POST /api/auth/login — checks super_admins first, then resellers.
+  // POST /api/auth/login â€” checks super_admins first, then resellers.
   // Real deployments would separate these by intent (subdomain, app),
   // but one endpoint is fine for a demo backend serving both roles.
   router.post("/api/auth/login", async (req, res, { body }) => {
-    // 10 attempts / 15 min / IP — generous enough for someone who
+    // 10 attempts / 15 min / IP â€” generous enough for someone who
     // mistypes their password a few times, tight enough to make
     // credential stuffing impractical.
     if (await rateLimitByIp(req, res, "login", { max: 10, windowMs: 15 * 60000 })) return;
@@ -80,16 +80,16 @@ export function registerAuthRoutes(router) {
     return json(res, 401, { error: "Invalid email or password" });
   });
 
-  // POST /api/auth/signup — self-serve reseller onboarding. Creates the
+  // POST /api/auth/signup â€” self-serve reseller onboarding. Creates the
   // account AND logs them straight in (same response shape as login),
   // so signing up and landing in a working dashboard is one step, not
   // "submit a request and wait." The account starts 'pending' with an
-  // already-elapsed subscription_expiry — same as any other
-  // not-yet-paid reseller — so the dashboard prompts them to submit a
+  // already-elapsed subscription_expiry â€” same as any other
+  // not-yet-paid reseller â€” so the dashboard prompts them to submit a
   // license payment (existing flow, see /api/reseller/license/renew)
   // rather than treating signup itself as activation.
   router.post("/api/auth/signup", async (req, res, { body }) => {
-    // 5 accounts / hour / IP — self-serve signup is exactly the kind of
+    // 5 accounts / hour / IP â€” self-serve signup is exactly the kind of
     // endpoint spam/bot tooling loves; a real person signing up once
     // never notices this limit.
     if (await rateLimitByIp(req, res, "signup", { max: 5, windowMs: 60 * 60000 })) return;
@@ -101,7 +101,7 @@ export function registerAuthRoutes(router) {
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) return json(res, 400, { error: "That doesn't look like a valid email address" });
     if (password.length < 8) return json(res, 400, { error: "Password must be at least 8 characters" });
-    // Required, not optional — a security question set up front is the
+    // Required, not optional â€” a security question set up front is the
     // ONLY account-recovery path in this system (see
     // /password-reset/question below; there's no email link anymore).
     // Skipping it at signup would mean permanently locking themselves
@@ -127,14 +127,14 @@ export function registerAuthRoutes(router) {
         break;
       }
     }
-    if (!licenseKey) return json(res, 500, { error: "Could not generate a unique license key — try again" });
+    if (!licenseKey) return json(res, 500, { error: "Could not generate a unique license key â€” try again" });
 
     const ssidBase = companyName.replace(/[^a-zA-Z0-9]/g, "");
     const color = DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)];
 
     // This reseller's OWN referral code, generated the same way for
     // everyone regardless of whether they arrived via someone else's
-    // referral — every reseller can refer others from day one. Same
+    // referral â€” every reseller can refer others from day one. Same
     // short retry-on-collision loop as the license key above.
     let referralCode;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -144,12 +144,12 @@ export function registerAuthRoutes(router) {
         break;
       }
     }
-    if (!referralCode) return json(res, 500, { error: "Could not generate a unique referral code — try again" });
+    if (!referralCode) return json(res, 500, { error: "Could not generate a unique referral code â€” try again" });
 
-    // Optional inbound referral — { referralCode } in the signup body
+    // Optional inbound referral â€” { referralCode } in the signup body
     // is someone ELSE's code, entered by this new reseller (from the
     // "Referral code" field on Signup.jsx). A bad/unknown code never
-    // blocks signup — it's just silently not credited, same as a typo
+    // blocks signup â€” it's just silently not credited, same as a typo
     // in a coupon field anywhere else.
     let referrer = null;
     if (body.referralCode && body.referralCode.trim()) {
@@ -167,7 +167,7 @@ export function registerAuthRoutes(router) {
       const bonusCurrency = bonusRow?.platform_currency || "USD";
       // Prefer crediting an existing 'invited' referral this new
       // signup matches by email (the referrer specifically invited
-      // THIS person) over creating a fresh row — that keeps one
+      // THIS person) over creating a fresh row â€” that keeps one
       // invite from silently duplicating into two rows if the
       // referred person signs up with the exact email they were
       // invited at, which is the common case.
@@ -179,7 +179,7 @@ export function registerAuthRoutes(router) {
       // the referrer's own WhatsApp contact number (they invited
       // "someone" using their own number), or the signup email
       // normalizes to the same address as the referrer's own account
-      // email (the Gmail dots/+tag trick — see
+      // email (the Gmail dots/+tag trick â€” see
       // normalizeEmailForSelfReferralCheck above). Either signal alone
       // is enough to flag; this never blocks the signup itself, only
       // whether the referral counts toward a bonus.
@@ -198,12 +198,12 @@ export function registerAuthRoutes(router) {
           .run(id("ref"), referrer.id, companyName, email, null, newStatus, bonusAmount, resellerId, now, now);
       }
 
-      // No "you earned a bonus" notification for a flagged referral —
+      // No "you earned a bonus" notification for a flagged referral â€”
       // no reason to advertise a payout that isn't going to happen.
       if (!looksLikeSelfReferral) {
         await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
           .run(id("n"), `reseller:${referrer.id}`, "referral", "Your referral signed up!",
-            `${companyName} just created an account using your referral code — a ${bonusAmount} ${bonusCurrency} bonus is now pending Super Admin approval.`, now, 0, "referrals");
+            `${companyName} just created an account using your referral code â€” a ${bonusAmount} ${bonusCurrency} bonus is now pending Super Admin approval.`, now, 0, "referrals");
       }
     }
 
@@ -218,11 +218,11 @@ export function registerAuthRoutes(router) {
     });
   });
 
-  // POST /api/auth/password-reset/question — { email }. First step of
+  // POST /api/auth/password-reset/question â€” { email }. First step of
   // account recovery: look up the security question the reseller chose
   // at signup. To avoid leaking which emails are registered, an
   // unrecognized email still gets a 200 with a plausible-looking
-  // (but unanswerable) generic question rather than a 404/error —
+  // (but unanswerable) generic question rather than a 404/error â€”
   // the real leak-prevention then happens at the answer-verification
   // step below, which fails identically either way.
   const FALLBACK_QUESTION = "What city were you born in?";
@@ -237,9 +237,9 @@ export function registerAuthRoutes(router) {
     json(res, 200, { question: reseller?.security_question || FALLBACK_QUESTION });
   });
 
-  // POST /api/auth/password-reset/verify-answer — { email, answer }.
+  // POST /api/auth/password-reset/verify-answer â€” { email, answer }.
   // On a correct answer, issues a short-lived (15 min) reset token
-  // directly in the response — no email involved anywhere in this
+  // directly in the response â€” no email involved anywhere in this
   // flow, since a correct secret-question answer IS the identity
   // proof. The token still goes through the same
   // password_reset_tokens table/hash-at-rest pattern as before, and
@@ -250,7 +250,7 @@ export function registerAuthRoutes(router) {
     if (email) email = email.trim().toLowerCase();
     if (!email || !answer) return json(res, 400, { error: "email and answer are required" });
     // Answers are guessable in a way passwords aren't (birthplaces,
-    // pet names) — a tighter, per-account limit than login's matters
+    // pet names) â€” a tighter, per-account limit than login's matters
     // here specifically.
     if (await rateLimitByKey(res, `password-reset-answer:${email.toLowerCase()}`, { max: 5, windowMs: 60 * 60000 })) return;
 
@@ -267,10 +267,10 @@ export function registerAuthRoutes(router) {
     json(res, 200, { resetToken: rawToken });
   });
 
-  // POST /api/auth/password-reset/confirm — { token, newPassword }.
-  // Unchanged in shape from the old email-link flow — only where the
+  // POST /api/auth/password-reset/confirm â€” { token, newPassword }.
+  // Unchanged in shape from the old email-link flow â€” only where the
   // token comes from changed (verify-answer above, instead of an
-  // emailed link) — so this stays the single place a password
+  // emailed link) â€” so this stays the single place a password
   // actually gets updated.
   router.post("/api/auth/password-reset/confirm", async (req, res, { body }) => {
     const { token, newPassword } = body;
@@ -280,14 +280,14 @@ export function registerAuthRoutes(router) {
     const now = Date.now();
     const row = await db.prepare("SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?")
       .get(hashToken(token), now);
-    if (!row) return json(res, 400, { error: "That reset session has expired — start over and answer your security question again" });
+    if (!row) return json(res, 400, { error: "That reset session has expired â€” start over and answer your security question again" });
 
     await db.prepare("UPDATE resellers SET password_hash = ? WHERE id = ?").run(hashPassword(newPassword), row.reseller_id);
     // Invalidate this token AND any other outstanding ones for the same
-    // account — a successful reset should burn every in-flight token,
+    // account â€” a successful reset should burn every in-flight token,
     // not just the one used.
     await db.prepare("UPDATE password_reset_tokens SET used_at = ? WHERE reseller_id = ? AND used_at IS NULL").run(now, row.reseller_id);
 
-    json(res, 200, { ok: true, message: "Password updated — you can log in with your new password now." });
+    json(res, 200, { ok: true, message: "Password updated â€” you can log in with your new password now." });
   });
 }

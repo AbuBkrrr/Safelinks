@@ -1,9 +1,9 @@
-// Translations for the end-user-facing Captive Portal only. Every other
+﻿// Translations for the end-user-facing Captive Portal only. Every other
 // screen (Super Admin, Reseller dashboards) stays English-only by
 // design — the person who needs a language choice is the end-user
 // connecting to WiFi, not the operator running the business. Kept in
 // sync with the backend's validation set in
-// reslink-backend/src/routes/reseller.js.
+// safelinks-backend/src/routes/reseller.js.
 //
 // These are functional, plain-language translations meant to be clear
 // at a hotspot login screen, not literary — a native speaker should

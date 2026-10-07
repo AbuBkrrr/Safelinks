@@ -1,13 +1,13 @@
-// Real API client for the Reslink backend. Every function here hits a
-// live endpoint documented in reslink-backend/README.md — nothing in
+﻿// Real API client for the SAFELINKS backend. Every function here hits a
+// live endpoint documented in safelinks-backend/README.md — nothing in
 // this file is mock data. Auth token lives in localStorage (this is a
 // real deployed web app, not a Claude Artifact, so that's fine here).
 
 const BASE_URL = import.meta.env.VITE_API_URL || ""; // "" -> same-origin, works with the Vite dev proxy
 
-const TOKEN_KEY = "reslink_token";
-const ROLE_KEY = "reslink_role";
-const USER_KEY = "reslink_user";
+const TOKEN_KEY = "SAFELINKS_token";
+const ROLE_KEY = "SAFELINKS_role";
+const USER_KEY = "SAFELINKS_user";
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -54,7 +54,7 @@ async function request(method, path, body, { auth = true } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (err) {
-    throw new ApiError("Network error — could not reach the Reslink backend. Is it running?", 0, null);
+    throw new ApiError("Network error — could not reach the SAFELINKS backend. Is it running?", 0, null);
   }
   let data = null;
   const text = await res.text();
@@ -131,7 +131,7 @@ export const api = {
       });
       if (!res.ok) throw new ApiError(`Export failed (${res.status})`, res.status, null);
       const blob = await res.blob();
-      const filename = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || "reslink-keys.txt";
+      const filename = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || "SAFELINKS-keys.txt";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = filename;
@@ -211,7 +211,7 @@ export const api = {
 };
 
 // Reads a File into a base64 data: URL, for the upload-receipt
-// endpoints (see reslink-backend/src/uploads.js). This backend's
+// endpoints (see safelinks-backend/src/uploads.js). This backend's
 // routes only parse JSON bodies — no multipart/form-data — so a file
 // upload is just base64 text inside the normal JSON body. Shared here
 // since both CaptivePortal.jsx (customer receipts) and ResellerApp.jsx

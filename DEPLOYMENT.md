@@ -1,4 +1,4 @@
-# Going Live With SAFE_Links — Complete Step-by-Step Guide
+﻿# Going Live With SAFE_Links — Complete Step-by-Step Guide
 
 Written assuming you've never deployed a website or built an app
 before. Every step tells you exactly what to type or click, and what
@@ -151,7 +151,7 @@ your internet speed.
 
 ✅ **Checkpoint:** Back in your **server** terminal window, type
 `ls /root/safe-links` — you should see `docker-compose.yml`,
-`Caddyfile`, `frontend`, `reslink-backend`, `README.md`.
+`Caddyfile`, `frontend`, `SAFELINKS-backend`, `README.md`.
 
 ### Step 1.6 — Set your domain in the Caddyfile (on the server)
 
@@ -376,7 +376,7 @@ separate, optional step covered in `desktop-app/README.md`.
 Go back to your server terminal (`ssh root@YOUR_SERVER_IP`) and your
 browser at `https://yourdomain.com`, and do these in order:
 
-- [ ] **Log in as Super Admin** (`admin@reslink.io` / `admin123` — the
+- [ ] **Log in as Super Admin** (`admin@SAFELINKS.io` / `admin123` — the
       built-in demo login) and go to **Settings**. Set your *real*
       contact email/WhatsApp and *real* bank details — this is where
       resellers will pay their license fee.
@@ -384,7 +384,7 @@ browser at `https://yourdomain.com`, and do these in order:
       only. On the server:
       ```bash
       cd /root/safe-links
-      nano reslink-backend/src/db.js
+      nano SAFELINKS-backend/src/db.js
       ```
       Find the `seed()` function and either change the demo passwords
       or delete the demo account creation entirely, then rebuild:
@@ -397,7 +397,7 @@ browser at `https://yourdomain.com`, and do these in order:
       edit `.env` on the server (`nano .env`) with your SMTP provider's
       details, then `docker compose up -d --build` again.
 - [ ] **Read the Limitations section** in
-      `web-app/reslink-backend/README.md` — most importantly, the
+      `web-app/SAFELINKS-backend/README.md` — most importantly, the
       MikroTik/Linux router-pairing scripts are real code but haven't
       been run against physical hardware yet. Test against one spare
       router before handing this to a paying reseller.

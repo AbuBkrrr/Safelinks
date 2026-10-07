@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+﻿import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { startSyncWatcher } from "./syncEngine.js";
 import * as offlineStore from "./offlineStore.js";
 
@@ -7,7 +7,7 @@ const SyncContext = createContext(null);
 /**
  * Wrap any part of the app that needs offline support in this once.
  * `actionHandlers` maps an action `type` string to an async function
- * that replays it against the real API — see ResellerApp.jsx's
+ * that replays it against the real API â€” see ResellerApp.jsx's
  * `pendingActivationHandlers` for the concrete example.
  */
 export function SyncProvider({ children, actionHandlers }) {

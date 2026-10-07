@@ -1,4 +1,4 @@
-import { db, id, genCode } from "../db.js";
+﻿import { db, id, genCode } from "../db.js";
 import { text } from "../http.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { rateLimitByIp } from "../rateLimit.js";
@@ -7,7 +7,7 @@ import { rateLimitByIp } from "../rateLimit.js";
 // here speaks plain `KEY value` lines, one per line — NOT JSON.
 // RouterOS's scripting language has no JSON parser worth relying on,
 // but splitting on "\n" and pulling out a value after the first space
-// is three lines of RouterOS script. See router-scripts/reslink-agent.rsc
+// is three lines of RouterOS script. See router-scripts/safelinks-agent.rsc
 // for the actual device-side script that talks to these endpoints.
 //
 // This is the flow that replaces a human typing the router's model,

@@ -1,4 +1,4 @@
-import http from "node:http";
+﻿import http from "node:http";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
@@ -78,7 +78,7 @@ async function main() {
   registerRouterRoutes(router);
   registerAgentRoutes(router);
 
-  router.get("/health", async (req, res) => json(res, 200, { ok: true, service: "reslink-backend" }));
+  router.get("/health", async (req, res) => json(res, 200, { ok: true, service: "safelinks-backend" }));
 
   const PORT = process.env.PORT || 4000;
   const server = http.createServer((req, res) => {
@@ -92,7 +92,7 @@ async function main() {
   server.listen(PORT, () => {
     console.log(`SAFE_Links backend listening on http://localhost:${PORT}`);
     console.log(seedResult.seeded ? "Database seeded with demo data." : "Database already had data — skipped seeding.");
-    console.log("Demo logins: admin@reslink.io / admin123  (super admin)");
+    console.log("Demo logins: admin@SAFELINKS.io / admin123  (super admin)");
     console.log("             admin@nairobitech.io / reseller123  (reseller)");
   });
 }

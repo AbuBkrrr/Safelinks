@@ -1,20 +1,20 @@
-// Real email sending — but optional, with a safe fallback baked in.
+﻿// Real email sending â€” but optional, with a safe fallback baked in.
 //
 // This is a genuine change of direction from the rest of the system
 // ("no automated sending anywhere, by design" is stated repeatedly
-// elsewhere in this codebase and its docs) — made deliberately, because
+// elsewhere in this codebase and its docs) â€” made deliberately, because
 // two flows actually need it: password reset can't be secure without
 // an out-of-band channel, and license-expiry needs to reach a reseller
 // who might not be checking the dashboard. Everything else in the
 // system (voucher delivery, contact info) is still 100% manual.
 //
-// If SMTP_HOST isn't set, sendEmail() doesn't fail — it falls back to
+// If SMTP_HOST isn't set, sendEmail() doesn't fail â€” it falls back to
 // creating a Super Admin notification containing the full message, so
 // a human can send it by hand, same pattern as the rest of the system.
 // That means this backend works out of the box with zero mail
 // configuration; SMTP is an upgrade, not a requirement.
 //
-// Dependency: nodemailer (add to package.json — not installed in the
+// Dependency: nodemailer (add to package.json â€” not installed in the
 // sandbox this was built in; see README "Email sending" section for
 // why that couldn't be verified end-to-end here).
 
@@ -42,7 +42,7 @@ function getTransporter() {
 
 /** Sends an email if SMTP is configured; otherwise files a Super Admin
  *  notification with the full content so it can be sent by hand. Never
- *  throws — a misconfigured or down mail server should degrade to the
+ *  throws â€” a misconfigured or down mail server should degrade to the
  *  manual fallback, not break the flow that was trying to notify someone. */
 export async function sendEmail({ to, subject, text }) {
   try {
@@ -55,7 +55,7 @@ export async function sendEmail({ to, subject, text }) {
     console.error(`sendEmail: SMTP send failed (falling back to manual notification): ${err.message}`);
   }
 
-  // Manual fallback — same shape as every other "someone needs to act
+  // Manual fallback â€” same shape as every other "someone needs to act
   // on this by hand" notification in the system.
   await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read) VALUES (?,?,?,?,?,?,?)")
     .run(id("n"), "super_admin", "alert", `Email needs to be sent manually: ${subject}`,

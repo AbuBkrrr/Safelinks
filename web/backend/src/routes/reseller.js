@@ -1,4 +1,4 @@
-import { db, id, genCode } from "../db.js";
+﻿import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate, hashPassword } from "../auth.js";
 import { enqueueCommandForReseller, effectiveRouterStatus } from "./router.js";
@@ -6,7 +6,7 @@ import { rateLimitByKey } from "../rateLimit.js";
 import { saveUpload } from "../uploads.js";
 
 // Every handler below scopes its query by `resellerId` taken from the
-// verified JWT — never from a URL param or request body. That's the
+// verified JWT â€” never from a URL param or request body. That's the
 // actual RBAC boundary a demo UI can't enforce on its own: a reseller
 // literally cannot construct a request that reads another reseller's
 // row, because the WHERE clause never sees anything the client sent.
@@ -17,7 +17,7 @@ function requireReseller(req, res) {
 }
 
 // Kept in sync with CURRENCIES/LANGUAGES in frontend/src/ui.jsx and
-// frontend/src/i18n.js — validated server-side too since the portal
+// frontend/src/i18n.js â€” validated server-side too since the portal
 // info endpoint is public and a bad value here would break the
 // end-user Captive Portal, not just the reseller's own dashboard.
 const CURRENCIES = new Set(["USD", "NGN", "KES", "UGX", "GHS", "ZAR", "TZS", "XOF", "EUR", "GBP"]);
@@ -84,7 +84,7 @@ export function registerResellerRoutes(router) {
       const pending = await db.prepare("SELECT COUNT(*) AS n FROM router_commands WHERE router_id = ? AND status = 'pending'").get(r.router_id);
       routers.push({
         ...r,
-        status: effectiveRouterStatus(r.last_check_in), // recomputed, not just the stored value — see router.js
+        status: effectiveRouterStatus(r.last_check_in), // recomputed, not just the stored value â€” see router.js
         pendingCommands: Number(pending.n),
       });
     }
@@ -92,7 +92,7 @@ export function registerResellerRoutes(router) {
   });
 
   // Called by the installer app at the end of the 8-step wizard (Agent
-  // Registration step). Generates the router's polling API key — shown
+  // Registration step). Generates the router's polling API key â€” shown
   // ONCE here in plaintext, then only ever stored hashed. The installer
   // burns it into the router's scheduler script so it can check in.
   //
@@ -105,7 +105,7 @@ export function registerResellerRoutes(router) {
   // The installer wizard calls this, shows the code to whoever's at
   // the router, and polls GET .../:code until the router itself has
   // called POST /api/agent/register with it. Nobody types in the
-  // router's model/firmware/IP — the router reports those itself.
+  // router's model/firmware/IP â€” the router reports those itself.
   router.post("/api/reseller/pairing-codes", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const now = Date.now();
@@ -144,7 +144,7 @@ export function registerResellerRoutes(router) {
     const reseller = await db.prepare("SELECT company_name FROM resellers WHERE id = ?").get(resellerId);
     await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
       .run(id("n"), "super_admin", "install", "New reseller installation",
-        `${reseller.company_name} completed a zero-touch installation (${routerId}) — now online.`, now, 0, "installs");
+        `${reseller.company_name} completed a zero-touch installation (${routerId}) â€” now online.`, now, 0, "installs");
 
     // Sync every currently-active voucher onto the freshly provisioned
     // router so it's not starting from an empty user list.
@@ -155,12 +155,12 @@ export function registerResellerRoutes(router) {
         .run(id("cmd"), routerId, "create_user", JSON.stringify({ username: v.username, password: v.password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth }), "pending", now);
     }
 
-    // apiKey is returned ONLY in this response — the server never
+    // apiKey is returned ONLY in this response â€” the server never
     // stores or returns the plaintext again after this.
     json(res, 201, { routerId, apiKey, status: "online", syncedVouchers: activeVouchers.length });
   });
 
-  // Recent command history across all of this reseller's routers — an
+  // Recent command history across all of this reseller's routers â€” an
   // audit trail of what's been pushed and whether the router ack'd it.
   router.get("/api/reseller/commands", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
@@ -240,7 +240,7 @@ export function registerResellerRoutes(router) {
   router.get("/api/reseller/portal-settings", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     // bank_name/bank_account_name/bank_account_number/ussd_code are the
-    // RESELLER'S OWN account — where their end-users' bank-transfer
+    // RESELLER'S OWN account â€” where their end-users' bank-transfer
     // voucher payments land (see routes/portal.js GET /:resellerId,
     // which surfaces these same four fields to the Captive Portal).
     // Not to be confused with platform-bank-info above, which is the
@@ -312,7 +312,7 @@ export function registerResellerRoutes(router) {
     json(res, 200, { ok: true });
   });
 
-  // --- Platform plan catalog (read-only — what Super Admin charges) ---
+  // --- Platform plan catalog (read-only â€” what Super Admin charges) ---
   router.get("/api/reseller/platform-plans", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const plans = await db.prepare("SELECT * FROM platform_plans").all();
@@ -354,7 +354,7 @@ export function registerResellerRoutes(router) {
     json(res, 200, { ...r, pendingPayment: pending || null });
   });
 
-  // No payment gateway — the reseller transfers the license fee straight
+  // No payment gateway â€” the reseller transfers the license fee straight
   // to the Super Admin's bank account (see /platform-bank-info above)
   // and submits the receipt reference here. The license stays on its
   // current plan/expiry until Super Admin confirms it (see
@@ -362,7 +362,7 @@ export function registerResellerRoutes(router) {
   router.post("/api/reseller/license/renew", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const { planId, method, reference, receiptUrl } = body;
-    if (!reference) return json(res, 400, { error: "reference is required — this is a manual transfer, not a gateway payment" });
+    if (!reference) return json(res, 400, { error: "reference is required â€” this is a manual transfer, not a gateway payment" });
     const plan = await db.prepare("SELECT * FROM platform_plans WHERE id = ?").get(planId);
     if (!plan) return json(res, 404, { error: "Platform plan not found" });
 
@@ -378,11 +378,11 @@ export function registerResellerRoutes(router) {
     const platformCurrency = settings?.platform_currency || "USD";
     await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
       .run(id("n"), "super_admin", "payment", "License payment confirmation needed",
-        `${reseller.company_name} submitted a transfer for the ${plan.name} plan (${plan.price} ${platformCurrency}) — ref: ${reference}.`, now, 0, "license");
+        `${reseller.company_name} submitted a transfer for the ${plan.name} plan (${plan.price} ${platformCurrency}) â€” ref: ${reference}.`, now, 0, "license");
     json(res, 202, { ok: true, status: "pending", requestId: reqId });
   });
 
-  // POST /api/reseller/upload-receipt — a reseller attaches a photo of
+  // POST /api/reseller/upload-receipt â€” a reseller attaches a photo of
   // their own bank transfer receipt (or a PDF) for a license renewal.
   // Returns a URL to include as `receiptUrl` in POST /license/renew
   // above. Mirrors the public portal.js upload-receipt endpoint, just
@@ -399,13 +399,13 @@ export function registerResellerRoutes(router) {
     }
   });
 
-  // Instant, self-serve activation — the counterpart to Super Admin's
+  // Instant, self-serve activation â€” the counterpart to Super Admin's
   // /api/admin/product-keys/generate. No pending state, no waiting on
   // anyone: Super Admin already vetted the payment before ever
   // generating the key, so redeeming one here activates immediately.
   // Same 30/60/90-day-style expiry convention as a confirmed license
   // payment (routes/superAdmin.js PUT /api/admin/license-payments/:id)
-  // — it SETS subscription_expiry to now+duration, it does not stack
+  // â€” it SETS subscription_expiry to now+duration, it does not stack
   // on top of remaining time, so redeeming early "wastes" the
   // remainder of a still-active license the same way renewing early
   // already does elsewhere in this app.
@@ -413,7 +413,7 @@ export function registerResellerRoutes(router) {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const raw = (body.key || "").trim().toUpperCase();
     if (!raw) return json(res, 400, { error: "Enter a product key" });
-    // Accept with or without dashes — someone reading a code off a
+    // Accept with or without dashes â€” someone reading a code off a
     // printed card or over the phone will not reliably reproduce
     // punctuation.
     const normalized = raw.replace(/[^A-Z0-9]/g, "");
@@ -422,7 +422,7 @@ export function registerResellerRoutes(router) {
     if (await rateLimitByKey(res, `redeem-key:${resellerId}`, { max: 10, windowMs: 60 * 60000 })) return;
 
     const keyRow = await db.prepare("SELECT * FROM product_keys WHERE key_code = ?").get(grouped);
-    if (!keyRow) return json(res, 404, { error: "That key wasn't found — check it and try again" });
+    if (!keyRow) return json(res, 404, { error: "That key wasn't found â€” check it and try again" });
     if (keyRow.status === "used") return json(res, 409, { error: "That key has already been used" });
     if (keyRow.status === "revoked") return json(res, 409, { error: "That key has been revoked and can't be used" });
 
@@ -447,7 +447,7 @@ export function registerResellerRoutes(router) {
   // --- Referrals: a reseller invites a prospective marketer/reseller by
   // email/phone; if that person signs up using this reseller's own
   // referral_code, the invite (matched by email) flips to 'signed_up'
-  // — see routes/auth.js signup. Nothing pays out from here: bonus
+  // â€” see routes/auth.js signup. Nothing pays out from here: bonus
   // status only moves to 'bonus_paid' when Super Admin marks it so
   // (routes/superAdmin.js), same manual-payment pattern as every other
   // payout in this system.
@@ -484,14 +484,14 @@ export function registerResellerRoutes(router) {
   router.post("/api/reseller/referrals", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     // Logged-in and JWT-authenticated already, but a compromised token
-    // or a runaway client script could still hammer this — cap it well
+    // or a runaway client script could still hammer this â€” cap it well
     // above any legitimate marketer's real usage.
     if (await rateLimitByKey(res, `referral-invite:${resellerId}`, { max: 20, windowMs: 60 * 60000 })) return;
     const { name, email, phone } = body;
     if (!email && !phone) return json(res, 400, { error: "Give at least an email or phone number to invite" });
     if (email) {
       const dupe = await db.prepare("SELECT id FROM referrals WHERE referrer_reseller_id = ? AND status = 'invited' AND lower(email) = lower(?)").get(resellerId, email);
-      if (dupe) return json(res, 409, { error: "You've already invited that email and it's still pending — no need to add it again" });
+      if (dupe) return json(res, 409, { error: "You've already invited that email and it's still pending â€” no need to add it again" });
     }
     const settings = await db.prepare("SELECT referral_bonus_amount FROM integration_settings WHERE id = 'singleton'").get();
     const bonusAmount = Number(settings?.referral_bonus_amount ?? 10);
@@ -504,7 +504,7 @@ export function registerResellerRoutes(router) {
 
   router.delete("/api/reseller/referrals/:id", async (req, res, { params }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    // Only an un-converted invite can be withdrawn — once someone has
+    // Only an un-converted invite can be withdrawn â€” once someone has
     // actually signed up against it, it's a real record of a bonus
     // owed and shouldn't quietly disappear from either side's view.
     const result = await db.prepare("DELETE FROM referrals WHERE id = ? AND referrer_reseller_id = ? AND status = 'invited'").run(params.id, resellerId);
@@ -530,11 +530,11 @@ export function registerResellerRoutes(router) {
   // 'reseller' = this reseller messaging Super Admin (below), vs
   // 'portal' = one of this reseller's own end-users messaging them via
   // the Captive Portal (see /api/portal/:resellerId/support). Filtering
-  // is required — without it a reseller's "message Super Admin" inbox
+  // is required â€” without it a reseller's "message Super Admin" inbox
   // would be polluted with their own customers' tickets, and vice versa.
   //
   // Every ticket list below attaches its full message thread. Sending a
-  // message (POST .../messages) NEVER changes status — that was the bug
+  // message (POST .../messages) NEVER changes status â€” that was the bug
   // this replaces: a reply used to also resolve the ticket in one step,
   // making a real back-and-forth impossible. Status now only changes via
   // the dedicated PUT .../status endpoints.
@@ -566,7 +566,7 @@ export function registerResellerRoutes(router) {
 
   router.post("/api/reseller/support/:id/messages", async (req, res, { params, body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    // A message needs text OR an attachment, not both — a voice note
+    // A message needs text OR an attachment, not both â€” a voice note
     // recorded and sent on its own (no typed text) is a valid reply.
     if (!body.message && !body.attachmentUrl) return json(res, 400, { error: "Enter a message or attach a file/voice note" });
     const ticket = await db.prepare("SELECT id FROM support_tickets WHERE id = ? AND reseller_id = ? AND source = 'reseller'").get(params.id, resellerId);
@@ -585,10 +585,10 @@ export function registerResellerRoutes(router) {
     json(res, 200, { ok: true });
   });
 
-  // POST /api/reseller/support/upload — a photo, PDF, or voice note to
+  // POST /api/reseller/support/upload â€” a photo, PDF, or voice note to
   // attach to a support ticket/message, on either the reseller<->Super
   // Admin thread or the reseller<->customer thread below (same upload,
-  // just re-used for both — pass the returned url as `attachmentUrl`).
+  // just re-used for both â€” pass the returned url as `attachmentUrl`).
   router.post("/api/reseller/support/upload", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     if (await rateLimitByKey(res, `support-upload:${resellerId}`, { max: 30, windowMs: 60 * 60000 })) return;
@@ -601,7 +601,7 @@ export function registerResellerRoutes(router) {
   });
 
   // End-user (Captive Portal) tickets addressed to THIS reseller. No
-  // automated email exists in this app — a reply here is just a note
+  // automated email exists in this app â€” a reply here is just a note
   // the reseller writes for their own records; they reach the customer
   // directly using customer_email/customer_phone shown alongside it.
   router.get("/api/reseller/customer-support", async (req, res) => {

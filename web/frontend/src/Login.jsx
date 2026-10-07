@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { ChevronLeft, Radio, Lock } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
@@ -47,7 +47,7 @@ export default function Login({ tone, roleLabel, expectedRole, onSuccess, onBack
           </Field>
           {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
           <Btn type="submit" tone={tone} disabled={submitting} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
-            <Lock size={14} /> {submitting ? "Signing in…" : "Sign in"}
+            <Lock size={14} /> {submitting ? "Signing inâ€¦" : "Sign in"}
           </Btn>
         </form>
         {(onSignup || onForgotPassword) && (

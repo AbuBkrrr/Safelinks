@@ -1,6 +1,6 @@
-# Reslink Backend
+﻿# SAFELINKS Backend
 
-A real, runnable API backend for the Reslink ISP-reselling platform —
+A real, runnable API backend for the SAFELINKS ISP-reselling platform —
 Super Admin + Reseller Admin, vouchers issued through the Captive
 Portal, a real router polling-agent protocol, and manual-transfer-only
 payments at every level.
@@ -19,27 +19,27 @@ built-ins:
 Needs a reachable Postgres instance. Easiest local option — Docker:
 
 ```bash
-docker run -d --name reslink-pg -e POSTGRES_USER=reslink -e POSTGRES_PASSWORD=reslink -e POSTGRES_DB=reslink -p 5432:5432 postgres:16-alpine
+docker run -d --name SAFELINKS-pg -e POSTGRES_USER=SAFELINKS -e POSTGRES_PASSWORD=SAFELINKS -e POSTGRES_DB=SAFELINKS -p 5432:5432 postgres:16-alpine
 ```
 
 Then:
 
 ```bash
 npm install
-DATABASE_URL=postgres://reslink:reslink@localhost:5432/reslink node src/server.js
+DATABASE_URL=postgres://SAFELINKS:SAFELINKS@localhost:5432/SAFELINKS node src/server.js
 ```
 
 Listens on `http://localhost:4000` (`PORT=xxxx` to override). First run
 migrates the schema and seeds demo data automatically — the server
 checks for existing rows before seeding, so it's safe to restart
 against the same database. To reset, drop and recreate the database
-(or just `docker rm -f reslink-pg` and re-run the `docker run` above
+(or just `docker rm -f SAFELINKS-pg` and re-run the `docker run` above
 for a clean one).
 
 **Demo logins:**
 | Role | Email | Password |
 |---|---|---|
-| Super Admin | `admin@reslink.io` | `admin123` |
+| Super Admin | `admin@SAFELINKS.io` | `admin123` |
 | Reseller (Nairobi Tech Solutions) | `admin@nairobitech.io` | `reseller123` |
 | Reseller (Lagos Connect Hub) | `ops@lagosconnect.ng` | `reseller123` |
 | Reseller (Kampala Office Net) | `hello@kampalanet.ug` | `reseller123` |
@@ -120,7 +120,7 @@ the router's model/firmware/IP and type them in. There's also a
 zero-touch path where the router registers **itself**, so nobody types
 in anything about the device by hand — see `router-scripts/README.md`
 for the real MikroTik RouterOS script that speaks this protocol
-end-to-end, and `router-scripts/reslink-agent.rsc` for the script
+end-to-end, and `router-scripts/SAFELINKS-agent.rsc` for the script
 itself.
 
 The device-facing endpoints speak plain `KEY value`-per-line text, not
@@ -570,7 +570,7 @@ above:
   `pending`/already-`suspended` alone), fires once per expiry timestamp,
   and correctly stays silent after, via the same
   `UPDATE ... RETURNING`-based dedup
-- The generic Linux agent script (`router-scripts/reslink-agent-linux.sh`):
+- The generic Linux agent script (`router-scripts/SAFELINKS-agent-linux.sh`):
   registration and check-in run for real against a live backend — real
   HTTP, real credential file, real command dispatch and ack (with a
   stand-in for the actual hotspot backend — see that file's header)
@@ -590,8 +590,8 @@ above:
   workload that doesn't exist. If that changes (e.g. real email sending
   gets added later), that's when a queue actually earns its place.
 - **Router protocol translation: MikroTik and generic Linux, both real,
-  neither fully hardware-verified.** `router-scripts/reslink-agent.rsc`
-  (MikroTik, native `/ip hotspot user`) and `reslink-agent-linux.sh`
+  neither fully hardware-verified.** `router-scripts/SAFELINKS-agent.rsc`
+  (MikroTik, native `/ip hotspot user`) and `SAFELINKS-agent-linux.sh`
   (OpenWRT/EdgeOS/generic Linux, via a pluggable `apply_command()`
   defaulting to CoovaChilli) between them cover the large majority of
   routers capable of running custom firmware at all — this is no

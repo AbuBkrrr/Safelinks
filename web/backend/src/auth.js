@@ -1,4 +1,4 @@
-// Auth utilities — no external deps.
+﻿// Auth utilities — no external deps.
 // Password hashing: Node's built-in scrypt (a real, slow, salted KDF —
 // not a toy). JWT: a minimal hand-rolled HS256 implementation, since
 // jsonwebtoken isn't installable in this environment; the wire format
@@ -7,7 +7,7 @@
 
 import { scryptSync, randomBytes, timingSafeEqual, createHmac } from "node:crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "reslink-dev-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET || "SAFELINKS-dev-secret-change-in-production";
 const TOKEN_TTL_SECONDS = 12 * 60 * 60; // 12 hours
 
 export function hashPassword(password) {

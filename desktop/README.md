@@ -1,4 +1,4 @@
-# SAFE_Links — Windows desktop app
+﻿# SAFE_Links — Windows desktop app
 
 A native desktop window around the whole SAFE_Links web app — same "one
 app, routes you to your own dashboard based on sign-in" idea as the
@@ -146,7 +146,7 @@ comments in `src/main.js` for the reasoning behind each:
 Pairs a MikroTik router directly over the local network instead of
 someone typing the pairing code into the router's console by hand — if
 this PC is on the same network as the router. Exposed to the web app as
-`window.ReslinkNative` (`src/preload.js`, `src/native/routerOsClient.js`,
+`window.SAFELINKSNative` (`src/preload.js`, `src/native/routerOsClient.js`,
 `src/native/routerOsScripts.js`, `src/native/gatewayLocator.js`), wired
 into the pairing UI via `web-app/frontend/src/InstallerWizard.jsx`'s
 `LanAutoPair` component (already applied there, not left as a manual
@@ -177,11 +177,11 @@ it's worth reading in full before turning it on for real users:
   Never stored, never defaulted to blank/factory credentials.
 - **Only helps MikroTik routers with the REST API (`www-ssl`) enabled.**
   `LanAutoPair` simply doesn't render its automatic option if
-  `window.ReslinkNative` isn't present.
+  `window.SAFELINKSNative` isn't present.
 - **The generated RouterOS script faithfully ports the logic of its
   source, but isn't a byte-identical copy.** `routerOsScripts.js`
   reproduces the same HTTP calls, response parsing, and hotspot-user
-  command handling as `web-app/reslink-backend/router-scripts/reslink-agent.rsc`
+  command handling as `web-app/SAFELINKS-backend/router-scripts/SAFELINKS-agent.rsc`
   — this was actually verified by generating real output and diffing it
   against that file directly, not just asserted (see the corrected
   claim in the file's own header comment — an earlier draft overstated
@@ -219,7 +219,7 @@ environment this was built in — not inferred from reading the code:
   code substitutes correctly, the API URL's trailing slash gets
   trimmed, invalid pairing codes are rejected with the right error
   type, and diffed the real generated output against
-  `web-app/reslink-backend/router-scripts/reslink-agent.rsc` directly
+  `web-app/SAFELINKS-backend/router-scripts/SAFELINKS-agent.rsc` directly
   — which is what caught the "byte-identical" overclaim mentioned
   above.
 - `default-gateway`'s actual API — this is the one that mattered most:

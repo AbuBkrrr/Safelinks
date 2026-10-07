@@ -1,9 +1,9 @@
-"use strict";
+﻿"use strict";
 
 /**
  * Node port of RouterOsScripts (see the Kotlin/Java versions for the
  * fuller design writeup). Faithfully ports the LOGIC of
- * reslink-backend/router-scripts/reslink-agent.rsc — same HTTP calls,
+ * SAFELINKS-backend/router-scripts/SAFELINKS-agent.rsc — same HTTP calls,
  * same response parsing, same hotspot-user command handling, same
  * credential persistence — verified by actually diffing this
  * function's generated output against that file directly, not just
@@ -48,21 +48,21 @@ function trimTrailingSlash(s) {
  */
 function buildInstallCheckinScript(apiBaseUrl) {
   const api = trimTrailingSlash(apiBaseUrl);
-  return `:global resLinkApiUrl "${api}"
-:global resLinkCredFile "reslink-credentials.txt"
+  return `:global SAFELINKSApiUrl "${api}"
+:global SAFELINKSCredFile "SAFELINKS-credentials.txt"
 
 /system script
-:if ([:len [/system script find name="reslink-checkin"]] > 0) do={ remove [find name="reslink-checkin"] }
-add name="reslink-checkin" source={
-  :global resLinkApiUrl
-  :global resLinkCredFile
+:if ([:len [/system script find name="SAFELINKS-checkin"]] > 0) do={ remove [find name="SAFELINKS-checkin"] }
+add name="SAFELINKS-checkin" source={
+  :global SAFELINKSApiUrl
+  :global SAFELINKSCredFile
 
-  :if ([:len [/file find name=$resLinkCredFile]] = 0) do={
-    :log warning "reslink-checkin: not paired yet"
-    :error "reslink-checkin: no credentials file"
+  :if ([:len [/file find name=$SAFELINKSCredFile]] = 0) do={
+    :log warning "SAFELINKS-checkin: not paired yet"
+    :error "SAFELINKS-checkin: no credentials file"
   }
 
-  :local credContents [/file get [find name=$resLinkCredFile] contents]
+  :local credContents [/file get [find name=$SAFELINKSCredFile] contents]
   :local nl1 [:find $credContents "\\n"]
   :local routerId [:pick $credContents 0 $nl1]
   :local rest [:pick $credContents ($nl1 + 1) [:len $credContents]]
@@ -72,16 +72,16 @@ add name="reslink-checkin" source={
   :local postData ("router_id=" . $routerId . "&api_key=" . $apiKey)
   :local result ""
   :do {
-    :local fetchResult [/tool fetch url=($resLinkApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
+    :local fetchResult [/tool fetch url=($SAFELINKSApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
     :set result ($fetchResult->"data")
   } on-error={
-    :log warning "reslink-checkin: could not reach Reslink this cycle"
-    :error "reslink-checkin: fetch failed"
+    :log warning "SAFELINKS-checkin: could not reach SAFELINKS this cycle"
+    :error "SAFELINKS-checkin: fetch failed"
   }
 
   :if ([:find $result "STATUS OK"] = nil) do={
-    :log warning ("reslink-checkin: server rejected check-in - " . $result)
-    :error "reslink-checkin: bad response"
+    :log warning ("SAFELINKS-checkin: server rejected check-in - " . $result)
+    :error "SAFELINKS-checkin: bad response"
   }
 
   :local pos 0
@@ -133,24 +133,24 @@ add name="reslink-checkin" source={
 
       :local ackData ("router_id=" . $routerId . "&api_key=" . $apiKey . "&status=" . $execStatus . "&detail=" . $execDetail)
       :do {
-        /tool fetch url=($resLinkApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
+        /tool fetch url=($SAFELINKSApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
       } on-error={
-        :log warning ("reslink-checkin: could not ack command " . $cmdId)
+        :log warning ("SAFELINKS-checkin: could not ack command " . $cmdId)
       }
     }
   }
 }
 
 /system scheduler
-:if ([:len [/system scheduler find name="reslink-checkin"]] > 0) do={ remove [find name="reslink-checkin"] }
-add name="reslink-checkin" interval=30s on-event="/system script run reslink-checkin" disabled=yes
+:if ([:len [/system scheduler find name="SAFELINKS-checkin"]] > 0) do={ remove [find name="SAFELINKS-checkin"] }
+add name="SAFELINKS-checkin" interval=30s on-event="/system script run SAFELINKS-checkin" disabled=yes
 :put "checkin script installed"
 `;
 }
 
 /**
  * Step 2 (run once): the equivalent of a human running
- * `/system script run reslink-register` after pasting in the pairing
+ * `/system script run SAFELINKS-register` after pasting in the pairing
  * code by hand, except the code is baked in by the app and this runs
  * inline via /rest/execute rather than being saved as a named script.
  */
@@ -159,8 +159,8 @@ function buildRegisterScript(pairingCode, apiBaseUrl) {
     throw new InvalidPairingCodeError(pairingCode);
   }
   const api = trimTrailingSlash(apiBaseUrl);
-  return `:global resLinkApiUrl "${api}"
-:global resLinkCredFile "reslink-credentials.txt"
+  return `:global SAFELINKSApiUrl "${api}"
+:global SAFELINKSCredFile "SAFELINKS-credentials.txt"
 :local pairingCode "${pairingCode}"
 
 :local routerIdentity [/system identity get name]
@@ -171,16 +171,16 @@ function buildRegisterScript(pairingCode, apiBaseUrl) {
 
 :local result ""
 :do {
-  :local fetchResult [/tool fetch url=($resLinkApiUrl . "/api/agent/register") http-method=post http-data=$postData as-value output=user]
+  :local fetchResult [/tool fetch url=($SAFELINKSApiUrl . "/api/agent/register") http-method=post http-data=$postData as-value output=user]
   :set result ($fetchResult->"data")
 } on-error={
-  :log error "reslink-register: could not reach Reslink"
-  :error "reslink-register: fetch failed"
+  :log error "SAFELINKS-register: could not reach SAFELINKS"
+  :error "SAFELINKS-register: fetch failed"
 }
 
 :if ([:find $result "STATUS OK"] = nil) do={
-  :log error ("reslink-register: registration failed - " . $result)
-  :error "reslink-register: server rejected registration"
+  :log error ("SAFELINKS-register: registration failed - " . $result)
+  :error "SAFELINKS-register: server rejected registration"
 }
 
 :local routerId ""
@@ -196,15 +196,15 @@ function buildRegisterScript(pairingCode, apiBaseUrl) {
 }
 
 :if ($routerId = "" or $apiKey = "") do={
-  :log error "reslink-register: could not parse ROUTER_ID/API_KEY"
-  :error "reslink-register: parse failure"
+  :log error "SAFELINKS-register: could not parse ROUTER_ID/API_KEY"
+  :error "SAFELINKS-register: parse failure"
 }
 
 :local credContents ($routerId . "\\n" . $apiKey . "\\n")
-:if ([:len [/file find name=$resLinkCredFile]] > 0) do={ /file remove [find name=$resLinkCredFile] }
-/file add name=$resLinkCredFile contents=$credContents
+:if ([:len [/file find name=$SAFELINKSCredFile]] > 0) do={ /file remove [find name=$SAFELINKSCredFile] }
+/file add name=$SAFELINKSCredFile contents=$credContents
 
-/system scheduler enable [find name="reslink-checkin"]
+/system scheduler enable [find name="SAFELINKS-checkin"]
 :put ("ROUTER_ID=" . $routerId)
 `;
 }

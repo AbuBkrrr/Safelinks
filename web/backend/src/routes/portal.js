@@ -1,4 +1,4 @@
-import { db, id } from "../db.js";
+﻿import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
 import { saveUpload } from "../uploads.js";
@@ -10,7 +10,7 @@ import { saveUpload } from "../uploads.js";
 const MANUAL_METHODS = new Set(["Bank Transfer", "USSD"]);
 
 export function registerPortalRoutes(router) {
-  // GET /api/portal/:resellerId/info — branding + where to pay
+  // GET /api/portal/:resellerId/info â€” branding + where to pay
   router.get("/api/portal/:resellerId/info", async (req, res, { params }) => {
     const r = await db.prepare(`
       SELECT company_name, ssid, portal_title, color, currency, language, bank_name, bank_account_name, bank_account_number, ussd_code,
@@ -33,7 +33,7 @@ export function registerPortalRoutes(router) {
     json(res, 200, { plans });
   });
 
-  // POST /api/portal/:resellerId/upload-receipt — a customer attaches a
+  // POST /api/portal/:resellerId/upload-receipt â€” a customer attaches a
   // photo of their bank transfer receipt (or a PDF) before/while
   // submitting their signup. Returns a URL to include as `receiptUrl`
   // in the POST /signup body above; the text `reference` field is
@@ -50,7 +50,7 @@ export function registerPortalRoutes(router) {
     }
   });
 
-  // POST /api/portal/:resellerId/support/upload — a customer attaching
+  // POST /api/portal/:resellerId/support/upload â€” a customer attaching
   // a photo, PDF, or voice note to their support request (see
   // POST /support below, `attachmentUrl`). Same storage/validation as
   // upload-receipt above, just a separate rate-limit bucket so a burst
@@ -69,11 +69,11 @@ export function registerPortalRoutes(router) {
 
   // POST /api/portal/:resellerId/signup
   // body: { name, email, phone, business, planId, method, reference }
-  // Always creates a pending_activations row — nothing is issued until
+  // Always creates a pending_activations row â€” nothing is issued until
   // the reseller confirms the transfer landed.
   router.post("/api/portal/:resellerId/signup", async (req, res, { params, body }) => {
     // Deliberately generous: many real customers can share one public
-    // IP at a busy location (office/cafe WiFi behind NAT) — this limit
+    // IP at a busy location (office/cafe WiFi behind NAT) â€” this limit
     // exists to stop scripted pending_activations spam, not to throttle
     // a legitimately busy hotspot.
     if (await rateLimitByIp(req, res, "portal-signup", { max: 30, windowMs: 60 * 60000 })) return;
@@ -101,11 +101,11 @@ export function registerPortalRoutes(router) {
 
     json(res, 202, {
       status: "pending", pendingActivationId: pendingId,
-      message: "Submitted — waiting on your reseller to confirm the payment landed.",
+      message: "Submitted â€” waiting on your reseller to confirm the payment landed.",
     });
   });
 
-  // POST /api/portal/:resellerId/support — an end-user (not the reseller
+  // POST /api/portal/:resellerId/support â€” an end-user (not the reseller
   // themselves) raising an issue from the Captive Portal. No auth: these
   // visitors never get a login, just a name/email/phone to be reached at.
   // Notifies the reseller the same way a payment confirmation does; the

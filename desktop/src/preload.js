@@ -1,9 +1,9 @@
-"use strict";
+﻿"use strict";
 
 const { contextBridge, ipcRenderer } = require("electron");
 
 /**
- * Exposed to the renderer as window.ReslinkNative. Runs with
+ * Exposed to the renderer as window.SAFELINKSNative. Runs with
  * contextIsolation: true (see main.js's webPreferences) — this file
  * is the ONLY bridge between the sandboxed page and anything with
  * real system access, and it exposes exactly three narrow methods,
@@ -20,7 +20,7 @@ const { contextBridge, ipcRenderer } = require("electron");
  * designed to support in that direction. Promises avoid the question
  * entirely.
  */
-contextBridge.exposeInMainWorld("ReslinkNative", {
+contextBridge.exposeInMainWorld("SAFELINKSNative", {
   /**
    * Used by picker.html only. Tells the main process which mode was
    * chosen; main.js persists it and navigates accordingly. Fire-and-

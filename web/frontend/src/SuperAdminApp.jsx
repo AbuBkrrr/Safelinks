@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import {
   Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package,
   Activity, Server, LifeBuoy, AlertCircle, MessageSquare, Mail, Gauge, Cpu,
@@ -118,7 +118,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   async function decideLicensePayment(id, decision) {
     try {
       await api.admin.decideLicensePayment(id, decision);
-      notify(decision === "confirmed" ? "License payment confirmed — reseller's plan extended." : "Payment rejected.");
+      notify(decision === "confirmed" ? "License payment confirmed â€” reseller's plan extended." : "Payment rejected.");
       licensePayments.refetch();
       resellers.refetch();
     } catch (err) { notify(err.message); }
@@ -296,7 +296,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                         <Btn size="sm" variant="outline" onClick={() => setPlanEdits({ id: p.id, name: p.name, price: p.price })}>Edit price</Btn>
                       </div>
                     )}
-                    <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client</div>
+                    <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>Up to {p.maxClients ?? p.max_clients} clients Â· {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client</div>
                   </div>
                 );
               })}
@@ -311,8 +311,8 @@ export default function SuperAdminApp({ session, onExit, notify }) {
             (installations.data || []).slice().sort((a, b) => b.time - a.time).map((i) => (
               <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 4px", borderBottom: `1px solid ${T.border}` }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13.5, color: T.ink }}>{i.company_name}{i.router_id ? <span style={{ fontWeight: 400, color: T.sub, fontSize: 12 }}> · {i.router_id}</span> : null}</div>
-                  <div style={{ fontSize: 12, color: T.sub }}>{i.ip} · {i.location} · {timeAgo(i.time)}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, color: T.ink }}>{i.company_name}{i.router_id ? <span style={{ fontWeight: 400, color: T.sub, fontSize: 12 }}> Â· {i.router_id}</span> : null}</div>
+                  <div style={{ fontSize: 12, color: T.sub }}>{i.ip} Â· {i.location} Â· {timeAgo(i.time)}</div>
                 </div>
                 <Badge tone={statusColor(i.status)}>{i.status}</Badge>
               </div>
@@ -322,7 +322,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       )}
 
       {tab === "sessions" && (
-        <Panel title="Active sessions — platform-wide" action={<Badge tone={T.primary}>{(sessions.data || []).length} connected</Badge>}>
+        <Panel title="Active sessions â€” platform-wide" action={<Badge tone={T.primary}>{(sessions.data || []).length} connected</Badge>}>
           {sessions.loading ? <Loading /> : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
@@ -363,8 +363,8 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                 {(monitoring.data.routers || []).map((rt) => (
                   <div key={rt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 4px", borderBottom: `1px solid ${T.border}` }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{rt.router_id} <span style={{ fontWeight: 400, color: T.sub }}>· {rt.company_name}</span></div>
-                      <div style={{ fontSize: 11.5, color: T.sub }}>{rt.model} · {rt.firmware} · last check-in {timeAgo(rt.last_check_in)}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{rt.router_id} <span style={{ fontWeight: 400, color: T.sub }}>Â· {rt.company_name}</span></div>
+                      <div style={{ fontSize: 11.5, color: T.sub }}>{rt.model} Â· {rt.firmware} Â· last check-in {timeAgo(rt.last_check_in)}</div>
                     </div>
                     <Badge tone={statusColor(rt.status)}>{rt.status}</Badge>
                   </div>
@@ -385,11 +385,11 @@ export default function SuperAdminApp({ session, onExit, notify }) {
               <div key={p.id} style={{ padding: "13px 4px", borderBottom: `1px solid ${T.border}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.company_name} <span style={{ fontWeight: 400, color: T.sub }}>— {p.plan_name}</span></div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.company_name} <span style={{ fontWeight: 400, color: T.sub }}>â€” {p.plan_name}</span></div>
                     <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
-                      {formatMoney(p.amount, platformCurrency)} via {p.method} · ref: <span style={{ fontFamily: "monospace" }}>{p.reference}</span> · {timeAgo(p.time)}
+                      {formatMoney(p.amount, platformCurrency)} via {p.method} Â· ref: <span style={{ fontFamily: "monospace" }}>{p.reference}</span> Â· {timeAgo(p.time)}
                       {p.receipt_url && (
-                        <> · <a href={p.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
+                        <> Â· <a href={p.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
                       )}
                     </div>
                   </div>
@@ -411,12 +411,12 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       {tab === "referrals" && (
         <Panel title="Referral program" action={<Badge tone={pendingReferralBonuses ? T.warning : T.success}>{pendingReferralBonuses} awaiting payout</Badge>}>
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 600 }}>
-            Every reseller has their own referral code (see their Referrals tab) they can hand to prospective resellers or marketers. When someone signs up with a code, it shows up here as "signed up" — you send the bonus by hand (same manual-transfer pattern as everything else) and mark it paid once you have. A flagged referral looks like a self-referral (see backend README) and can't be paid until you've reviewed it.
+            Every reseller has their own referral code (see their Referrals tab) they can hand to prospective resellers or marketers. When someone signs up with a code, it shows up here as "signed up" â€” you send the bonus by hand (same manual-transfer pattern as everything else) and mark it paid once you have. A flagged referral looks like a self-referral (see backend README) and can't be paid until you've reviewed it.
           </div>
           {referrals.loading ? <Loading /> : (
             <>
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
-                <StatCard icon={Users} label="Signed up — pending" value={referrals.data?.summary?.signedUp ?? 0} tone={T.warning} />
+                <StatCard icon={Users} label="Signed up â€” pending" value={referrals.data?.summary?.signedUp ?? 0} tone={T.warning} />
                 <StatCard icon={Gift} label="Bonuses paid" value={referrals.data?.summary?.bonusPaid ?? 0} tone={T.success} />
                 <StatCard icon={AlertCircle} label="Flagged (self-referral)" value={referrals.data?.summary?.flagged ?? 0} tone={T.danger} />
                 <StatCard icon={DollarSign} label="Pending payout" value={formatMoney(referrals.data?.summary?.totalPending, platformCurrency)} tone={T.warning} />
@@ -429,10 +429,10 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "13px 4px", borderBottom: `1px solid ${T.border}`, flexWrap: "wrap" }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>
-                        {r.referrer_company_name} <span style={{ fontWeight: 400, color: T.sub }}>referred</span> {r.referred_company_name || r.name || r.email || r.phone || "—"}
+                        {r.referrer_company_name} <span style={{ fontWeight: 400, color: T.sub }}>referred</span> {r.referred_company_name || r.name || r.email || r.phone || "â€”"}
                       </div>
                       <div style={{ fontSize: 11.5, color: T.sub, marginTop: 2 }}>
-                        {r.referrer_email}{r.email ? ` · invited: ${r.email}` : ""}{r.phone ? ` · ${r.phone}` : ""} · {timeAgo(r.created_at)}
+                        {r.referrer_email}{r.email ? ` Â· invited: ${r.email}` : ""}{r.phone ? ` Â· ${r.phone}` : ""} Â· {timeAgo(r.created_at)}
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -454,10 +454,10 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                       {r.status === "signed_up" ? (
                         <Btn size="sm" tone={T.success} onClick={() => markReferralPaid(r.id)}><Gift size={13} /> Mark bonus paid</Btn>
                       ) : r.status === "flagged" ? (
-                        <Badge tone={T.danger}>Flagged — possible self-referral</Badge>
+                        <Badge tone={T.danger}>Flagged â€” possible self-referral</Badge>
                       ) : (
                         <Badge tone={statusColor(r.status === "bonus_paid" ? "confirmed" : "pending")}>
-                          {r.status === "bonus_paid" ? "Bonus paid" : "Invited — not yet signed up"}
+                          {r.status === "bonus_paid" ? "Bonus paid" : "Invited â€” not yet signed up"}
                         </Badge>
                       )}
                     </div>
@@ -473,7 +473,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
         <>
           <Panel title="Generate keys">
             <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 640 }}>
-              For manual/offline distribution — generate a batch of one-time activation keys for a plan you've already been paid for outside this system, then hand them out however fits (printed, texted, read over the phone). A reseller enters one in their License tab for <b>instant</b> activation — no confirmation step, because the vetting already happened before you generated the key.
+              For manual/offline distribution â€” generate a batch of one-time activation keys for a plan you've already been paid for outside this system, then hand them out however fits (printed, texted, read over the phone). A reseller enters one in their License tab for <b>instant</b> activation â€” no confirmation step, because the vetting already happened before you generated the key.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.4fr", gap: 12, alignItems: "end", maxWidth: 780, marginBottom: 12 }}>
               <Field label="How many">
@@ -482,7 +482,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
               </Field>
               <Field label="Plan">
                 <select style={inputStyle} value={keyGenForm.planId} onChange={(e) => setKeyGenForm({ ...keyGenForm, planId: e.target.value })}>
-                  <option value="">Choose…</option>
+                  <option value="">Chooseâ€¦</option>
                   {(platformPlans.data || []).map((p) => <option key={p.id} value={p.id}>{p.name} ({formatMoney(p.price, platformCurrency)})</option>)}
                 </select>
               </Field>
@@ -490,16 +490,16 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                 <input style={inputStyle} type="number" min="1" value={keyGenForm.durationDays}
                   onChange={(e) => setKeyGenForm({ ...keyGenForm, durationDays: e.target.value })} />
               </Field>
-              <Field label="Batch label (optional)" hint="For your own tracking — e.g. 'Lagos Expo Aug 2026'">
+              <Field label="Batch label (optional)" hint="For your own tracking â€” e.g. 'Lagos Expo Aug 2026'">
                 <input style={inputStyle} value={keyGenForm.batchLabel} onChange={(e) => setKeyGenForm({ ...keyGenForm, batchLabel: e.target.value })} placeholder="defaults to today's date" />
               </Field>
             </div>
-            <Btn onClick={generateKeys} disabled={keyGenerating}><KeyRound size={14} /> {keyGenerating ? "Generating…" : "Generate keys"}</Btn>
+            <Btn onClick={generateKeys} disabled={keyGenerating}><KeyRound size={14} /> {keyGenerating ? "Generatingâ€¦" : "Generate keys"}</Btn>
 
             {lastGeneratedBatch && (
               <div style={{ marginTop: 16, background: T.bg, borderRadius: 10, padding: 14, maxWidth: 780 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>Just generated: {lastGeneratedBatch.count} keys — "{lastGeneratedBatch.batchLabel}"</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>Just generated: {lastGeneratedBatch.count} keys â€” "{lastGeneratedBatch.batchLabel}"</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <Btn size="sm" variant="outline" onClick={() => { navigator.clipboard?.writeText(lastGeneratedBatch.keys.join("\n")); notify("Keys copied to clipboard."); }}>
                       <Copy size={12} /> Copy all
@@ -511,7 +511,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                 </div>
                 <div style={{ maxHeight: 160, overflowY: "auto", fontFamily: "monospace", fontSize: 12, color: T.sub, lineHeight: 1.7, columns: 2 }}>
                   {lastGeneratedBatch.keys.slice(0, 200).map((k) => <div key={k}>{k}</div>)}
-                  {lastGeneratedBatch.keys.length > 200 && <div>…and {lastGeneratedBatch.keys.length - 200} more (download for the full list)</div>}
+                  {lastGeneratedBatch.keys.length > 200 && <div>â€¦and {lastGeneratedBatch.keys.length - 200} more (download for the full list)</div>}
                 </div>
               </div>
             )}
@@ -528,7 +528,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{b.batch_label}</div>
                     <div style={{ fontSize: 11.5, color: T.sub, marginTop: 2 }}>
-                      {b.total} total · {timeAgo(b.created_at)}
+                      {b.total} total Â· {timeAgo(b.created_at)}
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -559,12 +559,12 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   <Badge tone={statusColor(t.status)}>{t.status}</Badge>
                 </div>
                 <div style={{ fontSize: 11.5, color: T.sub, marginBottom: 6 }}>
-                  {t.company_name}{t.reseller_email ? ` · ${t.reseller_email}` : ""}{t.reseller_whatsapp ? ` · ${t.reseller_whatsapp}` : ""} · {timeAgo(t.time)}
+                  {t.company_name}{t.reseller_email ? ` Â· ${t.reseller_email}` : ""}{t.reseller_whatsapp ? ` Â· ${t.reseller_whatsapp}` : ""} Â· {timeAgo(t.time)}
                 </div>
                 <div style={{ fontSize: 13, color: T.ink, background: T.bg, borderRadius: 8, padding: 10, marginBottom: 8 }}>
                   {t.message}
                   {t.attachment_url && (
-                    <div style={{ marginTop: 6 }}><a href={t.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                    <div style={{ marginTop: 6 }}><a href={t.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
                   )}
                 </div>
                 {(t.messages || []).map((m) => (
@@ -576,13 +576,13 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   }}>
                     <b>{m.sender === "admin" ? "You" : t.company_name}:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input style={inputStyle} placeholder="Write a reply…" value={reply[t.id] || ""} onChange={(e) => setReply((r2) => ({ ...r2, [t.id]: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Write a replyâ€¦" value={reply[t.id] || ""} onChange={(e) => setReply((r2) => ({ ...r2, [t.id]: e.target.value }))} />
                   <Btn size="sm" onClick={() => sendReply(t.id)}><MessageSquare size={13} /> {dt(dashboardLang, "sendReply")}</Btn>
                   {t.status === "open" ? (
                     <Btn size="sm" variant="soft" tone={T.success} onClick={() => setTicketStatus(t.id, "resolved")}><CheckCircle2 size={13} /> {dt(dashboardLang, "resolve")}</Btn>
@@ -630,7 +630,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       {tab === "settings" && (
         <Panel title="Contact & bank settings">
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16, maxWidth: 520 }}>
-            There is no automated email/WhatsApp sending anywhere in SAFE_Links — every notice is sent by hand. This is simply the contact info resellers see when they need to reach you, and the account they transfer license fees to.
+            There is no automated email/WhatsApp sending anywhere in SAFE_Links â€” every notice is sent by hand. This is simply the contact info resellers see when they need to reach you, and the account they transfer license fees to.
           </div>
           {settingsRes.loading || !settings ? <Loading /> : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 640 }}>
@@ -670,7 +670,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
                 </select>
               </Field>
-              <Field label="Referral bonus amount" hint="Paid to a reseller when someone signs up with their code — snapshotted onto each new invite, so changing this doesn't affect bonuses already promised.">
+              <Field label="Referral bonus amount" hint="Paid to a reseller when someone signs up with their code â€” snapshotted onto each new invite, so changing this doesn't affect bonuses already promised.">
                 <input style={inputStyle} type="number" min="0" step="0.01"
                   value={settings.referralBonusAmount ?? settings.referral_bonus_amount ?? 10}
                   onChange={(e) => setSettingsForm({ ...settings, referralBonusAmount: Number(e.target.value) })} />

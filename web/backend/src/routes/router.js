@@ -1,10 +1,10 @@
-import { db, id } from "../db.js";
+﻿import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { verifyPassword } from "../auth.js";
 import { ROUTER_OFFLINE_THRESHOLD_MS } from "../db.js";
 import { rateLimitByIp } from "../rateLimit.js";
 
-// Routers authenticate with { routerId, apiKey } in the body, not a JWT —
+// Routers authenticate with { routerId, apiKey } in the body, not a JWT â€”
 // they aren't users and don't log in through /api/auth/login. The key
 // was generated once at Agent Registration (installer step 7) and
 // stored hashed, same as a password.
@@ -17,11 +17,11 @@ async function authenticateRouter(routerId, apiKey) {
 }
 
 export function registerRouterRoutes(router) {
-  // POST /api/router/checkin — called by the router's own scheduler every
+  // POST /api/router/checkin â€” called by the router's own scheduler every
   // 30 seconds (RouterOS `/system/scheduler`, a cron job on OpenWRT/EdgeOS,
   // etc). Marks the router online, returns whatever commands are queued.
   // The router executes them locally and reports back via the ack route
-  // below. No port forwarding or public IP needed — the router always
+  // below. No port forwarding or public IP needed â€” the router always
   // calls out, never gets called.
   router.post("/api/router/checkin", async (req, res, { body }) => {
     if (await rateLimitByIp(req, res, "agent-checkin", { max: 120, windowMs: 15 * 60000 })) return;
@@ -38,7 +38,7 @@ export function registerRouterRoutes(router) {
     json(res, 200, { ok: true, commands, nextCheckInSeconds: 30 });
   });
 
-  // POST /api/router/commands/:id/ack — router reports a command's result.
+  // POST /api/router/commands/:id/ack â€” router reports a command's result.
   // body: { routerId, apiKey, status: 'executed' | 'failed', detail? }
   router.post("/api/router/commands/:id/ack", async (req, res, { params, body }) => {
     if (await rateLimitByIp(req, res, "agent-checkin", { max: 120, windowMs: 15 * 60000 })) return;
@@ -65,7 +65,7 @@ export function registerRouterRoutes(router) {
 
 /** Enqueues a command for every router belonging to a reseller. Used by
  *  the reseller routes whenever voucher state changes (create/pause/
- *  resume/delete) — the router picks it up on its next 30s check-in. */
+ *  resume/delete) â€” the router picks it up on its next 30s check-in. */
 export async function enqueueCommandForReseller(resellerId, type, payload) {
   const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
   const now = Date.now();
@@ -77,7 +77,7 @@ export async function enqueueCommandForReseller(resellerId, type, payload) {
 }
 
 /** A router is "online" only if it checked in within the last 90s,
- *  computed at read time rather than via a background sweep — no
+ *  computed at read time rather than via a background sweep â€” no
  *  scheduler process runs continuously in this environment, so this
  *  gets the same user-visible result (accurate status whenever anyone
  *  looks) without one. A real deployment would run this as an actual

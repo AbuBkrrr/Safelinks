@@ -1,13 +1,13 @@
-# Reslink
+﻿# SAFELINKS
 
 A white-label ISP-reselling platform: a Super Admin who runs the
 platform, Resellers who run their own branded WiFi business on top of
 it, and end-users who pay for internet access through a Captive
 Portal. Two pieces, both real, wired together:
 
-- **`reslink-backend/`** — the API. Postgres-backed, real dependencies
+- **`SAFELINKS-backend/`** — the API. Postgres-backed, real dependencies
   are `pg` and `nodemailer` (optional — see "Email sending" below).
-  Everything else is Node built-ins. See `reslink-backend/README.md`
+  Everything else is Node built-ins. See `SAFELINKS-backend/README.md`
   for the full endpoint list, the router check-in protocol, and — importantly
   — an honest **Limitations** section on what's still open.
 - **`frontend/`** — the three UIs (Super Admin dashboard, Reseller
@@ -49,7 +49,7 @@ a non-internet-facing deployment. A reseller redeems one from their
 License tab for instant activation — no waiting on confirmation. A
 second, independent path onto an active license alongside the
 existing bank-transfer flow; a deployment can use either or both.
-Full detail in `reslink-backend/README.md`.
+Full detail in `SAFELINKS-backend/README.md`.
 
 **Referral program:** every reseller has their own referral code and a
 Referrals tab (log an email/phone invite, or just share a
@@ -60,7 +60,7 @@ pattern as every other payment in this system. Duplicate invites to
 the same email are rejected, a same-email-different-trick heuristic
 flags likely self-referrals (see backend README), and Super Admin can
 adjust an individual bonus amount before paying it out. Full detail in
-`reslink-backend/README.md`.
+`SAFELINKS-backend/README.md`.
 
 **Voice commands & accessibility:** every dashboard (Reseller, Super
 Admin, and the pre-login landing page) has a floating voice-command
@@ -85,12 +85,12 @@ Three terminals:
 
 ```bash
 # terminal 1 — Postgres (or point DATABASE_URL at one you already run)
-docker run -d --name reslink-pg -e POSTGRES_USER=reslink -e POSTGRES_PASSWORD=reslink -e POSTGRES_DB=reslink -p 5432:5432 postgres:16-alpine
+docker run -d --name SAFELINKS-pg -e POSTGRES_USER=SAFELINKS -e POSTGRES_PASSWORD=SAFELINKS -e POSTGRES_DB=SAFELINKS -p 5432:5432 postgres:16-alpine
 
 # terminal 2 — backend
-cd reslink-backend
+cd SAFELINKS-backend
 npm install
-DATABASE_URL=postgres://reslink:reslink@localhost:5432/reslink node src/server.js
+DATABASE_URL=postgres://SAFELINKS:SAFELINKS@localhost:5432/SAFELINKS node src/server.js
 # -> http://localhost:4000, migrates + seeds demo data on first run
 # (SMTP_HOST etc are optional — see "Email sending" below; unset is fine for local dev)
 
@@ -107,7 +107,7 @@ referrals, the Captive Portal → voucher pipeline, and the zero-touch
 router pairing flow all confirmed working against a live database.
 One real bug turned up and got fixed in the process (a rate-limiter
 type bug that only a real Postgres connection could have surfaced —
-see `reslink-backend/README.md` → "Tested flows" for the detail).
+see `SAFELINKS-backend/README.md` → "Tested flows" for the detail).
 That's real confidence for the flows listed there; everything else
 in this app is still only `node --check`-verified or covered by the
 mocked test suite, not run against a live database.
@@ -120,10 +120,10 @@ Open `http://localhost:5173`:
   Solutions" (try `r2`, `r3` too)
 - `/install` — the standalone router installer
 
-**Demo logins** (see `reslink-backend/README.md` for the full table):
+**Demo logins** (see `SAFELINKS-backend/README.md` for the full table):
 | Role | Email | Password |
 |---|---|---|
-| Super Admin | `admin@reslink.io` | `admin123` |
+| Super Admin | `admin@SAFELINKS.io` | `admin123` |
 | Reseller | `admin@nairobitech.io` | `reseller123` |
 
 ## Email sending
@@ -138,7 +138,7 @@ install `nodemailer` in the environment this was built in) — send
 yourself a test expiry notice before trusting this in production.
 Password reset doesn't touch this at all — it's answered by a security
 question set at signup, entirely in-app. Full detail in
-`reslink-backend/README.md`.
+`SAFELINKS-backend/README.md`.
 
 ## Installing as an app
 
@@ -150,10 +150,10 @@ separate mobile build needed):
 - **Reseller — `/install`**: open it in Chrome/Safari on the phone
   that'll be used in the field, then "Add to Home Screen" (iOS) or
   "Install app" (Android/Chrome). It launches straight into the
-  router-pairing flow, no browser chrome, under the name "Reslink
+  router-pairing flow, no browser chrome, under the name "SAFELINKS
   Installer".
 - **Super Admin — `/`**: same idea from the root URL; installs as
-  "Reslink Admin". Session persists per device, so after the first
+  "SAFELINKS Admin". Session persists per device, so after the first
   login it reopens straight into the dashboard.
 
 This only works over HTTPS (or `localhost`) — it's inert during local
@@ -162,7 +162,7 @@ This only works over HTTPS (or `localhost`) — it's inert during local
 ## Deploying to a VPS
 
 ```bash
-git clone <this repo> && cd reslink
+git clone <this repo> && cd SAFELINKS
 cp .env.example .env        # set JWT_SECRET, POSTGRES_PASSWORD; SMTP_* optional
 # edit Caddyfile: replace yourdomain.com with your real domain (DNS A record must already point here)
 docker compose up -d --build
@@ -181,9 +181,9 @@ volume. Already running your own nginx (or your own Postgres)? See
    emails instead of the manual-notification fallback (password reset
    doesn't use email at all — see "Account recovery" above).
 3. Change the seeded demo passwords / remove the demo accounts
-   (`reslink-backend/src/db.js`'s `seed()` function) before going live
+   (`SAFELINKS-backend/src/db.js`'s `seed()` function) before going live
    — they're meant for evaluation, not production.
-4. Read `reslink-backend/README.md`'s **Limitations** section. What
+4. Read `SAFELINKS-backend/README.md`'s **Limitations** section. What
    matters most now: the router scripts (MikroTik native + generic
    Linux/CoovaChilli — see `router-scripts/README.md`) are real but not
    fully hardware-tested, so validate on a spare device first.

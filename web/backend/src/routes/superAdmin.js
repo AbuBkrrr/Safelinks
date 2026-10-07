@@ -1,4 +1,4 @@
-import { db, id, genCode } from "../db.js";
+﻿import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate } from "../auth.js";
 import { effectiveRouterStatus } from "./router.js";
@@ -289,7 +289,7 @@ export function registerSuperAdminRoutes(router) {
     `).all(status, batchLabel, batchLabel);
     res.writeHead(200, {
       "Content-Type": "text/plain; charset=utf-8",
-      "Content-Disposition": `attachment; filename="reslink-keys-${batchLabel || "all"}-${status}.txt"`,
+      "Content-Disposition": `attachment; filename="SAFELINKS-keys-${batchLabel || "all"}-${status}.txt"`,
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",

@@ -1,4 +1,4 @@
-# SAFE_Links — complete package
+﻿# SAFE_Links — complete package
 
 A product of A I Brains Ventures. This repo has everything built so
 far: the actual web application, native Android and Windows apps that
@@ -98,7 +98,7 @@ that specific feature for real.
 - **A documentation overclaim corrected**: both the Android and desktop
   LAN-pairing code originally described the generated RouterOS script
   as a "byte-identical"/"line-for-line" copy of
-  `web-app/reslink-backend/router-scripts/reslink-agent.rsc`. Actually
+  `web-app/SAFELINKS-backend/router-scripts/SAFELINKS-agent.rsc`. Actually
   diffing generated output against that file showed real (harmless)
   differences — the one-shot registration step runs inline instead of
   as a persisted script object, and log wording is paraphrased. Fixed
@@ -113,7 +113,7 @@ that specific feature for real.
   longer covers input fields on forms.
 - Android app converted from an installer-only app to the universal
   app described above.
-- Full SAFE_Links rebrand (was "Reslink") — every user-visible string,
+- Full SAFE_Links rebrand (was "SAFELINKS") — every user-visible string,
   the platform's default support contact, license payee name.
 - Real file/voice-note upload support on every support-ticket surface.
 - Fixed: a crash on the Super Admin Referrals tab (a missing state

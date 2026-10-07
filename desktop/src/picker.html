@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -36,7 +36,7 @@
     for a browser user who can type a URL), and this window has no
     address bar either.
 
-    The choice is sent to the main process via window.ReslinkNative
+    The choice is sent to the main process via window.SAFELINKSNative
     .chooseMode() (see src/preload.js), which persists it and
     navigates to the right URL. main.js's "Switch mode" menu item
     reloads this same page later without clearing the saved choice.
@@ -45,11 +45,11 @@
   <h1>Welcome to SAFE_Links</h1>
   <p>What are you here to do?</p>
   <div class="choices">
-    <button class="choice" onclick="window.ReslinkNative.chooseMode('reseller_admin')">
+    <button class="choice" onclick="window.SAFELINKSNative.chooseMode('reseller_admin')">
       I'm a Reseller / Admin
       <span class="sub">Sign in to your dashboard</span>
     </button>
-    <button class="choice" onclick="window.ReslinkNative.chooseMode('installer')">
+    <button class="choice" onclick="window.SAFELINKSNative.chooseMode('installer')">
       I'm pairing a router
       <span class="sub">Open the router-pairing wizard</span>
     </button>

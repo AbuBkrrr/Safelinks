@@ -1,10 +1,10 @@
-/**
+﻿/**
  * LAN router auto-pairing UI — lets someone pair a MikroTik router
  * without typing the pairing code into the router's console by hand,
  * if the device running this app is on the same network as the
  * router. Renders nothing at all unless a native bridge is actually
  * present (Capacitor's RouterLanPairing plugin on Android, or
- * window.ReslinkNative on the Electron desktop app) — on a plain
+ * window.SAFELINKSNative on the Electron desktop app) — on a plain
  * browser, PWA, or iOS, this component is a no-op, and the existing
  * manual/human-typed pairing flow above it is the only option, same
  * as before this existed.
@@ -43,13 +43,13 @@ function getNativeBridge() {
     };
   }
 
-  // Electron desktop: positional-arg calls via window.ReslinkNative
+  // Electron desktop: positional-arg calls via window.SAFELINKSNative
   // (see desktop-app/src/preload.js).
-  if (window.ReslinkNative?.probe) {
+  if (window.SAFELINKSNative?.probe) {
     return {
-      probe: (adminUser, adminPass) => window.ReslinkNative.probe(adminUser, adminPass),
+      probe: (adminUser, adminPass) => window.SAFELINKSNative.probe(adminUser, adminPass),
       pairWithConfirmedFingerprint: (pairingCode, adminUser, adminPass, confirmedFingerprint) =>
-        window.ReslinkNative.pairWithConfirmedFingerprint(pairingCode, adminUser, adminPass, confirmedFingerprint),
+        window.SAFELINKSNative.pairWithConfirmedFingerprint(pairingCode, adminUser, adminPass, confirmedFingerprint),
     };
   }
 

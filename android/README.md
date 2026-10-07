@@ -1,4 +1,4 @@
-# SAFE_Links — Android app
+﻿# SAFE_Links — Android app
 
 One app for everyone — resellers, Super Admin, and field technicians pairing
 routers. It's a thin native wrapper (Capacitor WebView) around the whole
@@ -206,7 +206,7 @@ it's worth reading in full before turning it on for real users:
   source, but isn't a byte-identical copy.** `RouterOsScripts.java`
   reproduces the same HTTP calls, response parsing, and hotspot-user
   command handling as
-  `reslink-backend/router-scripts/reslink-agent.rsc` — verified by
+  `SAFELINKS-backend/router-scripts/SAFELINKS-agent.rsc` — verified by
   actually diffing a Node.js port of the same logic against that file
   directly (this file itself couldn't be verified that way — no JVM
   in the environment this was built in). It deliberately restructures

@@ -1,21 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, HelpCircle, X } from "lucide-react";
 import { T } from "./ui.jsx";
 import { dt } from "./dashboardI18n.js";
 
 /* Voice control for people who can't easily see the screen or use a
- * mouse/keyboard — a blind reseller navigating by ear, or someone with
+ * mouse/keyboard â€” a blind reseller navigating by ear, or someone with
  * a motor impairment who finds clicking small buttons difficult. Two
  * halves, deliberately kept independent so each still helps on its own
  * even where the other doesn't work:
  *
- *   1. VOICE INPUT (SpeechRecognition) — say a command, it runs.
+ *   1. VOICE INPUT (SpeechRecognition) â€” say a command, it runs.
  *      Chrome/Edge only as of this writing; Safari and Firefox don't
  *      implement the API, so this half quietly disables itself
  *      (button shows as unavailable, with a plain-text reason) rather
  *      than pretending to listen and doing nothing.
  *
- *   2. SPOKEN + TEXTUAL FEEDBACK (SpeechSynthesis + aria-live) — every
+ *   2. SPOKEN + TEXTUAL FEEDBACK (SpeechSynthesis + aria-live) â€” every
  *      response is BOTH spoken out loud AND written into an
  *      aria-live region. That second part matters even when TTS
  *      works: a blind person very likely already has their own
@@ -24,16 +24,16 @@ import { dt } from "./dashboardI18n.js";
  *      than a second, unrelated voice competing with it. This half
  *      works in every browser, with or without SpeechRecognition.
  *
- * Every string this component speaks or displays — the chrome around
- * the mic button, the "listening"/"no match" feedback, aria-labels —
+ * Every string this component speaks or displays â€” the chrome around
+ * the mic button, the "listening"/"no match" feedback, aria-labels â€”
  * comes from dashboardI18n.js's `dt()`, keyed by `lang`, so a Kiswahili
  * speaker hears Kiswahili words in a Kiswahili-accented voice, not
  * English words with a Kiswahili accent. The `commands` themselves
  * (labels + match phrases) are the caller's responsibility to
- * translate too — see App.jsx and ui.jsx, which build their command
+ * translate too â€” see App.jsx and ui.jsx, which build their command
  * lists from the same `dt()` dictionary.
  *
- * `commands` — array of { match: string[], label, run }. `match`
+ * `commands` â€” array of { match: string[], label, run }. `match`
  * entries are substrings checked against the lowercased transcript;
  * first one found wins. `run` can be sync or return a string to
  * speak instead of the default "label" confirmation.
@@ -76,7 +76,7 @@ export default function VoiceAssistant({ commands, lang = "en", greeting }) {
   }, [commands, lang]);
 
   useEffect(() => {
-    // Announced via aria-live only (not spoken aloud) — a screen reader
+    // Announced via aria-live only (not spoken aloud) â€” a screen reader
     // user gets to know this exists without an unsolicited voice
     // interrupting them the moment a page loads.
     if (greeting) setFeedback(greeting);
@@ -179,7 +179,7 @@ export default function VoiceAssistant({ commands, lang = "en", greeting }) {
         </button>
       </div>
 
-      {/* Mirrors `feedback` for anyone using an actual screen reader —
+      {/* Mirrors `feedback` for anyone using an actual screen reader â€”
           independent of whether SpeechSynthesis above is audible or
           even supported, this line always gets announced. */}
       <div aria-live="assertive" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>

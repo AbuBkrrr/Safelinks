@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { ChevronLeft, ShieldQuestion, CheckCircle2, Lock } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api } from "./api.js";
 
-/* Account recovery via the secret question set at signup — no email
+/* Account recovery via the secret question set at signup â€” no email
  * involved anywhere in this flow. Three steps, all on this one screen:
  *   1. email            -> POST /password-reset/question
  *   2. question + answer -> POST /password-reset/verify-answer (returns
  *                            a short-lived resetToken on a correct answer)
  *   3. new password      -> POST /password-reset/confirm { resetToken, newPassword }
- * A wrong answer at step 2 just re-shows the question with an error —
+ * A wrong answer at step 2 just re-shows the question with an error â€”
  * nothing here reveals whether that was because the email doesn't
  * exist or the answer was wrong, same non-enumeration goal the old
  * email-link flow had.
@@ -63,7 +63,7 @@ export default function ForgotPassword({ onBack }) {
       await api.confirmPasswordReset(resetToken, password);
       setStep("done");
     } catch (err) {
-      setError(err.message || "That reset session expired — start over");
+      setError(err.message || "That reset session expired â€” start over");
     }
     setSubmitting(false);
   }
@@ -91,12 +91,12 @@ export default function ForgotPassword({ onBack }) {
 
             {step === "email" && (
               <>
-                <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>Enter the email on your reseller account — we'll pull up your security question next.</div>
+                <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>Enter the email on your reseller account â€” we'll pull up your security question next.</div>
                 <form onSubmit={submitEmail} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 22 }}>
                   <Field label="Email"><input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></Field>
                   {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
                   <Btn type="submit" disabled={submitting} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
-                    {submitting ? "Looking up…" : "Continue"}
+                    {submitting ? "Looking upâ€¦" : "Continue"}
                   </Btn>
                 </form>
               </>
@@ -110,7 +110,7 @@ export default function ForgotPassword({ onBack }) {
                   <Field label="Your answer"><input style={inputStyle} value={answer} onChange={(e) => setAnswer(e.target.value)} required autoFocus /></Field>
                   {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
                   <Btn type="submit" disabled={submitting} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
-                    {submitting ? "Checking…" : "Verify answer"}
+                    {submitting ? "Checkingâ€¦" : "Verify answer"}
                   </Btn>
                 </form>
                 <div style={{ marginTop: 12, fontSize: 12, color: T.sub, textAlign: "center" }}>
@@ -121,13 +121,13 @@ export default function ForgotPassword({ onBack }) {
 
             {step === "newPassword" && (
               <>
-                <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>Answer verified — set a new password.</div>
+                <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>Answer verified â€” set a new password.</div>
                 <form onSubmit={submitNewPassword} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 22 }}>
                   <Field label="New password" hint="At least 8 characters"><input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus /></Field>
                   <Field label="Confirm new password"><input style={inputStyle} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></Field>
                   {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
                   <Btn type="submit" disabled={submitting} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
-                    <Lock size={14} /> {submitting ? "Updating…" : "Update password"}
+                    <Lock size={14} /> {submitting ? "Updatingâ€¦" : "Update password"}
                   </Btn>
                 </form>
               </>

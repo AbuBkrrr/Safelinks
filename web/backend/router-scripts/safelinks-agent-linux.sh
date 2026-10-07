@@ -1,12 +1,12 @@
-#!/bin/sh
+﻿#!/bin/sh
 # =============================================================================
-# Reslink zero-touch agent — generic Linux (OpenWRT, EdgeOS's bash shell,
+# SAFELINKS zero-touch agent — generic Linux (OpenWRT, EdgeOS's bash shell,
 # any Debian/Ubuntu-based gateway box)
 # =============================================================================
 #
-# Unlike router-scripts/reslink-agent.rsc (MikroTik RouterOS, untested on
+# Unlike router-scripts/SAFELINKS-agent.rsc (MikroTik RouterOS, untested on
 # real hardware), THIS script is plain POSIX shell + curl — it has been
-# run for real against a live Reslink backend in development (see
+# run for real against a live SAFELINKS backend in development (see
 # "TESTED" below), just not against a real captive-portal daemon, because
 # none was available to install here either. Read "WHAT ISN'T PROVEN"
 # before trusting it on a production router.
@@ -21,7 +21,7 @@
 #   swap in whatever your box actually runs (a RADIUS user table via
 #   `radclient`, OpenNDS, a custom API) without touching anything else.
 #
-# WHAT THIS COVERS vs. router-scripts/reslink-agent.rsc
+# WHAT THIS COVERS vs. router-scripts/SAFELINKS-agent.rsc
 #   MikroTik has RouterOS's own built-in hotspot user database, so that
 #   script needs no external hotspot daemon. Most other router platforms
 #   (OpenWRT, EdgeOS, generic Linux) don't have an equivalent built in —
@@ -35,29 +35,29 @@
 #   (stock Netgear/stock TP-Link firmware with no shell access at all)
 #   are still out of reach — there's no shell to run a script in.
 #
-# TESTED: registration, check-in, and ack against a live Reslink backend
+# TESTED: registration, check-in, and ack against a live SAFELINKS backend
 # in this repo's dev environment — genuinely exercised, not simulated.
 # NOT TESTED: the default chilli_query command-execution branch below,
 # since no CoovaChilli install was available to test against either —
 # review it against your actual chilli_query version before relying on it.
 #
 # USAGE
-#   1. Edit RESLINK_API_URL below if not using the default domain.
+#   1. Edit SAFELINKS_API_URL below if not using the default domain.
 #   2. From the reseller dashboard, generate a pairing code (Routers ->
 #      "Pair a router") — it's the only thing typed in by hand.
-#   3. Run once, interactively:  ./reslink-agent-linux.sh register PAIRCODE
+#   3. Run once, interactively:  ./SAFELINKS-agent-linux.sh register PAIRCODE
 #   4. Add to cron (runs every 30s via two offset minutely entries, since
 #      standard cron has no sub-minute granularity):
-#        * * * * *          /path/to/reslink-agent-linux.sh checkin
-#        * * * * * sleep 30; /path/to/reslink-agent-linux.sh checkin
+#        * * * * *          /path/to/SAFELINKS-agent-linux.sh checkin
+#        * * * * * sleep 30; /path/to/SAFELINKS-agent-linux.sh checkin
 # =============================================================================
 
 set -eu
 
-RESLINK_API_URL="https://api.reslink.io"
-CRED_FILE="/etc/reslink/credentials"
+SAFELINKS_API_URL="https://backend-services-production-78d8.up.railway.app"
+CRED_FILE="/etc/SAFELINKS/credentials"
 
-log() { echo "[reslink-agent] $*" >&2; }
+log() { echo "[SAFELINKS-agent] $*" >&2; }
 
 # --- registration: run once, by hand, with the pairing code -----------------
 do_register() {
@@ -66,7 +66,7 @@ do_register() {
   firmware="$(uname -r)"
   identity="$(hostname)"
 
-  response=$(curl -s -X POST "$RESLINK_API_URL/api/agent/register" \
+  response=$(curl -s -X POST "$SAFELINKS_API_URL/api/agent/register" \
     --data-urlencode "code=$code" \
     --data-urlencode "model=$model" \
     --data-urlencode "firmware=$firmware" \
@@ -98,7 +98,7 @@ do_checkin() {
   router_id=$(sed -n '1p' "$CRED_FILE")
   api_key=$(sed -n '2p' "$CRED_FILE")
 
-  response=$(curl -s -X POST "$RESLINK_API_URL/api/agent/checkin" \
+  response=$(curl -s -X POST "$SAFELINKS_API_URL/api/agent/checkin" \
     --data-urlencode "router_id=$router_id" \
     --data-urlencode "api_key=$api_key")
 
@@ -115,7 +115,7 @@ do_checkin() {
     else
       exec_status="failed"; detail="apply_command returned non-zero for $cmd_type"
     fi
-    curl -s -X POST "$RESLINK_API_URL/api/agent/commands/$cmd_id/ack" \
+    curl -s -X POST "$SAFELINKS_API_URL/api/agent/commands/$cmd_id/ack" \
       --data-urlencode "router_id=$router_id" \
       --data-urlencode "api_key=$api_key" \
       --data-urlencode "status=$exec_status" \

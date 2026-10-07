@@ -1,4 +1,4 @@
-// Rate limiting for public, unauthenticated endpoints — login, signup,
+﻿// Rate limiting for public, unauthenticated endpoints â€” login, signup,
 // password-reset requests, and router/agent check-in and registration.
 // Postgres-backed (not in-memory, not Redis) so it's correct even
 // across multiple backend instances sharing one database: the upsert
@@ -6,7 +6,7 @@
 // requests for the same key at the same moment can't both "win" a
 // stale read the way a read-then-write check would.
 //
-// Fixed window, not sliding — simpler, and "someone gets a fresh
+// Fixed window, not sliding â€” simpler, and "someone gets a fresh
 // attempt right at the window boundary" is an acceptable tradeoff for
 // what this is protecting (credential stuffing, pairing-code
 // brute-forcing, signup/email-bomb spam), which all need sustained
@@ -27,11 +27,11 @@ async function consume(key, windowMs) {
   `).get(key, now, cutoff, cutoff, now);
   // `pg` returns BIGINT columns as JS strings (they can exceed
   // Number's safe-integer range in general, even though these
-  // particular values — epoch millis and a request count — never
+  // particular values â€” epoch millis and a request count â€” never
   // will). Without this, `row.window_start + windowMs` below does
   // STRING CONCATENATION, not addition, silently producing a
   // multi-quadrillion "seconds" retry-after. Caught by hand-testing
-  // this against a real Postgres instance for the first time — every
+  // this against a real Postgres instance for the first time â€” every
   // earlier verification of this file ran against `node --check`
   // (syntax only) or mocked data, neither of which would ever
   // surface a driver-level type quirk like this.
@@ -40,7 +40,7 @@ async function consume(key, windowMs) {
 
 /** Best-effort client IP. Trusts the LAST hop's X-Forwarded-For entry
  *  only because this backend's deployment model (see docker-compose.yml)
- *  always sits behind Caddy, which sets it correctly — trusting an
+ *  always sits behind Caddy, which sets it correctly â€” trusting an
  *  arbitrary client-supplied header would be meaningless (they could
  *  claim to be anyone), but trusting your own known reverse proxy is
  *  the standard, correct pattern. If you deploy this differently
@@ -54,7 +54,7 @@ export function getClientIp(req) {
 
 /** Rate-limits by client IP under `${bucket}:${ip}`. Returns true (and
  *  already sent a 429) if the caller should stop; false if the request
- *  may proceed. `respond` picks json() vs text() — the agent/router
+ *  may proceed. `respond` picks json() vs text() â€” the agent/router
  *  endpoints speak plain text, everything else speaks JSON. */
 export async function rateLimitByIp(req, res, bucket, { max, windowMs, respond = "json" } = {}) {
   return rateLimitByKey(res, `${bucket}:${getClientIp(req)}`, { max, windowMs, respond });
@@ -69,9 +69,9 @@ export async function rateLimitByKey(res, key, { max, windowMs, respond = "json"
   if (row.count > max) {
     const retryAfterSeconds = Math.ceil((row.window_start + windowMs - Date.now()) / 1000);
     if (respond === "text") {
-      text(res, 429, `STATUS ERROR\nMESSAGE too many requests — retry in ${retryAfterSeconds}s\n`);
+      text(res, 429, `STATUS ERROR\nMESSAGE too many requests â€” retry in ${retryAfterSeconds}s\n`);
     } else {
-      json(res, 429, { error: "Too many requests — please slow down", retryAfterSeconds: Math.max(retryAfterSeconds, 1) });
+      json(res, 429, { error: "Too many requests â€” please slow down", retryAfterSeconds: Math.max(retryAfterSeconds, 1) });
     }
     return true;
   }

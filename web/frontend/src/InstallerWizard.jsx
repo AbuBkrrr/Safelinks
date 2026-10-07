@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { Router, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Zap, Keyboard, Clock, Copy } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api } from "./api.js";
@@ -12,7 +12,7 @@ const MODELS = ["MikroTik hAP ac2", "MikroTik hAP ac3", "Ubiquiti EdgeRouter X",
  * code via POST /api/reseller/pairing-codes, then polls
  * GET /api/reseller/pairing-codes/:code waiting for the router itself
  * to call POST /api/agent/register with it — see
- * reslink-backend/router-scripts/reslink-agent.rsc, a real RouterOS
+ * safelinks-backend/router-scripts/safelinks-agent.rsc, a real RouterOS
  * script (written against documented syntax, not yet hardware-tested —
  * see that file's header). Nobody types in the router's model,
  * firmware, or IP; the router reports those itself.

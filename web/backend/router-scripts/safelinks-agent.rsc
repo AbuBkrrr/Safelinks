@@ -1,20 +1,20 @@
-# =============================================================================
-# Reslink zero-touch agent — MikroTik RouterOS 7.x
+﻿# =============================================================================
+# SAFELINKS zero-touch agent — MikroTik RouterOS 7.x
 # =============================================================================
 #
 # WHAT THIS DOES
 #   Installs two named scripts on the router:
-#     reslink-register  — run ONCE, by hand, using a short pairing code
+#     safelinks-register  — run ONCE, by hand, using a short pairing code
 #                          generated from the reseller's dashboard
 #                          (installer wizard -> "Pair a router"). This is
 #                          the ONLY thing typed in by hand anywhere in
 #                          this flow — the router reports its own model
 #                          and RouterOS version itself.
-#     reslink-checkin    — installed as a /system scheduler job that runs
+#     safelinks-checkin    — installed as a /system scheduler job that runs
 #                          every 30s once pairing succeeds. Polls
 #                          POST /api/agent/checkin, and executes whatever
 #                          voucher commands (create/enable/disable/delete
-#                          hotspot user) Reslink has queued.
+#                          hotspot user) SAFELINKS has queued.
 #
 # WHAT THIS ASSUMES
 #   A working /ip hotspot server already exists on this router (interface,
@@ -26,11 +26,11 @@
 #   already exists.
 #
 # BEFORE YOU RUN THIS
-#   1. Edit RESLINK_API_URL below if you're not using the default domain.
+#   1. Edit SAFELINKS_API_URL below if you're not using the default domain.
 #   2. From the reseller dashboard, go to Routers -> "Pair a new router",
 #      copy the 6-character code shown (expires in 15 minutes).
-#   3. Import this file: /import file=reslink-agent.rsc
-#   4. Run once: /system script run reslink-register
+#   3. Import this file: /import file=SAFELINKS-agent.rsc
+#   4. Run once: /system script run safelinks-register
 #      It will prompt for the pairing code via :environment or you can
 #      set it directly — see the "SET YOUR PAIRING CODE HERE" line below.
 #
@@ -43,24 +43,24 @@
 #   device or a CHR VM before rolling this out to production routers.
 # =============================================================================
 
-:global resLinkApiUrl "https://api.reslink.io"
-:global resLinkCredFile "reslink-credentials.txt"
+:global safelinksApiUrl "https://backend-services-production-78d8.up.railway.app"
+:global safelinksCredFile "SAFELINKS-credentials.txt"
 
 # ---------------------------------------------------------------------------
-# reslink-register — run this ONE TIME by hand
+# safelinks-register — run this ONE TIME by hand
 # ---------------------------------------------------------------------------
 /system script
-:if ([:len [/system script find name="reslink-register"]] > 0) do={ remove [find name="reslink-register"] }
-add name="reslink-register" source={
-  :global resLinkApiUrl
-  :global resLinkCredFile
+:if ([:len [/system script find name="safelinks-register"]] > 0) do={ remove [find name="safelinks-register"] }
+add name="safelinks-register" source={
+  :global safelinksApiUrl
+  :global safelinksCredFile
 
   # === SET YOUR PAIRING CODE HERE (the 6-character code from the dashboard) ===
   :local pairingCode "PASTE-CODE-HERE"
 
   :if ($pairingCode = "PASTE-CODE-HERE") do={
-    :log warning "reslink-register: edit this script and set \$pairingCode to the code from your dashboard before running it."
-    :error "reslink-register: pairing code not set"
+    :log warning "safelinks-register: edit this script and set \$pairingCode to the code from your dashboard before running it."
+    :error "safelinks-register: pairing code not set"
   }
 
   :local routerIdentity [/system identity get name]
@@ -71,16 +71,16 @@ add name="reslink-register" source={
 
   :local result ""
   :do {
-    :local fetchResult [/tool fetch url=($resLinkApiUrl . "/api/agent/register") http-method=post http-data=$postData as-value output=user]
+    :local fetchResult [/tool fetch url=($safelinksApiUrl . "/api/agent/register") http-method=post http-data=$postData as-value output=user]
     :set result ($fetchResult->"data")
   } on-error={
-    :log error "reslink-register: could not reach Reslink — check RESLINK_API_URL and internet connectivity"
-    :error "reslink-register: fetch failed"
+    :log error "safelinks-register: could not reach SAFELINKS — check SAFELINKS_API_URL and internet connectivity"
+    :error "safelinks-register: fetch failed"
   }
 
   :if ([:find $result "STATUS OK"] = nil) do={
-    :log error ("reslink-register: registration failed — " . $result)
-    :error "reslink-register: server rejected registration (see log)"
+    :log error ("safelinks-register: registration failed — " . $result)
+    :error "safelinks-register: server rejected registration (see log)"
   }
 
   # Pull ROUTER_ID and API_KEY out of the plain-text response. Each is on
@@ -99,39 +99,39 @@ add name="reslink-register" source={
   }
 
   :if ($routerId = "" or $apiKey = "") do={
-    :log error "reslink-register: could not parse ROUTER_ID/API_KEY from response"
-    :error "reslink-register: parse failure (see log)"
+    :log error "safelinks-register: could not parse ROUTER_ID/API_KEY from response"
+    :error "safelinks-register: parse failure (see log)"
   }
 
-  # Persist to a file so reslink-checkin.rsc survives a reboot — a
+  # Persist to a file so safelinks-checkin.rsc survives a reboot — a
   # :global variable set here does NOT survive a router restart, but a
   # file does.
   :local credContents ($routerId . "\n" . $apiKey . "\n")
-  :if ([:len [/file find name=$resLinkCredFile]] > 0) do={ /file remove [find name=$resLinkCredFile] }
-  /file add name=$resLinkCredFile contents=$credContents
+  :if ([:len [/file find name=$safelinksCredFile]] > 0) do={ /file remove [find name=$safelinksCredFile] }
+  /file add name=$safelinksCredFile contents=$credContents
 
-  :log info ("reslink-register: paired successfully as " . $routerId)
+  :log info ("safelinks-register: paired successfully as " . $routerId)
   :put ("Paired. Router ID: " . $routerId . " — starting check-in scheduler.")
 
   # Enable the recurring check-in now that we have credentials.
-  /system scheduler enable [find name="reslink-checkin"]
+  /system scheduler enable [find name="safelinks-checkin"]
 }
 
 # ---------------------------------------------------------------------------
-# reslink-checkin — runs every 30s via the scheduler below, once paired
+# safelinks-checkin — runs every 30s via the scheduler below, once paired
 # ---------------------------------------------------------------------------
 /system script
-:if ([:len [/system script find name="reslink-checkin"]] > 0) do={ remove [find name="reslink-checkin"] }
-add name="reslink-checkin" source={
-  :global resLinkApiUrl
-  :global resLinkCredFile
+:if ([:len [/system script find name="safelinks-checkin"]] > 0) do={ remove [find name="safelinks-checkin"] }
+add name="safelinks-checkin" source={
+  :global safelinksApiUrl
+  :global safelinksCredFile
 
-  :if ([:len [/file find name=$resLinkCredFile]] = 0) do={
-    :log warning "reslink-checkin: not paired yet — run reslink-register first"
-    :error "reslink-checkin: no credentials file"
+  :if ([:len [/file find name=$safelinksCredFile]] = 0) do={
+    :log warning "safelinks-checkin: not paired yet — run safelinks-register first"
+    :error "safelinks-checkin: no credentials file"
   }
 
-  :local credContents [/file get [find name=$resLinkCredFile] contents]
+  :local credContents [/file get [find name=$safelinksCredFile] contents]
   :local nl1 [:find $credContents "\n"]
   :local routerId [:pick $credContents 0 $nl1]
   :local rest [:pick $credContents ($nl1 + 1) [:len $credContents]]
@@ -141,16 +141,16 @@ add name="reslink-checkin" source={
   :local postData ("router_id=" . $routerId . "&api_key=" . $apiKey)
   :local result ""
   :do {
-    :local fetchResult [/tool fetch url=($resLinkApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
+    :local fetchResult [/tool fetch url=($safelinksApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
     :set result ($fetchResult->"data")
   } on-error={
-    :log warning "reslink-checkin: could not reach Reslink this cycle — will retry next scheduled run"
-    :error "reslink-checkin: fetch failed"
+    :log warning "safelinks-checkin: could not reach SAFELINKS this cycle — will retry next scheduled run"
+    :error "safelinks-checkin: fetch failed"
   }
 
   :if ([:find $result "STATUS OK"] = nil) do={
-    :log warning ("reslink-checkin: server rejected check-in — " . $result)
-    :error "reslink-checkin: bad response"
+    :log warning ("safelinks-checkin: server rejected check-in — " . $result)
+    :error "safelinks-checkin: bad response"
   }
 
   # Walk the response line by line. Fixed field order, space-separated:
@@ -207,19 +207,19 @@ add name="reslink-checkin" source={
 
       :local ackData ("router_id=" . $routerId . "&api_key=" . $apiKey . "&status=" . $execStatus . "&detail=" . $execDetail)
       :do {
-        /tool fetch url=($resLinkApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
+        /tool fetch url=($safelinksApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
       } on-error={
-        :log warning ("reslink-checkin: could not ack command " . $cmdId . " — it will be re-sent next check-in if still pending")
+        :log warning ("safelinks-checkin: could not ack command " . $cmdId . " — it will be re-sent next check-in if still pending")
       }
     }
   }
 }
 
 # ---------------------------------------------------------------------------
-# Scheduler — starts disabled; reslink-register enables it on success
+# Scheduler — starts disabled; safelinks-register enables it on success
 # ---------------------------------------------------------------------------
 /system scheduler
-:if ([:len [/system scheduler find name="reslink-checkin"]] > 0) do={ remove [find name="reslink-checkin"] }
-add name="reslink-checkin" interval=30s on-event="/system script run reslink-checkin" disabled=yes
+:if ([:len [/system scheduler find name="safelinks-checkin"]] > 0) do={ remove [find name="safelinks-checkin"] }
+add name="safelinks-checkin" interval=30s on-event="/system script run safelinks-checkin" disabled=yes
 
-:put "Reslink agent scripts installed. Now edit reslink-register (set your pairing code) and run: /system script run reslink-register"
+:put "SAFELINKS agent scripts installed. Now edit safelinks-register (set your pairing code) and run: /system script run safelinks-register"
