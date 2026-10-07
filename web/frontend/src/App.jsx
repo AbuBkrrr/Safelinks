@@ -1,19 +1,45 @@
-import React, { useCallback, useState } from "react";
+﻿import React, { useCallback, useState } from "react";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import { Shield, Wifi, Radio, Smartphone, LogIn, UserPlus } from "lucide-react";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import { T, Btn, Toast, GlobalStyle } from "./ui.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import VoiceAssistant from "./VoiceAssistant.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import { dt, dtMatch } from "./dashboardI18n.js";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import { getSession, clearSession } from "./api.js";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import Login from "./Login.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import Signup from "./Signup.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import ForgotPassword from "./ForgotPassword.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import SuperAdminApp from "./SuperAdminApp.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import ResellerApp from "./ResellerApp.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import CaptivePortal from "./CaptivePortal.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 import StandaloneInstaller from "./StandaloneInstaller.jsx";
+import DownloadPrompt from './components/DownloadPrompt';
+
 
 // Nobody's logged in yet on the Landing page, so there's no saved
-// dashboardLanguage to read — best we can do is guess from the
+// dashboardLanguage to read â€” best we can do is guess from the
 // browser's own language setting, falling back to English. Matches
 // against the same codes as dashboardI18n.js/i18n.js.
 const SUPPORTED_LANGS = ["en", "fr", "sw", "ha", "yo", "pt"];
@@ -23,7 +49,7 @@ function detectBrowserLang() {
   return codes.find((c) => SUPPORTED_LANGS.includes(c)) || "en";
 }
 
-/* Client-side "routing" from the URL path — no react-router dependency
+/* Client-side "routing" from the URL path â€” no react-router dependency
    needed for three real routes:
      /            -> reseller welcome (sign up / log in), with a small
                      Super Admin link tucked in the top-right corner
@@ -35,7 +61,7 @@ function detectBrowserLang() {
 
    There used to be a fourth route, /reset-password?token=..., for an
    emailed reset link. Password recovery is now done entirely via the
-   security question set at signup (see ForgotPassword.jsx) — the whole
+   security question set at signup (see ForgotPassword.jsx) â€” the whole
    flow happens inline on the login screen, no email/link involved, so
    that route no longer exists.
 */
@@ -47,7 +73,7 @@ function parseRoute() {
   return { name: "landing" };
 }
 
-/* The landing page is a Reseller welcome screen first and foremost —
+/* The landing page is a Reseller welcome screen first and foremost â€”
    that's who's expected to arrive here from a browser (Super Admin is
    one person, you; resellers are the whole audience this page is
    written for). Super Admin access is still one click away, just
@@ -83,7 +109,7 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
       <div style={{ fontSize: 26, fontWeight: 700, color: T.ink, marginBottom: 2 }}>Welcome to SAFE_Links</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 10, letterSpacing: 0.2 }}>A product of A I Brains Ventures</div>
       <div style={{ fontSize: 14, color: T.sub, marginBottom: 30, textAlign: "center", maxWidth: 440 }}>
-        Run your own branded internet business — vouchers, routers, and a payment portal your customers see under your name. Create an account or log in to get started.
+        Run your own branded internet business â€” vouchers, routers, and a payment portal your customers see under your name. Create an account or log in to get started.
       </div>
 
       <div style={{ width: "100%", maxWidth: 340, background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 2px rgba(20,20,43,0.04)" }}>
@@ -97,13 +123,13 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
       </div>
 
       <div style={{ marginTop: 30, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.sub }}>
-        <Wifi size={13} /> End-users never log in here — they reach your Captive Portal at a URL like <code>/portal/&lt;resellerId&gt;</code> after connecting to WiFi.
+        <Wifi size={13} /> End-users never log in here â€” they reach your Captive Portal at a URL like <code>/portal/&lt;resellerId&gt;</code> after connecting to WiFi.
       </div>
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.sub }}>
         <Smartphone size={13} /> Installing a router? Go straight to <code>/install</code> on your phone instead.
       </div>
       <div style={{ marginTop: 22, fontSize: 11.5, color: T.sub, textAlign: "center" }}>
-        A I Brains Ventures · +234 803 254 0215 · aibrainsventures@gmail.com
+        A I Brains Ventures Â· +234 803 254 0215 Â· aibrainsventures@gmail.com
       </div>
       <VoiceAssistant
         commands={voiceCommands}
@@ -194,3 +220,4 @@ export default function App() {
     </div>
   );
 }
+
