@@ -87,6 +87,8 @@ async function main() {
   }
 
   await migrate();
+  const { runMigration } = await import("./migrations/20261007-add-phone-to-resellers.js");
+  await runMigration();
   const seedResult = await seed();
   startScheduler();
 

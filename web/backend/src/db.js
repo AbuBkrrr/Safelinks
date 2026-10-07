@@ -315,6 +315,26 @@ export async function migrate() {
       created_at BIGINT NOT NULL,
       FOREIGN KEY (plan_id) REFERENCES platform_plans(id),
       FOREIGN KEY (used_by_reseller_id) REFERENCES resellers(id)
+  // --- SafeLinks auth upgrade (phone, email verification, Google OAuth) ---
+  await db.exec(`
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS phone TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS google_id TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+    CREATE INDEX IF NOT EXISTS idx_resellers_google_id ON resellers(google_id);
+
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id TEXT PRIMARY KEY,
+      user_type TEXT NOT NULL DEFAULT 'reseller',
+      user_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at BIGINT NOT NULL,
+      used_at BIGINT,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_email_verif_user ON email_verifications(user_type, user_id);
+  `);
     );
     CREATE INDEX IF NOT EXISTS idx_product_keys_status ON product_keys(status, batch_label);
   `);
