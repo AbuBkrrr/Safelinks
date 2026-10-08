@@ -18,6 +18,7 @@ const SECURITY_QUESTIONS = [
 export default function Signup({ onSuccess, onBack }) {
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [securityQuestion, setSecurityQuestion] = useState(SECURITY_QUESTIONS[0]);
@@ -41,6 +42,10 @@ export default function Signup({ onSuccess, onBack }) {
   async function submit(e) {
     e.preventDefault();
     setError(null);
+    const phoneClean = phone.replace(/[\s\-()]/g, "");
+    if (!/^\+?[1-9]\d{6,14}$/.test(phoneClean)) {
+      return setError("Enter a valid phone number (e.g. +2348000000000)");
+    }
     if (password !== confirmPassword) return setError("Passwords don't match");
     if (password.length < 8) return setError("Password must be at least 8 characters");
     if (!finalQuestion) return setError("Choose or write a security question");
@@ -49,7 +54,10 @@ export default function Signup({ onSuccess, onBack }) {
     }
     setSubmitting(true);
     try {
-      const res = await api.signup(email.trim(), password, companyName.trim(), finalQuestion, securityAnswer.trim(), referralCode.trim() || undefined);
+      const res = await api.signup(
+        email.trim(), password, companyName.trim(), phoneClean,
+        finalQuestion, securityAnswer.trim(), referralCode.trim() || undefined
+      );
       setSession({ token: res.token, role: res.role, user: res.user });
       onSuccess(res);
     } catch (err) {
@@ -71,9 +79,13 @@ export default function Signup({ onSuccess, onBack }) {
         <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>
           You'll be in your dashboard immediately — no waiting on approval. A license payment is due before your plans and portal go live (see the License tab once you're in).
         </div>
+
         <form onSubmit={submit} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 22 }}>
           <Field label="Company name"><input style={inputStyle} value={companyName} onChange={(e) => setCompanyName(e.target.value)} required autoFocus /></Field>
           <Field label="Email"><input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
+          <Field label="Phone (WhatsApp)" hint="Required — used to deliver login credentials and recover your account.">
+            <input style={inputStyle} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2348000000000" required />
+          </Field>
           <Field label="Password" hint="At least 8 characters"><input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
           <Field label="Confirm password"><input style={inputStyle} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></Field>
           <Field label="Referral code (optional)" hint="Were you referred by another reseller or a marketer? Enter their code here.">

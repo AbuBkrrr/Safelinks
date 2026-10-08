@@ -35,6 +35,7 @@ import CaptivePortal from "./CaptivePortal.jsx";
 import DownloadPrompt from './components/DownloadPrompt';
 
 import StandaloneInstaller from "./StandaloneInstaller.jsx";
+import VerifyEmail from ".\/VerifyEmail.jsx";
 import DownloadPrompt from './components/DownloadPrompt';
 
 
@@ -178,6 +179,15 @@ export default function App() {
       </div>
     );
   }
+  if (route.name === "verify-email") {
+    return (
+      <div style={{ minHeight: "100vh" }}>
+        <GlobalStyle />
+        <Toast toast={toast} />
+        <VerifyEmail onDone={() => { window.location.href = "/"; }} />
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", position: "relative" }}>
       <GlobalStyle />
@@ -220,4 +230,5 @@ export default function App() {
     </div>
   );
 }
+
 
