@@ -489,6 +489,17 @@ export async function runAuthUpgradeMigration() {
     );
     CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
     CREATE INDEX IF NOT EXISTS idx_email_verif_user ON email_verifications(user_type, user_id);
-  `);
+  ;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS reseller_id TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference TEXT UNIQUE;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'NGN';
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at BIGINT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_name TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_email TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_phone TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS plan_id TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS router_id TEXT;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS fulfillment_status TEXT DEFAULT 'pending';`);
   console.log("✔ Auth upgrade migration complete");
 }
+

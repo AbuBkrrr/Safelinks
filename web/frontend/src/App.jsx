@@ -188,6 +188,15 @@ export default function App() {
       </div>
     );
   }
+  if (route.name === "payment-callback") {
+    return (
+      <div style={{ minHeight: "100vh" }}>
+        <GlobalStyle />
+        <Toast toast={toast} />
+        <PaymentCallback onDone={() => { window.location.href = "/"; }} />
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", position: "relative" }}>
       <GlobalStyle />
@@ -230,5 +239,7 @@ export default function App() {
     </div>
   );
 }
+
+
 
 

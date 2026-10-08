@@ -13,6 +13,7 @@ import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
+import { registerPaymentRoutes } from ".\/routes\/payments.js";
 
 const UPLOAD_CONTENT_TYPES = {
   ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".pdf": "application/pdf",
@@ -99,6 +100,7 @@ async function main() {
   registerResellerRoutes(router);
   registerRouterRoutes(router);
   registerAgentRoutes(router);
+  registerPaymentRoutes(router);
 
   router.get("/health", async (req, res) =>
     json(res, 200, { ok: true, service: "safelinks-backend" })
@@ -143,4 +145,5 @@ main().catch((err) => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 });
+
 
