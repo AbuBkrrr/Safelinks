@@ -4,9 +4,10 @@ import VoiceAssistant from "./VoiceAssistant.jsx";
 import { dt, dtMatch } from "./dashboardI18n.js";
 import { storePendingBlob } from "./offline/offlineStore.js";
 import { makePlaceholder, isPlaceholder } from "./offline/attachmentPlaceholder.js";
-// Prefix relative upload URLs (/uploads/xxx) with the backend API URL so
-// the browser fetches them from the backend service, not from this
-// frontend's own nginx (which would fall through to index.html).
+
+// Prefix relative upload URLs (/uploads/xxx) with the backend API URL so the
+// browser fetches them from the backend service, not from this frontend's
+// own nginx (which would fall through to index.html and show the SPA again).
 const API_BASE = import.meta.env.VITE_API_URL || "";
 function fileUrl(url) {
   if (!url) return url;
