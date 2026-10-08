@@ -1,4 +1,5 @@
 ﻿import React, { useCallback, useState } from "react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import DownloadPrompt from './components/DownloadPrompt';
 
 import { Shield, Wifi, Radio, Smartphone, LogIn, UserPlus } from "lucide-react";
@@ -141,6 +142,8 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
   );
 }
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+
 export default function App() {
   const [route] = useState(parseRoute);
   const [session, setSessionState] = useState(getSession);
@@ -198,7 +201,8 @@ export default function App() {
     );
   }
   return (
-    <div style={{ minHeight: "100vh", position: "relative" }}>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <div style={{ minHeight: "100vh", position: "relative" }}>
       <GlobalStyle />
       <Toast toast={toast} />
 
@@ -244,3 +248,4 @@ export default function App() {
 
 
 # rebuild trigger 2026-10-08T03:23:54
+

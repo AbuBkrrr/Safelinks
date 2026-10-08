@@ -2,10 +2,8 @@
 import { ChevronLeft, Building2, UserPlus } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
+import GoogleAuthButton from "./GoogleAuthButton.jsx";
 
-// Kept in sync with SECURITY_QUESTIONS in safelinks-backend/src/routes/auth.js.
-// "Write your own" always stays last and switches the dropdown into a
-// free-text field rather than being an actual question itself.
 const SECURITY_QUESTIONS = [
   "What city were you born in?",
   "What was your first pet's name?",
@@ -31,9 +29,6 @@ export default function Signup({ onSuccess, onBack }) {
   const isCustom = securityQuestion === "Write your own…";
   const finalQuestion = isCustom ? customQuestion.trim() : securityQuestion;
 
-  // A referral link looks like .../?ref=CODE — prefills the field below
-  // but stays fully editable, so someone can still type in a code they
-  // were given verbally instead of by link.
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("ref");
     if (ref) setReferralCode(ref.toUpperCase());
@@ -50,7 +45,7 @@ export default function Signup({ onSuccess, onBack }) {
     if (password.length < 8) return setError("Password must be at least 8 characters");
     if (!finalQuestion) return setError("Choose or write a security question");
     if (!securityAnswer.trim() || securityAnswer.trim().length < 2) {
-      return setError("Your security answer is too short — this is the only way to recover your account, so make it something you'll remember");
+      return setError("Your security answer is too short");
     }
     setSubmitting(true);
     try {
@@ -76,9 +71,16 @@ export default function Signup({ onSuccess, onBack }) {
           </div>
           <div style={{ fontWeight: 700, fontSize: 17, color: T.ink }}>Create your reseller account</div>
         </div>
-        <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>
-          You'll be in your dashboard immediately — no waiting on approval. A license payment is due before your plans and portal go live (see the License tab once you're in).
+
+        {/* Google Sign-In at top */}
+        <div style={{ marginBottom: 14 }}>
+          <GoogleAuthButton
+            onSuccess={(res) => onSuccess(res)}
+            onError={(msg) => setError(msg)}
+          />
         </div>
+
+        <div style={{ textAlign: "center", fontSize: 11.5, color: T.sub, marginBottom: 14 }}>— or sign up with email —</div>
 
         <form onSubmit={submit} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 22 }}>
           <Field label="Company name"><input style={inputStyle} value={companyName} onChange={(e) => setCompanyName(e.target.value)} required autoFocus /></Field>
@@ -88,13 +90,13 @@ export default function Signup({ onSuccess, onBack }) {
           </Field>
           <Field label="Password" hint="At least 8 characters"><input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
           <Field label="Confirm password"><input style={inputStyle} type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></Field>
-          <Field label="Referral code (optional)" hint="Were you referred by another reseller or a marketer? Enter their code here.">
+          <Field label="Referral code (optional)">
             <input style={{ ...inputStyle, fontFamily: "monospace", letterSpacing: 1 }} value={referralCode} onChange={(e) => setReferralCode(e.target.value.toUpperCase())} placeholder="e.g. NAIROBI1" />
           </Field>
 
           <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 4, paddingTop: 14 }}>
             <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>
-              There's no "forgot password" email in SAFE_Links — this question is how you get back into your account, so pick something only you'd know the answer to.
+              There's no "forgot password" email — this question is how you recover your account.
             </div>
             <Field label="Security question">
               <select style={inputStyle} value={securityQuestion} onChange={(e) => setSecurityQuestion(e.target.value)}>
@@ -103,10 +105,10 @@ export default function Signup({ onSuccess, onBack }) {
             </Field>
             {isCustom && (
               <Field label="Your question">
-                <input style={inputStyle} value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} placeholder="e.g. What street did you grow up on?" />
+                <input style={inputStyle} value={customQuestion} onChange={(e) => setCustomQuestion(e.target.value)} />
               </Field>
             )}
-            <Field label="Your answer" hint="Not case-sensitive — extra spaces don't matter either">
+            <Field label="Your answer">
               <input style={inputStyle} value={securityAnswer} onChange={(e) => setSecurityAnswer(e.target.value)} />
             </Field>
           </div>

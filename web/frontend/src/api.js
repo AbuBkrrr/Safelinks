@@ -81,6 +81,7 @@ export const api = {
 
   // --- Auth ---
   login: (email, password) => post("/api/auth/login", { email, password }, { auth: false }),
+  googleLogin: (idToken) => post("/api/auth/google", { idToken }, { auth: false }),
   signup: (email, password, companyName, phone, securityQuestion, securityAnswer, referralCode) =>
     post("/api/auth/signup", { email, password, companyName, phone, securityQuestion, securityAnswer, referralCode }, { auth: false }),
   getSecurityQuestion: (email) => post("/api/auth/password-reset/question", { email }, { auth: false }),
@@ -224,5 +225,6 @@ export function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
 
 
