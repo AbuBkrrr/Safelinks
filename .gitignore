@@ -22,3 +22,7 @@ android/build/
 
 # Android local machine config
 android/local.properties
+
+web/frontend/dist/
+web/backend/dist/
+*.tsbuildinfo
