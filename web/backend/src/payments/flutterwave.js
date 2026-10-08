@@ -43,6 +43,10 @@ function flwRequest(method, path, body) {
 }
 
 export async function initiatePayment({ amountMajor, currency, email, reference, callbackUrl, metadata, name, phone }) {
+  // Flutterwave sandbox has a quirk where the default link_expiration is in
+  // the past (2024-02-14). Setting it explicitly to 24h in the future fixes
+  // immediate-expiry errors.
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
   const { status, body } = await flwRequest("POST", "/v3/payments", {
     tx_ref: reference,
     amount: Number(amountMajor),
@@ -54,6 +58,11 @@ export async function initiatePayment({ amountMajor, currency, email, reference,
       title: "SafeLinks",
       description: "Internet voucher purchase",
     },
+    configuration: {
+      session_duration: 1440,  // 24 hours
+      max_retry_attempt: 5,
+    },
+    link_expiration: expiresAt,  // yyyy-mm-ddThh:mm:ss
   });
   if (status !== 200 || body.status !== "success") {
     throw new Error(body.message || `Flutterwave init failed (HTTP ${status})`);
@@ -90,5 +99,6 @@ export function verifyWebhookSignature(_rawBody, signature) {
   if (!expected || !signature) return false;
   return signature === expected;
 }
+
 
 
