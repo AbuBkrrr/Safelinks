@@ -1,4 +1,4 @@
-﻿import { defineConfig } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Dev server proxies /api (and /uploads — see SAFELINKS-backend/src/uploads.js,

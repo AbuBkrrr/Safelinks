@@ -1,4 +1,4 @@
-﻿# SAFELINKS Backend
+# SAFELINKS Backend
 
 A real, runnable API backend for the SAFELINKS ISP-reselling platform —
 Super Admin + Reseller Admin, vouchers issued through the Captive

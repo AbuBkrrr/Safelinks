@@ -1,4 +1,4 @@
-﻿// Auth utilities — no external deps.
+// Auth utilities — no external deps.
 // Password hashing: Node's built-in scrypt (a real, slow, salted KDF —
 // not a toy). JWT: a minimal hand-rolled HS256 implementation, since
 // jsonwebtoken isn't installable in this environment; the wire format

@@ -1,4 +1,4 @@
-﻿import os from "node:os";
+import os from "node:os";
 import crypto from "node:crypto";
 import https from "node:https";
 

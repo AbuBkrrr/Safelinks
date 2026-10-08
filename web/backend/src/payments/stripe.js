@@ -1,4 +1,4 @@
-﻿// Stripe adapter — https://stripe.com/docs/api
+// Stripe adapter — https://stripe.com/docs/api
 // International: cards, Apple Pay, Google Pay, etc.
 // Uses Stripe's Checkout Sessions API (simplest hosted redirect flow).
 

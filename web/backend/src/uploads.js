@@ -1,4 +1,4 @@
-﻿// Local-disk storage for uploaded attachments â€” receipt images/PDFs
+// Local-disk storage for uploaded attachments â€” receipt images/PDFs
 // (see routes/portal.js POST /:resellerId/upload-receipt and
 // routes/reseller.js POST /upload-receipt) AND support-ticket
 // attachments â€” a photo, PDF, or voice note on a support message (see

@@ -1,4 +1,4 @@
-﻿import { db, id, genCode } from "../db.js";
+import { db, id, genCode } from "../db.js";
 import { text } from "../http.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { rateLimitByIp } from "../rateLimit.js";

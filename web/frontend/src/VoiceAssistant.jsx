@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, HelpCircle, X } from "lucide-react";
 import { T } from "./ui.jsx";
 import { dt } from "./dashboardI18n.js";

@@ -1,4 +1,4 @@
-﻿"use strict";
+"use strict";
 
 /**
  * Node port of RouterOsScripts (see the Kotlin/Java versions for the

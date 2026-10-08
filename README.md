@@ -1,4 +1,4 @@
-﻿# SAFE_Links — complete package
+# SAFE_Links — complete package
 
 A product of A I Brains Ventures. This repo has everything built so
 far: the actual web application, native Android and Windows apps that

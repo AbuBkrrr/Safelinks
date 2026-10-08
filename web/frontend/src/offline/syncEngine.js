@@ -1,4 +1,4 @@
-﻿// Orchestrates syncing: checks real backend reachability (not just
+// Orchestrates syncing: checks real backend reachability (not just
 // navigator.onLine, which only reflects OS-level network status and
 // is notoriously unreliable â€” a phone can report "online" while on a
 // WiFi network with no actual internet, e.g. a captive portal that

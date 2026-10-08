@@ -1,4 +1,4 @@
-﻿// Minimal router — no Express. Matches method + path (with :params),
+// Minimal router — no Express. Matches method + path (with :params),
 // parses JSON and form-encoded bodies, and gives a couple of response
 // helpers. Small enough to read top to bottom in under a minute, which
 // matters more here than pulling in a framework we can't even install.

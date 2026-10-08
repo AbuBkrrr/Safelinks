@@ -1,4 +1,4 @@
-﻿import { GoogleOAuthProvider } from "@react-oauth/google";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import React, { useCallback, useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import DownloadPrompt from './components/DownloadPrompt';

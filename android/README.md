@@ -1,4 +1,4 @@
-﻿# SAFE_Links — Android app
+# SAFE_Links — Android app
 
 One app for everyone — resellers, Super Admin, and field technicians pairing
 routers. It's a thin native wrapper (Capacitor WebView) around the whole

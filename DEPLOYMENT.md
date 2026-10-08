@@ -1,4 +1,4 @@
-﻿# Going Live With SAFE_Links — Complete Step-by-Step Guide
+# Going Live With SAFE_Links — Complete Step-by-Step Guide
 
 Written assuming you've never deployed a website or built an app
 before. Every step tells you exactly what to type or click, and what

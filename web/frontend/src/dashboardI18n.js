@@ -1,4 +1,4 @@
-﻿// Dashboard-level translations for the Super Admin and Reseller consoles
+// Dashboard-level translations for the Super Admin and Reseller consoles
 // themselves (as opposed to i18n.js, which covers the end-user-facing
 // Captive Portal). This is intentionally scoped to navigation labels,
 // the most frequently repeated action words/buttons across both apps,

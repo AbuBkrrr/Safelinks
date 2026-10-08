@@ -1,4 +1,4 @@
-﻿// Translations for the end-user-facing Captive Portal only. Every other
+// Translations for the end-user-facing Captive Portal only. Every other
 // screen (Super Admin, Reseller dashboards) stays English-only by
 // design — the person who needs a language choice is the end-user
 // connecting to WiFi, not the operator running the business. Kept in

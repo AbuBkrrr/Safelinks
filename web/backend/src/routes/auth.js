@@ -1,4 +1,4 @@
-﻿import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import https from "node:https";
 import { db, id, genCode } from "../db.js";
 import { hashPassword, verifyPassword, signToken, hashAnswer, verifyAnswer } from "../auth.js";

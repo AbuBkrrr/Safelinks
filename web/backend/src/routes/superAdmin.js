@@ -1,4 +1,4 @@
-﻿import { db, id, genCode } from "../db.js";
+import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate } from "../auth.js";
 import { effectiveRouterStatus } from "./router.js";

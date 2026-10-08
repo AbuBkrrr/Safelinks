@@ -1,4 +1,4 @@
-﻿// Payment routes — initiate, verify, webhooks, and provider listing.
+// Payment routes — initiate, verify, webhooks, and provider listing.
 // Works with the custom router (http.js) — same shape as routes/portal.js.
 
 import { db, id } from "../db.js";

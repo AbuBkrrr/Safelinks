@@ -1,4 +1,4 @@
-﻿// Database layer — Postgres via the `pg` driver.
+// Database layer — Postgres via the `pg` driver.
 //
 // This used to run on node:sqlite for zero external dependencies. That
 // was fine for a demo but doesn't hold up at "hundreds of resellers":

@@ -1,4 +1,4 @@
-﻿# Download Installers
+# Download Installers
 
 Place your compiled installers here:
 - `safelinks-installer.apk` (Android)

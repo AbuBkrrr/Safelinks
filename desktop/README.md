@@ -1,4 +1,4 @@
-﻿# SAFE_Links — Windows desktop app
+# SAFE_Links — Windows desktop app
 
 A native desktop window around the whole SAFE_Links web app — same "one
 app, routes you to your own dashboard based on sign-in" idea as the

@@ -1,4 +1,4 @@
-﻿# Router agent scripts
+# Router agent scripts
 
 Real, device-side scripts that make router provisioning zero-touch —
 no reseller ever types in a router's model, firmware, or IP by hand.

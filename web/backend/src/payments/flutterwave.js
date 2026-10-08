@@ -1,4 +1,4 @@
-﻿// Flutterwave adapter — https://developer.flutterwave.com/
+// Flutterwave adapter — https://developer.flutterwave.com/
 // Pan-African: cards, mobile money, bank transfers across 30+ countries.
 
 import https from "node:https";

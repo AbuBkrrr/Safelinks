@@ -1,4 +1,4 @@
-﻿// Two lightweight recurring sweeps â€” not a job queue. This system has
+// Two lightweight recurring sweeps â€” not a job queue. This system has
 // no external side effects to retry with backoff (no payment gateway,
 // no automated email/WhatsApp sending), so a real queue library
 // (BullMQ/pg-boss + Redis) would be infrastructure for a workload that

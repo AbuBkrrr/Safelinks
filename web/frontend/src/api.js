@@ -1,4 +1,4 @@
-﻿// Real API client for the SAFELINKS backend. Every function here hits a
+// Real API client for the SAFELINKS backend. Every function here hits a
 // live endpoint documented in safelinks-backend/README.md — nothing in
 // this file is mock data. Auth token lives in localStorage (this is a
 // real deployed web app, not a Claude Artifact, so that's fine here).

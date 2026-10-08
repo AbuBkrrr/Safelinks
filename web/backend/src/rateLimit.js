@@ -1,4 +1,4 @@
-﻿// Rate limiting for public, unauthenticated endpoints â€” login, signup,
+// Rate limiting for public, unauthenticated endpoints â€” login, signup,
 // password-reset requests, and router/agent check-in and registration.
 // Postgres-backed (not in-memory, not Redis) so it's correct even
 // across multiple backend instances sharing one database: the upsert

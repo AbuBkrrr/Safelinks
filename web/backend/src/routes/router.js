@@ -1,4 +1,4 @@
-﻿import { db, id } from "../db.js";
+import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { verifyPassword } from "../auth.js";
 import { ROUTER_OFFLINE_THRESHOLD_MS } from "../db.js";

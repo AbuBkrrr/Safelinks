@@ -1,4 +1,4 @@
-﻿// Real email sending â€” but optional, with a safe fallback baked in.
+// Real email sending â€” but optional, with a safe fallback baked in.
 //
 // This is a genuine change of direction from the rest of the system
 // ("no automated sending anywhere, by design" is stated repeatedly

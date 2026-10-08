@@ -1,4 +1,4 @@
-﻿// Paystack adapter — https://paystack.com/docs/api/
+// Paystack adapter — https://paystack.com/docs/api/
 // Nigeria-focused: cards, bank transfer, USSD, QR codes.
 // Uses only Node built-in https — no SDK dependency.
 

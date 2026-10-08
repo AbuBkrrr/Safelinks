@@ -1,4 +1,4 @@
-﻿// One-time migration: add `phone` column to resellers.
+// One-time migration: add `phone` column to resellers.
 // Safe to run repeatedly (uses IF NOT EXISTS).
 
 import { pool } from "../db.js";

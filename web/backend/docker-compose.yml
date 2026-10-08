@@ -1,4 +1,4 @@
-﻿# Standalone backend + its own Postgres — useful for testing the API by
+# Standalone backend + its own Postgres — useful for testing the API by
 # itself without the frontend/Caddy stack. For the full production
 # stack, use ../docker-compose.yml at the repo root instead.
 

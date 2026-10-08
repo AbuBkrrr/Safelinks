@@ -1,4 +1,4 @@
-﻿# SAFELINKS
+# SAFELINKS
 
 A white-label ISP-reselling platform: a Super Admin who runs the
 platform, Resellers who run their own branded WiFi business on top of

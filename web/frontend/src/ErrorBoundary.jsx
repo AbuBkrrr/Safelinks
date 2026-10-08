@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 
 /* Without this, any uncaught render error anywhere in the tree â€” a bad
  * prop, an undefined property access, whatever â€” unmounts the ENTIRE

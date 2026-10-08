@@ -1,4 +1,4 @@
-﻿import GoogleAuthButton from "./GoogleAuthButton.jsx";
+import GoogleAuthButton from "./GoogleAuthButton.jsx";
 import React, { useEffect, useState } from "react";
 import { ChevronLeft, Building2, UserPlus } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";

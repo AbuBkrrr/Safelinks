@@ -1,4 +1,4 @@
-﻿# Full stack: Postgres + backend (API) + frontend (static build, served
+# Full stack: Postgres + backend (API) + frontend (static build, served
 # by its own nginx) + Caddy in front of everything for automatic HTTPS.
 #
 # Quick start on a fresh VPS:

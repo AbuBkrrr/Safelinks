@@ -1,4 +1,4 @@
-﻿// Payment gateway dispatcher.
+// Payment gateway dispatcher.
 // Routes calls to the correct provider adapter based on `provider` string.
 // If a provider is not configured (no API key), it is treated as "disabled".
 

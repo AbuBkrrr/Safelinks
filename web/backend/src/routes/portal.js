@@ -1,4 +1,4 @@
-﻿import { db, id } from "../db.js";
+import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
 import { saveUpload } from "../uploads.js";
