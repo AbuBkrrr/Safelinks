@@ -1,4 +1,5 @@
-﻿import React, { useState } from "react";
+﻿import GoogleAuthButton from "./GoogleAuthButton.jsx";
+import React, { useState } from "react";
 import { ChevronLeft, Radio, Lock } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
@@ -48,6 +49,12 @@ export default function Login({ tone, roleLabel, expectedRole, onSuccess, onBack
           </Field>
           {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
           <Btn type="submit" tone={tone} disabled={submitting} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
+<div style={{ marginTop: 14 }}>
+  <GoogleAuthButton onSuccess={(res) => onSuccess(res)} onError={(msg) => setError(msg)} />
+</div>
+<div style={{ textAlign: "center", fontSize: 11.5, color: T.sub, marginTop: 10 }}>
+  — or continue with email —
+</div>
 {/* Google Sign-In */}
 <div style={{ marginTop: 14 }}>
   <GoogleAuthButton

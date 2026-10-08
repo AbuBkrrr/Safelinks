@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import GoogleAuthButton from "./GoogleAuthButton.jsx";
+import React, { useEffect, useState } from "react";
 import { ChevronLeft, Building2, UserPlus } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
@@ -71,6 +72,12 @@ export default function Signup({ onSuccess, onBack }) {
           </div>
           <div style={{ fontWeight: 700, fontSize: 17, color: T.ink }}>Create your reseller account</div>
         </div>
+<div style={{ marginBottom: 14, marginTop: 12 }}>
+  <GoogleAuthButton onSuccess={(res) => onSuccess(res)} onError={(msg) => setError(msg)} />
+</div>
+<div style={{ textAlign: "center", fontSize: 11.5, color: T.sub, marginBottom: 14 }}>
+  — or sign up with email —
+</div>
 
         {/* Google Sign-In at top */}
         <div style={{ marginBottom: 14 }}>

@@ -1,4 +1,5 @@
-﻿import React, { useCallback, useState } from "react";
+﻿import { GoogleOAuthProvider } from "@react-oauth/google";
+import React, { useCallback, useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import DownloadPrompt from './components/DownloadPrompt';
 
@@ -213,6 +214,13 @@ export default function App() {
           onPickSuperAdmin={() => setStage("login_super_admin")}
         />
       )}
+return (
+  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
+    <div style={{ minHeight: "100vh", position: "relative" }}>
+      {/* ... existing content ... */}
+    </div>
+  </GoogleOAuthProvider>
+);
 
       {stage === "login_super_admin" && (
         <Login tone={T.secondary} roleLabel="Super Admin" expectedRole="super_admin"
