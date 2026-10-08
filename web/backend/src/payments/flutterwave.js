@@ -48,7 +48,7 @@ export async function initiatePayment({ amountMajor, currency, email, reference,
     amount: Number(amountMajor),
     currency: currency || "NGN",
     redirect_url: callbackUrl,
-    customer: { email, name: name || email, phonenumber: phone || "" },
+    customer: { email, name: name || email, phone_number: phone || "" },
     meta: metadata,
     customizations: {
       title: "SafeLinks",
@@ -90,3 +90,5 @@ export function verifyWebhookSignature(_rawBody, signature) {
   if (!expected || !signature) return false;
   return signature === expected;
 }
+
+
