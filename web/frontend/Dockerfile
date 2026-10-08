@@ -1,32 +1,30 @@
-# Multi-stage: build the static Vite bundle, then serve it with nginx.
-# nginx also proxies /api/* to the backend container so the browser only
-# ever talks to one origin (avoids CORS entirely in production) — that
-# proxy only matters when frontend and backend share one domain (the
-# Caddy/VPS path). On Railway (frontend and backend on separate
-# generated domains), VITE_API_URL below is what the browser actually
-# uses instead, and this proxy config effectively does nothing.
+﻿# Multi-stage: build the static Vite bundle, then serve with nginx.
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Railway build-time variable for API URL
+# Build-time variables. MUST be declared as ARG for Railway to pass them in.
 ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ARG CACHEBUST=2
 
-COPY package.json ./
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+
+# Copy deps first (cache-friendly)
+COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
+
+# Copy source
 COPY . .
-RUN npm run build
+
+# CACHEBUST invalidates this layer whenever we change its value.
+RUN echo "Cachebust: $CACHEBUST" && npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# ✅ FIX: Use the PORT environment variable from Railway
-# Railway sets PORT (e.g., 3600), so we listen on that port
 ENV PORT 3600
 RUN sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/conf.d/default.conf
-
-# ✅ EXPOSE $PORT instead of hardcoded 80
 EXPOSE $PORT
-
 CMD ["nginx", "-g", "daemon off;"]
