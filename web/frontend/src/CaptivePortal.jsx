@@ -3,7 +3,6 @@ import { ChevronRight, ArrowLeft, Wifi, Clock, Mail, MessageCircle } from "lucid
 import { T, Btn, Field, inputStyle, TransferPayBlock, Loading, formatMoney, AttachmentPicker } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
 import { useResource } from "./hooks.js";
-import { t } from "./i18n.js";
 
 /* The end-user's ENTIRE experience. No login, no dashboard. There is no
    payment gateway anywhere in this system â€” Bank Transfer and USSD are
