@@ -472,6 +472,7 @@ export async function seed() {
 // ============================================================
 export async function runAuthUpgradeMigration() {
   await db.exec(`
+    -- Reseller auth upgrade
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS phone TEXT;
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS google_id TEXT;
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
@@ -489,9 +490,10 @@ export async function runAuthUpgradeMigration() {
     );
     CREATE INDEX IF NOT EXISTS idx_email_verif_token ON email_verifications(token_hash);
     CREATE INDEX IF NOT EXISTS idx_email_verif_user ON email_verifications(user_type, user_id);
-  ;
+
+    -- Payments table: add gateway-specific columns
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS reseller_id TEXT;
-    ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference TEXT UNIQUE;
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference TEXT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'NGN';
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at BIGINT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_name TEXT;
@@ -499,7 +501,13 @@ export async function runAuthUpgradeMigration() {
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_phone TEXT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS plan_id TEXT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS router_id TEXT;
-    ALTER TABLE payments ADD COLUMN IF NOT EXISTS fulfillment_status TEXT DEFAULT 'pending';`);
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS fulfillment_status TEXT DEFAULT 'pending';
+
+    -- CRITICAL: drop NOT NULL from user_id, because voucher purchases
+    -- (end-user paying for WiFi) legitimately have no user_id.
+    ALTER TABLE payments ALTER COLUMN user_id DROP NOT NULL;
+  `);
   console.log("✔ Auth upgrade migration complete");
 }
+
 
