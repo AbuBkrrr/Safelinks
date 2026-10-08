@@ -1,5 +1,4 @@
-import React, { useState } from "react";
-import PaymentButton from "./PaymentButton.jsx";
+﻿import React, { useState } from "react";
 import {
   Building2, Users, Activity, Router, Mail, Package, Palette, Zap, Inbox,
   DollarSign, Key, Smartphone, LifeBuoy, Plus, Trash2, Pause, Play, Save,
@@ -765,22 +764,6 @@ export default function ResellerApp({ session, onExit, notify }) {
               ) : (
                 bankInfo.data && (
                   <div style={{ maxWidth: 380 }}>
-                    {chosenPlanPrice != null && (
-                      <>
-                        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Pay instantly with card or mobile money</div>
-                        <PaymentButton
-                          purpose="license"
-                          amountMajor={chosenPlanPrice}
-                          currency={platformCurrency}
-                          email={session?.user?.email}
-                          customerName={session?.user?.companyName}
-                          metadata={{ user_id: session?.user?.id, plan_id: chosenPlanId }}
-                          label={`💳 Pay ${formatMoney(chosenPlanPrice, platformCurrency)} instantly`}
-                          onError={(msg) => notify(msg)}
-                        />
-                        <div style={{ margin: "24px 0", textAlign: "center", fontSize: 12, color: T.sub }}>— or pay by bank transfer —</div>
-                      </>
-                    )}
                     <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Submit your license renewal transfer</div>
                     <TransferPayBlock
                       payee={{ name: "SAFE_Links (Super Admin)", bankName: bankInfo.data.bank_name, accountName: bankInfo.data.bank_account_name, accountNumber: bankInfo.data.bank_account_number, ussdCode: bankInfo.data.ussd_code }}

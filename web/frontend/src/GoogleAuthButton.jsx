@@ -18,7 +18,7 @@ export default function GoogleAuthButton({ onSuccess, onError }) {
     <GoogleLogin
       text="continue_with"
       shape="rectangular"
-      width="100%"
+      width="300"
       onSuccess={async (credentialResponse) => {
         try {
           const res = await api.googleLogin(credentialResponse.credential);
