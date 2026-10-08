@@ -1,17 +1,17 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as offlineStore from "./offlineStore.js";
 
 /**
- * Same shape as useResource â€” { data, loading, error, refetch, setData }
- * â€” plus `isFromCache` and `cachedAt`, so the UI can show "showing
+ * Same shape as useResource — { data, loading, error, refetch, setData }
+ * — plus `isFromCache` and `cachedAt`, so the UI can show "showing
  * data from 5 minutes ago" instead of pretending it's live.
  *
  * `cacheKey` identifies this resource in IndexedDB (e.g.
- * "pendingActivations", "vouchers") â€” pick something stable and
+ * "pendingActivations", "vouchers") — pick something stable and
  * unique per resource type, not per-request.
  *
  * Deliberately a SEPARATE hook from useResource rather than a change
- * to it â€” useResource is used all over this app for things that don't
+ * to it — useResource is used all over this app for things that don't
  * need offline support (settings forms, one-off lookups), and adding
  * IndexedDB reads/writes to every one of those unconditionally isn't
  * worth the risk for no benefit. Opt in per-resource instead.

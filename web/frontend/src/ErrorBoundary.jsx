@@ -1,12 +1,12 @@
-﻿import React from "react";
+import React from "react";
 
-/* Without this, any uncaught render error anywhere in the tree â€” a bad
- * prop, an undefined property access, whatever â€” unmounts the ENTIRE
+/* Without this, any uncaught render error anywhere in the tree — a bad
+ * prop, an undefined property access, whatever — unmounts the ENTIRE
  * app and leaves a blank white page with no indication anything went
  * wrong (React logs to the console, but nothing on screen does). That
  * makes every bug maximally confusing to report and debug. This
  * catches it at the top level, shows something a person can actually
- * screenshot and describe, and â€” critically â€” logs the real error and
+ * screenshot and describe, and — critically — logs the real error and
  * component stack to the console so it's diagnosable from a bug
  * report instead of a guess. */
 export default class ErrorBoundary extends React.Component {

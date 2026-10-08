@@ -1,7 +1,7 @@
-﻿// Storage layer for offline-first operation: caches GET-style data for
+// Storage layer for offline-first operation: caches GET-style data for
 // offline viewing, and queues write actions (create voucher, reply to
 // ticket, etc.) taken while offline for later replay against the real
-// API. Pure IndexedDB, no external dependencies â€” works unmodified in
+// API. Pure IndexedDB, no external dependencies — works unmodified in
 // any browser/WebView/Electron renderer. Tested here against
 // fake-indexeddb, a real (not mocked) IndexedDB implementation, so
 // this exact code path is genuinely exercised, not just reasoned about.
@@ -88,7 +88,7 @@ export async function getPendingActions() {
   const db = await openDb();
   const tx = db.transaction(STORE_QUEUE, "readonly");
   const all = await promisify(tx.objectStore(STORE_QUEUE).getAll());
-  // Oldest first â€” actions must replay in the order they happened,
+  // Oldest first — actions must replay in the order they happened,
   // e.g. two edits to the same voucher must apply in the right order.
   return all.filter((a) => a.status === "pending" || a.status === "failed").sort((a, b) => a.createdAt - b.createdAt);
 }
@@ -170,7 +170,7 @@ export async function deletePendingBlob(id) {
   });
 }
 
-// Exposed for tests only â€” real app code never needs to reset this.
+// Exposed for tests only — real app code never needs to reset this.
 export function _resetForTests() {
   dbPromise = null;
 }

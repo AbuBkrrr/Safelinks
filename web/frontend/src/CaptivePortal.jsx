@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronRight, ArrowLeft, Wifi, Clock, Mail, MessageCircle } from "lucide-react";
 import { T, Btn, Field, inputStyle, TransferPayBlock, Loading, formatMoney, AttachmentPicker } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
@@ -6,11 +6,11 @@ import { useResource } from "./hooks.js";
 import { t } from "./i18n.js";
 
 /* The end-user's ENTIRE experience. No login, no dashboard. There is no
-   payment gateway anywhere in this system â€” Bank Transfer and USSD are
+   payment gateway anywhere in this system — Bank Transfer and USSD are
    the only methods, and both land as "pending" until the reseller
    manually verifies the transfer landed and confirms it (Pending
    Payments tab in the Reseller dashboard). Credentials are then sent to
-   the customer by the reseller, by hand â€” nothing here auto-delivers
+   the customer by the reseller, by hand — nothing here auto-delivers
    anything. */
 export default function CaptivePortal({ resellerId, notify, onExit }) {
   const info = useResource(() => api.portalInfo(resellerId), [resellerId]);
@@ -30,7 +30,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     return api.portalUploadReceipt(resellerId, { filename: file.name, mimeType: file.type, dataBase64 });
   }
 
-  // Support: available from any step, not just after paying â€” a
+  // Support: available from any step, not just after paying — a
   // customer who can't get their plan to load or isn't sure how to pay
   // needs help too, not just one who's already stuck waiting on
   // confirmation.
@@ -67,7 +67,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
         planId: selectedPlan.id, method, reference, receiptUrl,
       });
       setStep("waiting");
-      notify?.("Submitted â€” waiting on your reseller to confirm.");
+      notify?.("Submitted — waiting on your reseller to confirm.");
     } catch (err) {
       setError(err.message || "Something went wrong submitting your payment.");
     }
@@ -77,7 +77,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   if (info.loading) {
     return (
       <div style={{ minHeight: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
-        <Loading text="Loadingâ€¦" />
+        <Loading text="Loading…" />
       </div>
     );
   }
@@ -136,7 +136,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 {helpError && <div style={{ color: T.danger, fontSize: 12.5, margin: "8px 0 0" }}>{helpError}</div>}
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                   <Btn disabled={!helpForm.name || !helpForm.subject || !helpForm.message || (!helpForm.email && !helpForm.phone)} onClick={submitHelp}>
-                    {helpSubmitting ? "â€¦" : t(lang, "helpSend")}
+                    {helpSubmitting ? "…" : t(lang, "helpSend")}
                   </Btn>
                   <Btn variant="ghost" onClick={() => setShowHelp(false)}>{t(lang, "back")}</Btn>
                 </div>
@@ -166,7 +166,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>{p.name}</div>
-                      <div style={{ fontSize: 11.5, color: T.sub }}>{p.device_limit} {t(lang, "devices")} Â· {p.bandwidth} Mbps</div>
+                      <div style={{ fontSize: 11.5, color: T.sub }}>{p.device_limit} {t(lang, "devices")} · {p.bandwidth} Mbps</div>
                     </div>
                     <div style={{ fontWeight: 700, color: reseller.color || T.primary }}>{formatMoney(p.price, cur)}</div>
                   </div>
@@ -194,7 +194,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 payee={{ name: reseller.companyName, bankName: reseller.bankAccount?.bankName, accountName: reseller.bankAccount?.accountName, accountNumber: reseller.bankAccount?.accountNumber, ussdCode: reseller.ussdCode }}
                 amount={formatMoney(selectedPlan.price, cur)} method={method} setMethod={setMethod}
                 reference={reference} setReference={setReference} onSubmit={submitTransfer}
-                submitLabel={processing ? "â€¦" : t(lang, "continueToPayment")} submitting={processing}
+                submitLabel={processing ? "…" : t(lang, "continueToPayment")} submitting={processing}
                 onUploadFile={uploadReceiptFile} receiptUrl={receiptUrl} setReceiptUrl={setReceiptUrl}
               />
               {error && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{error}</div>}

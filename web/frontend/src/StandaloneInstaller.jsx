@@ -1,11 +1,11 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Radio, ChevronLeft } from "lucide-react";
 import { T, Btn, GlobalStyle } from "./ui.jsx";
 import { getSession, clearSession } from "./api.js";
 import Login from "./Login.jsx";
 import InstallerWizard from "./InstallerWizard.jsx";
 
-/* Meant to be opened directly on a technician's phone at /install â€” a
+/* Meant to be opened directly on a technician's phone at /install — a
    small standalone flow: log in as the reseller (or the reseller can
    share the URL + their own credentials with a technician), register
    the router, done. No dashboard, no other tabs. */

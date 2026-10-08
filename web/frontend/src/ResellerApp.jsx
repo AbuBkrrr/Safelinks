@@ -50,7 +50,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   const pendingCount = (pending.data || []).filter((r) => r.status === "pending").length;
   const licenseExpired = license.data ? license.data.subscription_expiry < Date.now() : false;
   // Applies to everything the reseller charges their own end-users
-  // (plans, vouchers, revenue) â€” NOT the platform license fee paid to
+  // (plans, vouchers, revenue) — NOT the platform license fee paid to
   // Super Admin, which is set by Super Admin (see platformCurrency below,
   // sourced from bankInfo, not assumed to be USD).
   const currency = portalSettingsRes.data?.currency || "USD";
@@ -79,7 +79,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   async function setVoucherStatus(id, status) {
     try {
       await api.reseller.setVoucherStatus(id, status);
-      notify(`Voucher ${status === "active" ? "resumed" : "paused"} â€” router will pick this up on its next check-in.`);
+      notify(`Voucher ${status === "active" ? "resumed" : "paused"} — router will pick this up on its next check-in.`);
       vouchers.refetch();
     } catch (err) { notify(err.message); }
   }
@@ -151,7 +151,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       });
       notify("Captive portal settings saved.");
       // Wait for the refetch to actually land before dropping the local
-      // form override â€” otherwise there's a window where `portal` falls
+      // form override — otherwise there's a window where `portal` falls
       // back to the pre-save `portalSettingsRes.data` (refetch is async
       // and hasn't resolved yet), which visibly flashes the dashboard
       // back to the OLD language for a moment right after saving a new
@@ -166,7 +166,7 @@ export default function ResellerApp({ session, onExit, notify }) {
     try {
       const res = await api.reseller.decidePendingActivation(id, decision);
       notify(decision === "confirmed"
-        ? `Payment confirmed â€” voucher ${res.voucher?.username} issued. Send the credentials to the customer by email/WhatsApp yourself.`
+        ? `Payment confirmed — voucher ${res.voucher?.username} issued. Send the credentials to the customer by email/WhatsApp yourself.`
         : "Request rejected.");
       pending.refetch();
       vouchers.refetch();
@@ -174,7 +174,7 @@ export default function ResellerApp({ session, onExit, notify }) {
     } catch (err) {
       // A real rejection from the server (e.g. "already decided") has
       // a specific message and should surface immediately, not be
-      // treated as "must be offline" and silently queued â€” that would
+      // treated as "must be offline" and silently queued — that would
       // hide a real problem instead of reporting it.
       if (err.status && err.status < 500 && err.status !== 0) {
         notify(err.message);
@@ -189,8 +189,8 @@ export default function ResellerApp({ session, onExit, notify }) {
     await queueOfflineAction("decide_pending_activation", { id, decision });
     pending.setData((prev) => (prev || []).map((p) => (p.id === id ? { ...p, status: decision, _pendingSync: true } : p)));
     notify(decision === "confirmed"
-      ? "No connection right now â€” this confirmation is saved and will go through as soon as you're back online."
-      : "No connection right now â€” this rejection is saved and will go through as soon as you're back online.");
+      ? "No connection right now — this confirmation is saved and will go through as soon as you're back online."
+      : "No connection right now — this rejection is saved and will go through as soon as you're back online.");
   }
 
   // Shared by every sync handler below: a permanent (4xx) rejection
@@ -234,7 +234,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   }
 
   // Replays a queued confirm/reject against the real API once back
-  // online â€” same endpoint decideActivation calls directly, so a
+  // online — same endpoint decideActivation calls directly, so a
   // synced decision behaves identically to one made while online.
   async function syncPendingActivationDecision({ id, decision }) {
     return replayViaApi(() => api.reseller.decidePendingActivation(id, decision));
@@ -268,7 +268,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   const [licenseSubmitting, setLicenseSubmitting] = useState(false);
   // Lifted up (rather than fetched inside PlanChooser) so the payment
   // step below can also look up the chosen plan's real price instead
-  // of showing a "â€”" placeholder for the amount to transfer.
+  // of showing a "—" placeholder for the amount to transfer.
   const platformPlans = useResource(() => api.reseller.platformPlans(), [], (r) => r.plans);
   const chosenPlanPrice = (platformPlans.data || []).find((p) => p.id === chosenPlanId)?.price;
   async function uploadLicenseReceiptFile(file) {
@@ -279,7 +279,7 @@ export default function ResellerApp({ session, onExit, notify }) {
     setLicenseSubmitting(true);
     try {
       await api.reseller.renewLicense({ planId: chosenPlanId, method: licenseMethod, reference: licenseReference, receiptUrl: licenseReceiptUrl });
-      notify("Submitted â€” Super Admin will confirm once the transfer lands.");
+      notify("Submitted — Super Admin will confirm once the transfer lands.");
       setLicenseStep("view");
       setLicenseReference("");
       setLicenseReceiptUrl(null);
@@ -361,7 +361,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       await queueOfflineAction("create_support_ticket", formSnapshot);
       setTicketForm({ subject: "", message: "" });
       setTicketAttachmentUrl(null);
-      notify("No connection â€” this ticket is saved and will send as soon as you're back online.");
+      notify("No connection — this ticket is saved and will send as soon as you're back online.");
     }
   }
 
@@ -384,7 +384,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       support.setData((prev) => (prev || []).map((t) => t.id === id
         ? { ...t, messages: [...(t.messages || []), { from: "reseller", message: msg || "", time: Date.now(), _pendingSync: true }] }
         : t));
-      notify("No connection â€” this reply is saved and will send as soon as you're back online.");
+      notify("No connection — this reply is saved and will send as soon as you're back online.");
     }
   }
   async function setAdminTicketStatus(id, status) {
@@ -395,7 +395,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       if (err.status && err.status < 500 && err.status !== 0) { notify(err.message); return; }
       await queueOfflineAction("set_support_status", { ticketId: id, status });
       support.setData((prev) => (prev || []).map((t) => (t.id === id ? { ...t, status, _pendingSync: true } : t)));
-      notify("No connection â€” this will apply as soon as you're back online.");
+      notify("No connection — this will apply as soon as you're back online.");
     }
   }
 
@@ -418,19 +418,19 @@ export default function ResellerApp({ session, onExit, notify }) {
       customerSupport.setData((prev) => (prev || []).map((t) => t.id === id
         ? { ...t, messages: [...(t.messages || []), { from: "reseller", message: msg || "", time: Date.now(), _pendingSync: true }] }
         : t));
-      notify("No connection â€” this reply is saved and will send as soon as you're back online.");
+      notify("No connection — this reply is saved and will send as soon as you're back online.");
     }
   }
   async function setCustomerTicketStatus(id, status) {
     try {
       await api.reseller.setCustomerSupportStatus(id, status);
-      notify(status === "resolved" ? "Marked resolved â€” remember to reach the customer directly." : "Reopened.");
+      notify(status === "resolved" ? "Marked resolved — remember to reach the customer directly." : "Reopened.");
       customerSupport.refetch();
     } catch (err) {
       if (err.status && err.status < 500 && err.status !== 0) { notify(err.message); return; }
       await queueOfflineAction("set_customer_support_status", { ticketId: id, status });
       customerSupport.setData((prev) => (prev || []).map((t) => (t.id === id ? { ...t, status, _pendingSync: true } : t)));
-      notify("No connection â€” this will apply as soon as you're back online.");
+      notify("No connection — this will apply as soon as you're back online.");
     }
   }
 
@@ -438,7 +438,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   const [installerKey, setInstallerKey] = useState(0);
   const routerOnline = (routers.data || []).some((r) => r.status === "online");
   function onInstallerComplete() {
-    notify("Installation recorded â€” Super Admin notified, router linked.");
+    notify("Installation recorded — Super Admin notified, router linked.");
     routers.refetch();
     setInstallerKey((k) => k + 1);
     setTab("routers");
@@ -475,10 +475,10 @@ export default function ResellerApp({ session, onExit, notify }) {
                       </td>
                       <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                         <span onClick={() => setRevealPw((p) => ({ ...p, [v.id]: !p[v.id] }))} style={{ cursor: "pointer" }}>
-                          {revealed ? v.password : "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"}
+                          {revealed ? v.password : "••••••••"}
                         </span>
                       </td>
-                      <td>{v.plan_name || "â€”"} <span style={{ color: T.sub, fontSize: 11 }}>({v.device_limit} devices)</span></td>
+                      <td>{v.plan_name || "—"} <span style={{ color: T.sub, fontSize: 11 }}>({v.device_limit} devices)</span></td>
                       <td>{v.session_count}</td>
                       <td style={{ color: v.expires_at < Date.now() ? T.danger : T.sub }}>{new Date(v.expires_at).toLocaleDateString()}</td>
                       <td><Badge tone={statusColor(v.status)}>{v.status}</Badge></td>
@@ -498,7 +498,7 @@ export default function ResellerApp({ session, onExit, notify }) {
               </tbody>
             </table>
           )}
-          {!vouchers.loading && (vouchers.data || []).length === 0 && <EmptyRow text="No vouchers issued yet â€” they're created once you confirm a Pending payment." />}
+          {!vouchers.loading && (vouchers.data || []).length === 0 && <EmptyRow text="No vouchers issued yet — they're created once you confirm a Pending payment." />}
         </Panel>
       )}
 
@@ -507,8 +507,8 @@ export default function ResellerApp({ session, onExit, notify }) {
           {sessions.loading ? <Loading /> : (sessions.data || []).map((s) => (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{s.device_label} <span style={{ fontWeight: 400, color: T.sub, fontSize: 11.5 }}>Â· {s.username}</span></div>
-                <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>{s.mac} Â· {s.ip} Â· {s.bandwidth_mbps} Mbps</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{s.device_label} <span style={{ fontWeight: 400, color: T.sub, fontSize: 11.5 }}>· {s.username}</span></div>
+                <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>{s.mac} · {s.ip} · {s.bandwidth_mbps} Mbps</div>
               </div>
               <span style={{ fontSize: 11.5, color: T.sub }}>{timeAgo(s.connected_at)}</span>
               <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => disconnectSession(s.id)}>Disconnect</Btn>
@@ -524,7 +524,7 @@ export default function ResellerApp({ session, onExit, notify }) {
             <div key={rt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 4px", borderBottom: `1px solid ${T.border}` }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{rt.router_id}</div>
-                <div style={{ fontSize: 11.5, color: T.sub }}>{rt.model} Â· {rt.firmware} Â· last check-in {timeAgo(rt.last_check_in)} Â· {rt.pendingCommands} command(s) pending</div>
+                <div style={{ fontSize: 11.5, color: T.sub }}>{rt.model} · {rt.firmware} · last check-in {timeAgo(rt.last_check_in)} · {rt.pendingCommands} command(s) pending</div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <Badge tone={statusColor(rt.status)}>{rt.status}</Badge>
@@ -532,14 +532,14 @@ export default function ResellerApp({ session, onExit, notify }) {
               </div>
             </div>
           ))}
-          {!routers.loading && (routers.data || []).length === 0 && <EmptyRow text="No routers linked yet â€” run the installer to connect your first one." />}
+          {!routers.loading && (routers.data || []).length === 0 && <EmptyRow text="No routers linked yet — run the installer to connect your first one." />}
         </Panel>
       )}
 
       {tab === "delivery" && (
         <Panel title="Credential delivery logs">
           <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>
-            Sending is manual â€” you email/WhatsApp the voucher's credentials yourself. This is just a log of when that happened, so you can retry marking one as sent if it slipped through.
+            Sending is manual — you email/WhatsApp the voucher's credentials yourself. This is just a log of when that happened, so you can retry marking one as sent if it slipped through.
           </div>
           {deliveryLogs.loading ? <Loading /> : (deliveryLogs.data || []).slice().sort((a, b) => b.time - a.time).map((d) => (
             <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 4px", borderBottom: `1px solid ${T.border}` }}>
@@ -569,14 +569,14 @@ export default function ResellerApp({ session, onExit, notify }) {
                   {!!p.popular && <div style={{ position: "absolute", top: -10, right: 12, background: T.primary, color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>MOST POPULAR</div>}
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
                   <div style={{ fontSize: 22, fontWeight: 700, margin: "6px 0", color: T.primary }}>{formatMoney(p.price, currency)}<span style={{ fontSize: 12, color: T.sub, fontWeight: 500 }}> / {DURATIONS.find((d) => d.key === p.duration)?.label.toLowerCase()}</span></div>
-                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>{p.device_limit} devices Â· {p.bandwidth} Mbps Â· {p.priority} priority</div>
+                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>{p.device_limit} devices · {p.bandwidth} Mbps · {p.priority} priority</div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <Btn size="sm" variant="outline" onClick={() => setPlanForm({ ...p, deviceLimit: p.device_limit })}><Save size={12} /> Edit</Btn>
                     <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => deletePlan(p.id)}><Trash2 size={12} /></Btn>
                   </div>
                 </div>
               ))}
-              {(plans.data || []).length === 0 && <EmptyRow text="No plans yet â€” create your first one." />}
+              {(plans.data || []).length === 0 && <EmptyRow text="No plans yet — create your first one." />}
             </div>
           )}
 
@@ -670,7 +670,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                     <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{portal.ssid}</div>
                   </div>
                   <div style={{ padding: 16, fontSize: 12.5, color: T.sub, textAlign: "center" }}>
-                    {t(portal.language || "en", "choosePlan")} â€” {t(portal.language || "en", "continueToPayment")}, e.g. {formatMoney(10, portal.currency || "USD")}/mo
+                    {t(portal.language || "en", "choosePlan")} — {t(portal.language || "en", "continueToPayment")}, e.g. {formatMoney(10, portal.currency || "USD")}/mo
                   </div>
                 </div>
               </div>
@@ -681,17 +681,17 @@ export default function ResellerApp({ session, onExit, notify }) {
 
       {tab === "pending" && (
         <Panel title="Pending payment confirmations" action={<Badge tone={pendingCount ? T.warning : T.success}>{pendingCount} pending</Badge>}>
-          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14 }}>Every portal signup is a manual bank transfer or USSD push â€” nothing activates automatically. Verify the receipt against your account before confirming; that's what issues the voucher.</div>
+          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14 }}>Every portal signup is a manual bank transfer or USSD push — nothing activates automatically. Verify the receipt against your account before confirming; that's what issues the voucher.</div>
           {pending.loading ? <Loading /> : (pending.data || []).length === 0 ? <EmptyRow text="No pending signups." /> : (
             pending.data.slice().sort((a, b) => b.time - a.time).map((req) => (
               <div key={req.id} style={{ padding: "13px 4px", borderBottom: `1px solid ${T.border}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{req.name} <span style={{ fontWeight: 400, color: T.sub }}>â€” {req.plan_name}</span></div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{req.name} <span style={{ fontWeight: 400, color: T.sub }}>— {req.plan_name}</span></div>
                     <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
-                      {formatMoney(req.amount, currency)} via {req.method} Â· ref: <span style={{ fontFamily: "monospace" }}>{req.reference}</span> Â· {timeAgo(req.time)}
+                      {formatMoney(req.amount, currency)} via {req.method} · ref: <span style={{ fontFamily: "monospace" }}>{req.reference}</span> · {timeAgo(req.time)}
                       {req.receipt_url && (
-                        <> Â· <a href={req.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
+                        <> · <a href={req.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
                       )}
                     </div>
                   </div>
@@ -721,7 +721,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                   <StatCard icon={DollarSign} label="Net profit" value={formatMoney(billing.data.netProfit.toFixed(0), platformCurrency)} tone={T.primary} />
                 ) : (
                   <div style={{ maxWidth: 220, fontSize: 11.5, color: T.sub, display: "flex", alignItems: "center", padding: "0 4px" }}>
-                    Net profit isn't shown here since your revenue is in {currency} and the license fee is billed in {platformCurrency} â€” there's no currency conversion in SAFE_Links, so subtracting them directly would be misleading.
+                    Net profit isn't shown here since your revenue is in {currency} and the license fee is billed in {platformCurrency} — there's no currency conversion in SAFE_Links, so subtracting them directly would be misleading.
                   </div>
                 )}
               </div>
@@ -730,7 +730,7 @@ export default function ResellerApp({ session, onExit, notify }) {
               {(billing.data.payments || []).map((p) => (
                 <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "9px 4px", borderBottom: `1px solid ${T.border}`, fontSize: 13 }}>
                   <span>{p.note}</span>
-                  <span><Badge tone={statusColor(p.status)}>{p.status} Â· {formatMoney(p.amount, currency)}</Badge></span>
+                  <span><Badge tone={statusColor(p.status)}>{p.status} · {formatMoney(p.amount, currency)}</Badge></span>
                 </div>
               ))}
             </div>
@@ -775,16 +775,16 @@ export default function ResellerApp({ session, onExit, notify }) {
                           email={session?.user?.email}
                           customerName={session?.user?.companyName}
                           metadata={{ user_id: session?.user?.id, plan_id: chosenPlanId }}
-                          label={`💳 Pay ${formatMoney(chosenPlanPrice, platformCurrency)} instantly`}
+                          label={`?? Pay ${formatMoney(chosenPlanPrice, platformCurrency)} instantly`}
                           onError={(msg) => notify(msg)}
                         />
-                        <div style={{ margin: "24px 0", textAlign: "center", fontSize: 12, color: T.sub }}>— or pay by bank transfer —</div>
+                        <div style={{ margin: "24px 0", textAlign: "center", fontSize: 12, color: T.sub }}>� or pay by bank transfer �</div>
                       </>
                     )}
                     <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Submit your license renewal transfer</div>
                     <TransferPayBlock
                       payee={{ name: "SAFE_Links (Super Admin)", bankName: bankInfo.data.bank_name, accountName: bankInfo.data.bank_account_name, accountNumber: bankInfo.data.bank_account_number, ussdCode: bankInfo.data.ussd_code }}
-                      amount={chosenPlanPrice != null ? formatMoney(chosenPlanPrice, platformCurrency) : "â€”"} method={licenseMethod} setMethod={setLicenseMethod}
+                      amount={chosenPlanPrice != null ? formatMoney(chosenPlanPrice, platformCurrency) : "—"} method={licenseMethod} setMethod={setLicenseMethod}
                       reference={licenseReference} setReference={setLicenseReference}
                       onSubmit={submitLicenseRenewal} submitLabel="Submit for confirmation" submitting={licenseSubmitting}
                       onUploadFile={uploadLicenseReceiptFile} receiptUrl={licenseReceiptUrl} setReceiptUrl={setLicenseReceiptUrl}
@@ -801,7 +801,7 @@ export default function ResellerApp({ session, onExit, notify }) {
 
         <Panel title="Activate with a product key">
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 520 }}>
-            Got a key from Super Admin instead of doing a bank transfer? Enter it here â€” activation is instant, no waiting on confirmation.
+            Got a key from Super Admin instead of doing a bank transfer? Enter it here — activation is instant, no waiting on confirmation.
           </div>
           <div style={{ display: "flex", gap: 10, maxWidth: 420 }}>
             <input
@@ -811,7 +811,7 @@ export default function ResellerApp({ session, onExit, notify }) {
               placeholder="XXXX-XXXX-XXXX-XXXX"
               onKeyDown={(e) => { if (e.key === "Enter") redeemProductKey(); }}
             />
-            <Btn onClick={redeemProductKey} disabled={redeemingKey}><Key size={14} /> {redeemingKey ? "Activatingâ€¦" : "Activate"}</Btn>
+            <Btn onClick={redeemProductKey} disabled={redeemingKey}><Key size={14} /> {redeemingKey ? "Activating…" : "Activate"}</Btn>
           </div>
         </Panel>
         </>
@@ -821,13 +821,13 @@ export default function ResellerApp({ session, onExit, notify }) {
         <>
           <Panel title="Your referral code">
             <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 560 }}>
-              Refer another reseller or a marketer using the email/phone form below, or just share your link. When someone signs up with your code, you earn a bonus â€” Super Admin confirms and marks it paid once they've actually sent it, same manual-payment pattern as everything else here.
+              Refer another reseller or a marketer using the email/phone form below, or just share your link. When someone signs up with your code, you earn a bonus — Super Admin confirms and marks it paid once they've actually sent it, same manual-payment pattern as everything else here.
             </div>
             {referrals.loading ? <Loading /> : (
               <>
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
                   <div style={{ background: T.bg, borderRadius: 10, padding: "10px 16px", fontFamily: "monospace", fontWeight: 700, fontSize: 15, letterSpacing: 1, color: T.ink }}>
-                    {referrals.data?.referralCode || "â€”"}
+                    {referrals.data?.referralCode || "—"}
                   </div>
                   <Btn variant="outline" size="sm" onClick={copyReferralLink}><Copy size={12} /> {linkCopied ? "Link copied!" : "Copy referral link"}</Btn>
                   <div style={{ fontSize: 12.5, color: T.sub }}>
@@ -836,7 +836,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                 </div>
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                   <StatCard icon={Users} label="Invited" value={referrals.data?.summary?.invited ?? 0} tone={T.sub} />
-                  <StatCard icon={Clock} label="Signed up â€” pending" value={referrals.data?.summary?.signedUp ?? 0} tone={T.warning} />
+                  <StatCard icon={Clock} label="Signed up — pending" value={referrals.data?.summary?.signedUp ?? 0} tone={T.warning} />
                   <StatCard icon={Gift} label="Bonuses paid" value={referrals.data?.summary?.bonusPaid ?? 0} tone={T.success} />
                   <StatCard icon={DollarSign} label="Total earned" value={formatMoney(referrals.data?.summary?.totalEarned, referrals.data?.currency)} tone={T.success} />
                   <StatCard icon={DollarSign} label="Pending" value={formatMoney(referrals.data?.summary?.totalPending, referrals.data?.currency)} tone={T.warning} />
@@ -853,14 +853,14 @@ export default function ResellerApp({ session, onExit, notify }) {
               <Field label="Email"><input style={inputStyle} type="email" value={referralForm.email} onChange={(e) => setReferralForm({ ...referralForm, email: e.target.value })} placeholder="amina@example.com" /></Field>
               <Field label="Phone"><input style={inputStyle} value={referralForm.phone} onChange={(e) => setReferralForm({ ...referralForm, phone: e.target.value })} placeholder="+254 700 000 000" /></Field>
             </div>
-            <Btn onClick={submitReferral} disabled={referralSubmitting}><Gift size={14} /> {referralSubmitting ? "Addingâ€¦" : "Add referral"}</Btn>
+            <Btn onClick={submitReferral} disabled={referralSubmitting}><Gift size={14} /> {referralSubmitting ? "Adding…" : "Add referral"}</Btn>
           </Panel>
 
           <div style={{ height: 20 }} />
 
           <Panel title="Your referrals" action={<Badge tone={T.primary}>{(referrals.data?.referrals || []).length} total</Badge>}>
             {referrals.loading ? <Loading /> : (referrals.data?.referrals || []).length === 0 ? (
-              <EmptyRow text="No referrals yet â€” invite someone above to get started." />
+              <EmptyRow text="No referrals yet — invite someone above to get started." />
             ) : (
               (referrals.data.referrals || []).map((r) => (
                 <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 4px", borderBottom: `1px solid ${T.border}`, flexWrap: "wrap" }}>
@@ -875,7 +875,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ fontSize: 12.5, color: T.sub }}>{formatMoney(r.bonus_amount, referrals.data?.currency)}</div>
                     <Badge tone={r.status === "bonus_paid" ? T.success : r.status === "signed_up" ? T.warning : r.status === "flagged" ? T.danger : T.sub}>
-                      {r.status === "bonus_paid" ? "Bonus paid" : r.status === "signed_up" ? "Signed up â€” bonus pending" : r.status === "flagged" ? "Flagged for review" : "Invited"}
+                      {r.status === "bonus_paid" ? "Bonus paid" : r.status === "signed_up" ? "Signed up — bonus pending" : r.status === "flagged" ? "Flagged for review" : "Invited"}
                     </Badge>
                     {r.status === "invited" && (
                       <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => withdrawReferral(r.id)}><Trash2 size={12} /></Btn>
@@ -891,7 +891,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       {tab === "installer" && (
         <Panel title="Zero-touch installer" action={<Badge tone={routerOnline ? T.success : T.sub}>{routerOnline ? "Router online" : "No router linked yet"}</Badge>}>
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16, maxWidth: 480 }}>
-            Run this on your phone at a new location â€” it registers the router with your account and generates its polling API key. This can also be reached directly at <code>/install</code> for a field technician.
+            Run this on your phone at a new location — it registers the router with your account and generates its polling API key. This can also be reached directly at <code>/install</code> for a field technician.
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <InstallerWizard key={installerKey} onComplete={onInstallerComplete} embedded />
@@ -903,7 +903,7 @@ export default function ResellerApp({ session, onExit, notify }) {
         <>
         <Panel title="Customer support requests" action={<Badge tone={openCustomerTickets ? T.warning : T.success}>{openCustomerTickets} open</Badge>}>
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14 }}>
-            Raised by your own end-users from the Captive Portal's "Need help?" link. There's no automated email in SAFE_Links â€” nothing here notifies the customer, so reach them yourself at the contact they gave.
+            Raised by your own end-users from the Captive Portal's "Need help?" link. There's no automated email in SAFE_Links — nothing here notifies the customer, so reach them yourself at the contact they gave.
           </div>
           {customerSupport.loading ? <Loading /> : (customerSupport.data || []).length === 0 ? <EmptyRow text="No requests from customers yet." /> : (
             customerSupport.data.slice().sort((a, b) => b.time - a.time).map((ct) => (
@@ -913,25 +913,25 @@ export default function ResellerApp({ session, onExit, notify }) {
                   <Badge tone={statusColor(ct.status)}>{ct.status}</Badge>
                 </div>
                 <div style={{ fontSize: 11.5, color: T.sub, marginBottom: 6 }}>
-                  {ct.customer_name}{ct.customer_email ? ` Â· ${ct.customer_email}` : ""}{ct.customer_phone ? ` Â· ${ct.customer_phone}` : ""} Â· {timeAgo(ct.time)}
+                  {ct.customer_name}{ct.customer_email ? ` · ${ct.customer_email}` : ""}{ct.customer_phone ? ` · ${ct.customer_phone}` : ""} · {timeAgo(ct.time)}
                 </div>
                 <div style={{ fontSize: 12.5, color: T.ink, background: T.bg, borderRadius: 8, padding: 9, marginBottom: 8 }}>
                   {ct.message}
                   {ct.attachment_url && (
-                    <div style={{ marginTop: 6 }}><a href={ct.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
+                    <div style={{ marginTop: 6 }}><a href={ct.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                   )}
                 </div>
                 {(ct.messages || []).map((m) => (
                   <div key={m.id} style={{ fontSize: 12.5, color: T.ink, background: `${T.secondary}0d`, borderLeft: `3px solid ${T.secondary}`, borderRadius: 6, padding: 9, marginBottom: 8 }}>
                     <b>Your note:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input style={inputStyle} placeholder="Note what you did / told themâ€¦" value={customerReply[ct.id] || ""} onChange={(e) => setCustomerReply((r2) => ({ ...r2, [ct.id]: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Note what you did / told them…" value={customerReply[ct.id] || ""} onChange={(e) => setCustomerReply((r2) => ({ ...r2, [ct.id]: e.target.value }))} />
                   <Btn size="sm" onClick={() => sendCustomerReply(ct.id)}><MessageSquare size={13} /> {dt(dashboardLang, "addNote")}</Btn>
                   {ct.status === "open" ? (
                     <Btn size="sm" variant="soft" tone={T.success} onClick={() => setCustomerTicketStatus(ct.id, "resolved")}><CheckCircle2 size={13} /> {dt(dashboardLang, "resolve")}</Btn>
@@ -954,7 +954,7 @@ export default function ResellerApp({ session, onExit, notify }) {
           <div style={{ marginBottom: 18 }}>
             <Field label="Subject"><input style={inputStyle} value={ticketForm.subject} onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })} placeholder="e.g. Question about license renewal" /></Field>
             <Field label="Message">
-              <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical", fontFamily: "inherit" }} value={ticketForm.message} onChange={(e) => setTicketForm({ ...ticketForm, message: e.target.value })} placeholder="Describe your issue or questionâ€¦" />
+              <textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical", fontFamily: "inherit" }} value={ticketForm.message} onChange={(e) => setTicketForm({ ...ticketForm, message: e.target.value })} placeholder="Describe your issue or question…" />
             </Field>
             <AttachmentPicker onUpload={uploadSupportAttachment} attachmentUrl={ticketAttachmentUrl} setAttachmentUrl={setTicketAttachmentUrl} lang={dashboardLang} />
             <div style={{ height: 10 }} />
@@ -971,7 +971,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                 <div style={{ fontSize: 12.5, color: T.sub, margin: "4px 0" }}>
                   {st.message}
                   {st.attachment_url && (
-                    <div style={{ marginTop: 4 }}><a href={st.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
+                    <div style={{ marginTop: 4 }}><a href={st.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                   )}
                 </div>
                 {(st.messages || []).map((m) => (
@@ -983,13 +983,13 @@ export default function ResellerApp({ session, onExit, notify }) {
                   }}>
                     <b>{m.sender === "admin" ? "Super Admin" : "You"}:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>ðŸ“Ž view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <input style={inputStyle} placeholder="Replyâ€¦" value={adminReply[st.id] || ""} onChange={(e) => setAdminReply((r2) => ({ ...r2, [st.id]: e.target.value }))} />
+                  <input style={inputStyle} placeholder="Reply…" value={adminReply[st.id] || ""} onChange={(e) => setAdminReply((r2) => ({ ...r2, [st.id]: e.target.value }))} />
                   <Btn size="sm" onClick={() => sendAdminReply(st.id)}><MessageSquare size={13} /> {dt(dashboardLang, "sendReply")}</Btn>
                   {st.status === "open" ? (
                     <Btn size="sm" variant="ghost" onClick={() => setAdminTicketStatus(st.id, "resolved")}>{dt(dashboardLang, "markResolved")}</Btn>
@@ -1056,7 +1056,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   );
 }
 
-// Small, unobtrusive status line â€” only visible when there's actually
+// Small, unobtrusive status line — only visible when there's actually
 // something to say (offline, or something's queued waiting to sync).
 // Silent the rest of the time, so it never nags anyone with a normal
 // connection.
@@ -1081,9 +1081,9 @@ function SyncStatusBanner({ onSynced }) {
     }}>
       {online === false
         ? pendingCount > 0
-          ? `No connection â€” ${pendingCount} change${pendingCount === 1 ? "" : "s"} saved and waiting to sync`
-          : "No connection â€” showing your last saved data"
-        : `Syncing ${pendingCount} pending change${pendingCount === 1 ? "" : "s"}â€¦`}
+          ? `No connection — ${pendingCount} change${pendingCount === 1 ? "" : "s"} saved and waiting to sync`
+          : "No connection — showing your last saved data"
+        : `Syncing ${pendingCount} pending change${pendingCount === 1 ? "" : "s"}…`}
     </div>
   );
 }
@@ -1093,13 +1093,13 @@ function PlanChooser({ chosenPlanId, setChosenPlanId, platformPlans, platformCur
   return (
     <div>
       <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Choose your platform plan</div>
-      {platformPlans.loading ? <Loading /> : list.length === 0 ? <EmptyRow text="No platform plans available â€” contact Super Admin support." /> : (
+      {platformPlans.loading ? <Loading /> : list.length === 0 ? <EmptyRow text="No platform plans available — contact Super Admin support." /> : (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 12, marginBottom: 14 }}>
         {list.map((p) => (
           <div key={p.id} onClick={() => setChosenPlanId(p.id)} style={{ border: `2px solid ${chosenPlanId === p.id ? T.primary : T.border}`, borderRadius: 10, padding: 14, cursor: "pointer" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.primary, margin: "6px 0" }}>{formatMoney(p.price, platformCurrency)}<span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span></div>
-            <div style={{ fontSize: 11.5, color: T.sub }}>Up to {p.maxClients ?? p.max_clients} clients Â· {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client</div>
+            <div style={{ fontSize: 11.5, color: T.sub }}>Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client</div>
           </div>
         ))}
       </div>
