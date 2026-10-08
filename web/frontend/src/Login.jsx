@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { ChevronLeft, Radio, Lock } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
+import GoogleAuthButton from ".\/GoogleAuthButton.jsx";
 
 export default function Login({ tone, roleLabel, expectedRole, onSuccess, onBack, onSignup, onForgotPassword }) {
   const [email, setEmail] = useState("");

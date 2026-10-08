@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronLeft, Building2, UserPlus } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, setSession } from "./api.js";
+import GoogleAuthButton from "./GoogleAuthButton.jsx";
 
 const SECURITY_QUESTIONS = [
   "What city were you born in?",
