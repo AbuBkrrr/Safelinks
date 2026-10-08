@@ -1,4 +1,4 @@
-// Storage layer for offline-first operation: caches GET-style data for
+﻿// Storage layer for offline-first operation: caches GET-style data for
 // offline viewing, and queues write actions (create voucher, reply to
 // ticket, etc.) taken while offline for later replay against the real
 // API. Pure IndexedDB, no external dependencies â€” works unmodified in

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LAN router auto-pairing UI — lets someone pair a MikroTik router
  * without typing the pairing code into the router's console by hand,
  * if the device running this app is on the same network as the

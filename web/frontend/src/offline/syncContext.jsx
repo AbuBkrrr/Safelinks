@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+﻿import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { startSyncWatcher } from "./syncEngine.js";
 import * as offlineStore from "./offlineStore.js";
 

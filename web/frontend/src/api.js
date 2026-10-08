@@ -1,4 +1,4 @@
-// Real API client for the SAFELINKS backend. Every function here hits a
+﻿// Real API client for the SAFELINKS backend. Every function here hits a
 // live endpoint documented in safelinks-backend/README.md — nothing in
 // this file is mock data. Auth token lives in localStorage (this is a
 // real deployed web app, not a Claude Artifact, so that's fine here).
@@ -81,7 +81,6 @@ export const api = {
 
   // --- Auth ---
   login: (email, password) => post("/api/auth/login", { email, password }, { auth: false }),
-  googleLogin: (idToken) => post("/api/auth/google", { idToken }, { auth: false }),
   signup: (email, password, companyName, phone, securityQuestion, securityAnswer, referralCode) =>
     post("/api/auth/signup", { email, password, companyName, phone, securityQuestion, securityAnswer, referralCode }, { auth: false }),
   getSecurityQuestion: (email) => post("/api/auth/password-reset/question", { email }, { auth: false }),
@@ -225,6 +224,5 @@ export function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
-
 
 
