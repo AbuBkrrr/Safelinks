@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2, Mic, Paperclip, X, CloudUpload } from "lucide-react";
 import VoiceAssistant from "./VoiceAssistant.jsx";
 import { dt, dtMatch } from "./dashboardI18n.js";
@@ -306,7 +306,7 @@ export function TransferPayBlock({
         </div>
         {uploadState === "done" && receiptUrl && (
           <div style={{ fontSize: 11.5, color: T.success, marginTop: 4 }}>
-            Receipt attached ({uploadedName}) — <a href={fileUrl(receiptUrl)} target="_blank" rel="noreferrer" style={{ color: T.success }}>view</a>
+            Receipt attached ({uploadedName}) — <a href={receiptUrl} target="_blank" rel="noreferrer" style={{ color: T.success }}>view</a>
           </div>
         )}
         {uploadState === "error" && (
@@ -517,7 +517,7 @@ export function AttachmentPicker({ onUpload, attachmentUrl, setAttachmentUrl, la
         {pending ? <CloudUpload size={12} /> : <Paperclip size={12} />}
         {pending
           ? <span>{attachedLabel || "Attachment"} — will upload when back online</span>
-          : <a href={fileUrl(attachmentUrl)} target="_blank" rel="noreferrer" style={{ color: T.success }}>{attachedLabel || "Attachment"}</a>}
+          : <a href={attachmentUrl} target="_blank" rel="noreferrer" style={{ color: T.success }}>{attachedLabel || "Attachment"}</a>}
         <button type="button" onClick={clearAttachment} aria-label="Remove attachment"
           style={{ background: "none", border: "none", cursor: "pointer", color: T.sub, padding: 0, display: "flex" }}>
           <X size={12} />
