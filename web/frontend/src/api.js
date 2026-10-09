@@ -1,4 +1,4 @@
-﻿// Real API client for the SAFELINKS backend. Every function here hits a
+// Real API client for the SAFELINKS backend. Every function here hits a
 // live endpoint documented in safelinks-backend/README.md — nothing in
 // this file is mock data. Auth token lives in localStorage (this is a
 // real deployed web app, not a Claude Artifact, so that's fine here).
@@ -102,6 +102,8 @@ export const api = {
     setResellerStatus: (id, status) => put(`/api/admin/resellers/${id}/status`, { status }),
     platformPlans: () => get("/api/admin/platform-plans"),
     updatePlatformPlan: (id, body) => put(`/api/admin/platform-plans/${id}`, body),
+    planPrices: (planId) => get(`/api/admin/plans/${planId}/prices`),
+    updatePlanPrice: (planId, currency, body) => put(`/api/admin/plans/${planId}/prices/${currency}`, body),
     installations: () => get("/api/admin/installations"),
     sessions: () => get("/api/admin/sessions"),
     monitoring: () => get("/api/admin/monitoring"),

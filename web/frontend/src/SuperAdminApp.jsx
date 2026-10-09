@@ -82,15 +82,57 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   }
 
   const [planEdits, setPlanEdits] = useState(null);
+  async function openPlanEditor(p) {
+    setPlanEdits({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      pool_start: p.pool_start || "192.168.88.10",
+      pool_end: p.pool_end || "192.168.88.254",
+      bandwidth_percent: p.bandwidth_percent ?? 5,
+      prices: [],
+      availableCurrencies: [],
+      activeCurrency: null,
+      pricesLoading: true,
+      pricesError: null,
+    });
+    try {
+      const res = await api.admin.planPrices(p.id);
+      setPlanEdits((prev) => prev && prev.id === p.id ? {
+        ...prev,
+        prices: res.prices || [],
+        availableCurrencies: res.supported_currencies || [],
+        activeCurrency: res.platform_currency,
+        pricesLoading: false,
+      } : prev);
+    } catch (err) {
+      setPlanEdits((prev) => prev && prev.id === p.id ? {
+        ...prev,
+        pricesLoading: false,
+        pricesError: err.message || "Failed to load prices",
+      } : prev);
+    }
+  }
+
   async function savePlatformPlan(p) {
     try {
     await api.admin.updatePlatformPlan(p.id, {
       name: p.name,
-      price: Number(p.price),
       pool_start: p.pool_start,
       pool_end: p.pool_end,
       bandwidth_percent: Number(p.bandwidth_percent),
     });
+
+    // Save the active currency price (only if the user changed it)
+    if (p.activeCurrency && p.currencyPrice !== undefined && p.currencyPrice !== "") {
+      const enabledVal = p.currencyEnabled !== undefined
+        ? p.currencyEnabled
+        : (p.prices?.find((x) => x.currency === p.activeCurrency)?.enabled ?? true);
+      await api.admin.updatePlanPrice(p.id, p.activeCurrency, {
+        price: Number(p.currencyPrice),
+        enabled: enabledVal,
+      });
+    }
       notify(`${p.name} pricing updated.`);
       setPlanEdits(null);
       platformPlans.refetch();
@@ -283,7 +325,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       {tab === "plans" && (
         <Panel title="Platform plans (what resellers pay you)">
           {platformPlans.loading ? <Loading /> : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px,1fr))", gap: 12 }}>
               {(platformPlans.data || []).map((p) => {
                 const editing = planEdits?.id === p.id;
                 return (
@@ -294,10 +336,62 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                           <input style={inputStyle} value={planEdits.name}
                             onChange={(e) => setPlanEdits({ ...planEdits, name: e.target.value })} />
                         </Field>
-                        <Field label={`Price (${platformCurrency}/mo)`}>
-                          <input style={inputStyle} type="number" min="0" value={planEdits.price}
-                            onChange={(e) => setPlanEdits({ ...planEdits, price: e.target.value })} />
-                        </Field>
+
+                        {planEdits.pricesLoading ? (
+                          <div style={{ fontSize: 12, color: T.sub }}>Loading prices…</div>
+                        ) : planEdits.pricesError ? (
+                          <div style={{ fontSize: 12, color: T.danger }}>{planEdits.pricesError}</div>
+                        ) : (
+                          <>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginTop: 4 }}>Prices (per currency)</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {(planEdits.availableCurrencies || []).map((cur) => {
+                                const row = planEdits.prices.find((x) => x.currency === cur);
+                                const active = planEdits.activeCurrency === cur;
+                                const has = !!row && row.enabled;
+                                return (
+                                  <button key={cur} type="button"
+                                    onClick={() => setPlanEdits({ ...planEdits, activeCurrency: cur, currencyPrice: undefined, currencyEnabled: undefined })}
+                                    style={{
+                                      padding: "4px 10px",
+                                      borderRadius: 20,
+                                      border: active ? `2px solid ${T.primary}` : `1px solid ${T.border}`,
+                                      background: active ? `${T.primary}18` : (has ? "#f0fff4" : "#fff"),
+                                      color: has ? T.ink : T.sub,
+                                      fontWeight: has ? 600 : 400,
+                                      fontSize: 12,
+                                      cursor: "pointer",
+                                    }}>
+                                    {cur}{row?.is_platform_default ? " ★" : ""}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {planEdits.activeCurrency && (() => {
+                              const cur = planEdits.activeCurrency;
+                              const row = planEdits.prices.find((x) => x.currency === cur) || { price: "", enabled: false, is_platform_default: false };
+                              const priceVal = planEdits.currencyPrice !== undefined ? planEdits.currencyPrice : row.price;
+                              const enabledVal = planEdits.currencyEnabled !== undefined ? planEdits.currencyEnabled : row.enabled;
+                              return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f8fafc", borderRadius: 8 }}>
+                                  <Field label={`Price in ${cur}${row.is_platform_default ? " (platform default ★)" : ""}`}>
+                                    <input style={inputStyle} type="number" min="0"
+                                      value={priceVal}
+                                      onChange={(e) => setPlanEdits({ ...planEdits, currencyPrice: e.target.value })} />
+                                  </Field>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                                    <input type="checkbox"
+                                      checked={!!enabledVal}
+                                      onChange={(e) => setPlanEdits({ ...planEdits, currencyEnabled: e.target.checked })} />
+                                    Enabled for new subscriptions
+                                  </label>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        )}
+
                         <div style={{ display: "flex", gap: 8 }}>
                           <Field label="Pool start">
                             <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_start}
@@ -308,16 +402,14 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                               onChange={(e) => setPlanEdits({ ...planEdits, pool_end: e.target.value })} />
                           </Field>
                         </div>
-                        <Field label={`Bandwidth per user: ${planEdits.bandwidth_percent}% \u2248 ${Math.max(1, Math.round(100 * Number(planEdits.bandwidth_percent) / 100))} Mbps`}>
-                          <input
-                            type="range"
-                            min="1"
-                            max="100"
+
+                        <Field label={`Bandwidth per user: ${planEdits.bandwidth_percent}% ≈ ${Math.max(1, Math.round(100 * Number(planEdits.bandwidth_percent) / 100))} Mbps`}>
+                          <input type="range" min="1" max="100"
                             value={planEdits.bandwidth_percent}
                             onChange={(e) => setPlanEdits({ ...planEdits, bandwidth_percent: Number(e.target.value) })}
-                            style={{ width: "100%" }}
-                          />
+                            style={{ width: "100%" }} />
                         </Field>
+
                         <div style={{ display: "flex", gap: 6 }}>
                           <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /> Save</Btn>
                           <Btn size="sm" variant="ghost" onClick={() => setPlanEdits(null)}>Cancel</Btn>
@@ -328,21 +420,17 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
                         <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>{formatMoney(p.price, platformCurrency)}<span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span></div>
-                          <Btn size="sm" variant="outline" onClick={() => setPlanEdits({
-                            id: p.id,
-                            name: p.name,
-                            price: p.price,
-                            pool_start: p.pool_start || "192.168.88.10",
-                            pool_end: p.pool_end || "192.168.88.254",
-                            bandwidth_percent: p.bandwidth_percent ?? 5,
-                          })}>Edit plan</Btn>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>
+                            {formatMoney(p.price, platformCurrency)}
+                            <span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span>
+                          </div>
+                          <Btn size="sm" variant="outline" onClick={() => openPlanEditor(p)}>Edit plan</Btn>
                         </div>
                         <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>
-                          Up to {p.maxClients ?? p.max_clients} clients {'·'} {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
+                          Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
                         </div>
                         <div style={{ fontSize: 11.5, color: T.sub, marginTop: 4, fontFamily: "monospace" }}>
-                          Pool: {p.pool_start || "192.168.88.10"} {'–'} {p.pool_end || "192.168.88.254"} {'·'} {p.bandwidth_percent ?? 5}% BW/user
+                          Pool: {p.pool_start || "192.168.88.10"} – {p.pool_end || "192.168.88.254"} · {p.bandwidth_percent ?? 5}% BW/user
                         </div>
                       </>
                     )}
@@ -734,3 +822,4 @@ export default function SuperAdminApp({ session, onExit, notify }) {
     </Shell>
   );
 }
+
