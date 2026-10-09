@@ -12,20 +12,24 @@
   .status { margin:16px 0; font-size:13px; color:#94a3b8; }
   table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px; }
   th { text-align:left; padding:8px; background:#1e293b; color:#94a3b8; font-weight:600; }
-  td { padding:8px; border-bottom:1px solid #1e293b; }
-  .tag { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  td { padding:8px; border-bottom:1px solid #1e293b; vertical-align:top; }
+  .tag { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap; }
   .router-mikrotik { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b55; }
+  .router-openwrt  { background:#22c55e22; color:#22c55e; border:1px solid #22c55e55; }
+  .router-ubiquiti { background:#3b82f622; color:#3b82f6; border:1px solid #3b82f655; }
+  .router-tplink   { background:#a855f722; color:#a855f7; border:1px solid #a855f755; }
   .router          { background:#22c55e22; color:#22c55e; border:1px solid #22c55e55; }
   .router-likely   { background:#3b82f622; color:#3b82f6; border:1px solid #3b82f655; }
   .unknown-with-ports { background:#64748b22; color:#94a3b8; border:1px solid #64748b55; }
   .device          { background:#1e293b; color:#94a3b8; }
   .mono { font-family: ui-monospace, 'Cascadia Mono', monospace; }
   pre { background:#1e293b; padding:14px; border-radius:8px; font-size:12px; overflow:auto; max-height:300px; }
+  .title-cell { font-size:11px; color:#64748b; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
   <h1>SAFE_Links Installer</h1>
-  <div class="sub">Phase 1 — LAN detection engine.</div>
+  <div class="sub">Phase 1 — Universal LAN detection engine.</div>
 
   <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
     <button id="btnLocal">Get Local Info</button>
@@ -36,7 +40,7 @@
   <div class="status" id="status">Idle.</div>
   <div id="localInfo"></div>
   <table id="results" style="display:none;">
-    <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Kind</th><th>Open Ports</th></tr></thead>
+    <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th></tr></thead>
     <tbody></tbody>
   </table>
 
@@ -48,8 +52,7 @@ const tbl      = document.getElementById('results');
 const tbody    = tbl.querySelector('tbody');
 
 document.getElementById('btnClear').onclick = () => {
-  tbody.innerHTML = ''; tbl.style.display = 'none'; localEl.innerHTML = '';
-  statusEl.textContent = 'Idle.';
+  tbody.innerHTML=''; tbl.style.display='none'; localEl.innerHTML=''; statusEl.textContent='Idle.';
 };
 
 document.getElementById('btnLocal').onclick = async () => {
@@ -62,8 +65,8 @@ document.getElementById('btnLocal').onclick = async () => {
 document.getElementById('btnScan').onclick = async () => {
   const btn = document.getElementById('btnScan');
   btn.disabled = true;
-  statusEl.textContent = 'Pinging 254 hosts + probing ports… (~15 seconds)';
-  tbody.innerHTML = ''; tbl.style.display = 'none';
+  statusEl.textContent = 'Pinging 254 hosts, probing ports, reading HTTP banners… (~20s)';
+  tbody.innerHTML=''; tbl.style.display='none';
   const t0 = Date.now();
   try {
     const devices = await invoke('scan_lan');
@@ -75,6 +78,7 @@ document.getElementById('btnScan').onclick = async () => {
         <td class="mono">${d.ip}</td>
         <td class="mono">${d.mac || '—'}</td>
         <td>${d.vendor || '—'}</td>
+        <td class="title-cell" title="${(d.web_title||'').replace(/"/g,'&quot;')}">${d.web_title || '—'}</td>
         <td><span class="tag ${d.kind}">${d.kind}</span></td>
         <td class="mono">${d.open_ports.join(', ') || '—'}</td>`;
       tbody.appendChild(tr);
@@ -82,9 +86,7 @@ document.getElementById('btnScan').onclick = async () => {
     tbl.style.display = devices.length ? '' : 'none';
   } catch (e) {
     statusEl.textContent = 'Error: ' + e;
-  } finally {
-    btn.disabled = false;
-  }
+  } finally { btn.disabled = false; }
 };
 </script>
 </body>
