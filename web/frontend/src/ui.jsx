@@ -9,7 +9,7 @@ import { makePlaceholder, isPlaceholder } from "./offline/attachmentPlaceholder.
 // browser fetches them from the backend service, not from this frontend's
 // own nginx (which would fall through to index.html and show the SPA again).
 const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-function fileUrl(url) {
+export function fileUrl(url) {
   if (!url) return url;
   // Already on the backend - leave it.
   if (API_BASE && url.startsWith(API_BASE)) return url;

@@ -1,3 +1,4 @@
+import { fileUrl } from "./ui.jsx";
 import React, { useMemo, useState } from "react";
 import {
   Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package,
@@ -389,7 +390,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                     <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
                       {formatMoney(p.amount, platformCurrency)} via {p.method} · ref: <span style={{ fontFamily: "monospace" }}>{p.reference}</span> · {timeAgo(p.time)}
                       {p.receipt_url && (
-                        <> · <a href={p.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
+                        <> · <a href={fileUrl(p.receipt_url)} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
                       )}
                     </div>
                   </div>
@@ -564,7 +565,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                 <div style={{ fontSize: 13, color: T.ink, background: T.bg, borderRadius: 8, padding: 10, marginBottom: 8 }}>
                   {t.message}
                   {t.attachment_url && (
-                    <div style={{ marginTop: 6 }}><a href={t.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                    <div style={{ marginTop: 6 }}><a href={fileUrl(t.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                   )}
                 </div>
                 {(t.messages || []).map((m) => (
@@ -576,7 +577,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   }}>
                     <b>{m.sender === "admin" ? "You" : t.company_name}:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={fileUrl(m.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>

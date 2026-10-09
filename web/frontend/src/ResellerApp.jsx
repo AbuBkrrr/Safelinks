@@ -1,3 +1,4 @@
+import { fileUrl } from "./ui.jsx";
 import React, { useState } from "react";
 import PaymentButton from "./PaymentButton.jsx";
 import {
@@ -691,7 +692,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                     <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
                       {formatMoney(req.amount, currency)} via {req.method} · ref: <span style={{ fontFamily: "monospace" }}>{req.reference}</span> · {timeAgo(req.time)}
                       {req.receipt_url && (
-                        <> · <a href={req.receipt_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
+                        <> · <a href={fileUrl(req.receipt_url)} target="_blank" rel="noreferrer" style={{ color: T.primary, fontWeight: 600 }}>view receipt</a></>
                       )}
                     </div>
                   </div>
@@ -918,14 +919,14 @@ export default function ResellerApp({ session, onExit, notify }) {
                 <div style={{ fontSize: 12.5, color: T.ink, background: T.bg, borderRadius: 8, padding: 9, marginBottom: 8 }}>
                   {ct.message}
                   {ct.attachment_url && (
-                    <div style={{ marginTop: 6 }}><a href={ct.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                    <div style={{ marginTop: 6 }}><a href={fileUrl(ct.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                   )}
                 </div>
                 {(ct.messages || []).map((m) => (
                   <div key={m.id} style={{ fontSize: 12.5, color: T.ink, background: `${T.secondary}0d`, borderLeft: `3px solid ${T.secondary}`, borderRadius: 6, padding: 9, marginBottom: 8 }}>
                     <b>Your note:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={fileUrl(m.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>
@@ -971,7 +972,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                 <div style={{ fontSize: 12.5, color: T.sub, margin: "4px 0" }}>
                   {st.message}
                   {st.attachment_url && (
-                    <div style={{ marginTop: 4 }}><a href={st.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                    <div style={{ marginTop: 4 }}><a href={fileUrl(st.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.primary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                   )}
                 </div>
                 {(st.messages || []).map((m) => (
@@ -983,7 +984,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                   }}>
                     <b>{m.sender === "admin" ? "Super Admin" : "You"}:</b> {m.message || <i style={{ color: T.sub }}>(voice note / attachment)</i>}
                     {m.attachment_url && (
-                      <div style={{ marginTop: 4 }}><a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
+                      <div style={{ marginTop: 4 }}><a href={fileUrl(m.attachment_url)} target="_blank" rel="noreferrer" style={{ color: T.secondary, fontSize: 11.5, fontWeight: 600 }}>📎 view attachment</a></div>
                     )}
                     <div style={{ fontSize: 10.5, color: T.sub, marginTop: 3 }}>{timeAgo(m.time)}</div>
                   </div>
