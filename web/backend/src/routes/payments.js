@@ -10,6 +10,7 @@ import {
   verifyWebhook,
   listEnabledProviders,
 } from "../payments/index.js";
+import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
 
 // Helper: generate a short unique reference for a payment intent.
@@ -128,8 +129,13 @@ async function fulfillLicensePayment(paymentRow) {
 
 export function registerPaymentRoutes(router) {
   // GET /api/payments/providers — which gateways are enabled?
-  router.get("/api/payments/providers", async (req, res) => {
-    json(res, 200, { providers: listEnabledProviders() });
+  router.get("/api/payments/providers", async (req, res, { query }) => {
+    const currency = String(query?.currency || "").toUpperCase().trim() || null;
+    let providers = listEnabledProviders();
+    if (currency && CURRENCY_GATEWAY_SUPPORT[currency]) {
+      providers = providers.filter((p) => CURRENCY_GATEWAY_SUPPORT[currency].includes(p));
+    }
+    json(res, 200, { providers, currency });
   });
 
   // POST /api/payments/initiate

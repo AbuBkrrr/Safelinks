@@ -580,3 +580,45 @@ export async function runInstallerPlanMigration() {
   ).run(10, "enterprise", 5);
   console.log("Installer plan-config migration complete");
 }
+
+// ============================================================
+// Standalone migration: multi-currency plan prices.
+// ============================================================
+export async function runPlanPricesMigration() {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS plan_prices (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      price REAL NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      gateway_support TEXT,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      UNIQUE (plan_id, currency),
+      FOREIGN KEY (plan_id) REFERENCES platform_plans(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_plan_prices_plan ON plan_prices(plan_id);
+    CREATE INDEX IF NOT EXISTS idx_plan_prices_lookup ON plan_prices(plan_id, currency, enabled);
+  `);
+
+  const settings = await db.prepare(
+    "SELECT platform_currency FROM integration_settings WHERE id = 'singleton'"
+  ).get();
+  const defaultCurrency = settings?.platform_currency || "USD";
+
+  const plans = await db.prepare("SELECT id, price FROM platform_plans").all();
+  const now = Date.now();
+  let inserted = 0;
+  for (const plan of plans) {
+    const existing = await db.prepare(
+      "SELECT id FROM plan_prices WHERE plan_id = ? AND currency = ?"
+    ).get(plan.id, defaultCurrency);
+    if (existing) continue;
+    await db.prepare(
+      "INSERT INTO plan_prices (id, plan_id, currency, price, enabled, created_at, updated_at) VALUES (?,?,?,?,?,?,?)"
+    ).run(id("pp"), plan.id, defaultCurrency, Number(plan.price), 1, now, now);
+    inserted++;
+  }
+  console.log(`Plan-prices migration complete (default ${defaultCurrency}, ${inserted} new rows)`);
+}
