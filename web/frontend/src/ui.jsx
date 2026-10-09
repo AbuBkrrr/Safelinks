@@ -8,10 +8,20 @@ import { makePlaceholder, isPlaceholder } from "./offline/attachmentPlaceholder.
 // Prefix relative upload URLs (/uploads/xxx) with the backend API URL so the
 // browser fetches them from the backend service, not from this frontend's
 // own nginx (which would fall through to index.html and show the SPA again).
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
 function fileUrl(url) {
   if (!url) return url;
-  if (/^https?:\/\//i.test(url)) return url;
+  // Already on the backend - leave it.
+  if (API_BASE && url.startsWith(API_BASE)) return url;
+  // Absolute URL pointing at our own frontend host: strip the host and
+  // re-prefix with the backend so /uploads/... resolves correctly.
+  try {
+    const u = new URL(url, window.location.origin);
+    if (u.hostname === window.location.hostname) {
+      return `${API_BASE}${u.pathname}${u.search}`;
+    }
+    if (u.protocol === "http:" || u.protocol === "https:") return url;
+  } catch { /* not a URL, treat as relative */ }
   return `${API_BASE}${url}`;
 }
 
@@ -34,7 +44,7 @@ export const T = {
 };
 
 export function timeAgo(ts) {
-  if (!ts) return "â€”";
+  if (!ts) return "—";
   const diff = Date.now() - ts;
   const h = Math.floor(diff / 3600000);
   if (diff < 60000) return "just now";
@@ -44,7 +54,7 @@ export function timeAgo(ts) {
 }
 
 /* ============================================================
-   CURRENCY â€” what a reseller charges their own end-users. This is
+   CURRENCY — what a reseller charges their own end-users. This is
    separate from the Super Admin's platform license fee, which stays
    in USD regardless (a fixed platform-to-reseller billing relationship,
    not something a reseller localizes). Kept in sync with the backend's
@@ -52,7 +62,7 @@ export function timeAgo(ts) {
    ============================================================ */
 export const CURRENCIES = [
   { code: "USD", symbol: "$", label: "US Dollar (USD)" },
-  { code: "NGN", symbol: "â‚¦", label: "Nigerian Naira (NGN)" },
+  { code: "NGN", symbol: "₦", label: "Nigerian Naira (NGN)" },
   { code: "KES", symbol: "KSh", label: "Kenyan Shilling (KES)" },
   { code: "UGX", symbol: "USh", label: "Ugandan Shilling (UGX)" },
   { code: "GHS", symbol: "GHâ‚µ", label: "Ghanaian Cedi (GHS)" },
@@ -203,23 +213,23 @@ export function ErrorRow({ text }) {
   );
 }
 
-export function Loading({ text = "Loadingâ€¦" }) {
+export function Loading({ text = "Loading…" }) {
   return <div style={{ padding: "26px 0", textAlign: "center", color: T.sub, fontSize: 13 }}>{text}</div>;
 }
 
 /* Reusable "pay via transfer / USSD + receipt reference" block. This is
-   the ONLY payment path in the whole system â€” there is no gateway.
+   the ONLY payment path in the whole system — there is no gateway.
    bank/USSD details come straight from the reseller (or Super Admin,
    one level up) so the payer knows exactly who to pay and how much.
 
    `onUploadFile`, if passed, wires up a REAL file picker for the "Upload
-   receipt" button (JPEG/PNG/WebP/PDF, 6MB cap â€” see
+   receipt" button (JPEG/PNG/WebP/PDF, 6MB cap — see
    safelinks-backend/src/uploads.js): async (file) => { url, originalName }.
-   Without it, the button silently does nothing â€” every caller here
+   Without it, the button silently does nothing — every caller here
    should pass it now that the upload endpoints exist. `receiptUrl` /
    `setReceiptUrl` track the uploaded file so the parent can include it
    in the final submit body. The text `reference` field stays required
-   either way â€” a photo is additive proof, not a replacement for it. */
+   either way — a photo is additive proof, not a replacement for it. */
 export function TransferPayBlock({
   payee, amount, method, setMethod, reference, setReference, onSubmit, submitLabel, submitting, methods,
   onUploadFile, receiptUrl, setReceiptUrl,
@@ -242,7 +252,7 @@ export function TransferPayBlock({
       setUploadedName(file.name);
       setUploadState("done");
       // Convenience default: if the reference field is still empty,
-      // pre-fill it with the photo's filename â€” still editable, and
+      // pre-fill it with the photo's filename — still editable, and
       // still required to submit either way.
       if (!reference) setReference(file.name);
     } catch (err) {
@@ -270,9 +280,9 @@ export function TransferPayBlock({
             <Landmark size={14} color={T.primary} /> Transfer to {payee.name}'s account
           </div>
           <div style={{ color: T.sub, lineHeight: 1.9 }}>
-            Bank: <b style={{ color: T.ink }}>{payee.bankName || "â€”"}</b><br />
-            Account name: <b style={{ color: T.ink }}>{payee.accountName || "â€”"}</b><br />
-            Account number: <b style={{ color: T.ink, fontFamily: "monospace" }}>{payee.accountNumber || "â€”"}</b><br />
+            Bank: <b style={{ color: T.ink }}>{payee.bankName || "—"}</b><br />
+            Account name: <b style={{ color: T.ink }}>{payee.accountName || "—"}</b><br />
+            Account number: <b style={{ color: T.ink, fontFamily: "monospace" }}>{payee.accountNumber || "—"}</b><br />
             Amount: <b style={{ color: T.ink }}>{amount}</b>
           </div>
         </div>
@@ -282,13 +292,13 @@ export function TransferPayBlock({
             <Hash size={14} color={T.primary} /> Dial USSD to pay {payee.name}
           </div>
           <div style={{ color: T.sub, lineHeight: 1.9 }}>
-            Dial: <b style={{ color: T.ink, fontFamily: "monospace" }}>{payee.ussdCode || "â€”"}</b><br />
+            Dial: <b style={{ color: T.ink, fontFamily: "monospace" }}>{payee.ussdCode || "—"}</b><br />
             Amount: <b style={{ color: T.ink }}>{amount}</b><br />
             Follow the prompts to complete payment, then enter the confirmation code below.
           </div>
         </div>
       )}
-      <Field label={method === "Bank Transfer" ? "Receipt reference (or upload a photo)" : "USSD confirmation code"} hint="Verified by hand before anything activates â€” there's no automatic gateway.">
+      <Field label={method === "Bank Transfer" ? "Receipt reference (or upload a photo)" : "USSD confirmation code"} hint="Verified by hand before anything activates — there's no automatic gateway.">
         <div style={{ display: "flex", gap: 8 }}>
           <input style={inputStyle} value={reference} onChange={(e) => setReference(e.target.value)}
             placeholder={method === "Bank Transfer" ? "e.g. Receipt_TXN88213.jpg" : "e.g. QWE123CONFIRM"} />
@@ -298,7 +308,7 @@ export function TransferPayBlock({
                 onChange={handleFilePicked} style={{ display: "none" }} />
               <button
                 type="button"
-                aria-label={uploadState === "uploading" ? "Uploading receiptâ€¦" : uploadState === "done" ? `Receipt uploaded: ${uploadedName}` : "Upload a photo of your receipt"}
+                aria-label={uploadState === "uploading" ? "Uploading receipt…" : uploadState === "done" ? `Receipt uploaded: ${uploadedName}` : "Upload a photo of your receipt"}
                 title={uploadState === "done" ? `Uploaded: ${uploadedName}` : "Upload a photo of your receipt"}
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadState === "uploading"}
@@ -316,7 +326,7 @@ export function TransferPayBlock({
         </div>
         {uploadState === "done" && receiptUrl && (
           <div style={{ fontSize: 11.5, color: T.success, marginTop: 4 }}>
-            Receipt attached ({uploadedName}) â€” <a href={fileUrl(receiptUrl)} target="_blank" rel="noreferrer" style={{ color: T.success }}>view</a>
+            Receipt attached ({uploadedName}) — <a href={fileUrl(receiptUrl)} target="_blank" rel="noreferrer" style={{ color: T.success }}>view</a>
           </div>
         )}
         {uploadState === "error" && (
@@ -324,14 +334,14 @@ export function TransferPayBlock({
         )}
       </Field>
       <Btn disabled={!reference || submitting} onClick={onSubmit} style={{ width: "100%", justifyContent: "center", padding: "10px 0" }}>
-        {submitting ? "Submittingâ€¦" : submitLabel}
+        {submitting ? "Submitting…" : submitLabel}
       </Btn>
     </div>
   );
 }
 
 /* ============================================================
-   NAV SHELL â€” sidebar + topbar shared by the two dashboards
+   NAV SHELL — sidebar + topbar shared by the two dashboards
    ============================================================ */
 export function Shell({ roleLabel, roleIcon: RoleIcon, tone, identity, tabs, active, onTab, onExit, exitLabel, badges, notifications, dashboardLang, children }) {
   const lang = dashboardLang || "en";
@@ -431,13 +441,13 @@ export function Shell({ roleLabel, roleIcon: RoleIcon, tone, identity, tabs, act
   );
 }
 
-/* Reusable file/voice-note attachment control for support forms â€” the
+/* Reusable file/voice-note attachment control for support forms — the
    Captive Portal's "Need help?" form, a reseller's tickets to Super
    Admin, a reseller's replies to a customer, and Super Admin's replies
    to a reseller. Two ways in: pick a file (image/PDF), or record a
-   voice note right in the browser via MediaRecorder â€” useful for
+   voice note right in the browser via MediaRecorder — useful for
    anyone who'd rather explain a WiFi problem out loud than type it.
-   `onUpload` â€” async (file: File|Blob, mimeType, filename) => { url }.
+   `onUpload` — async (file: File|Blob, mimeType, filename) => { url }.
    Once attached, shows a small "attached" chip with a remove (Ã—). */
 export function AttachmentPicker({ onUpload, attachmentUrl, setAttachmentUrl, lang = "en" }) {
   const fileInputRef = React.useRef(null);
@@ -510,7 +520,7 @@ export function AttachmentPicker({ onUpload, attachmentUrl, setAttachmentUrl, la
       setState("recording");
     } catch {
       setState("error");
-      setError("Couldn't access the microphone â€” check your browser's permission for this site.");
+      setError("Couldn't access the microphone — check your browser's permission for this site.");
     }
   }
 
@@ -526,7 +536,7 @@ export function AttachmentPicker({ onUpload, attachmentUrl, setAttachmentUrl, la
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: pending ? T.sub : T.success, marginTop: 6 }}>
         {pending ? <CloudUpload size={12} /> : <Paperclip size={12} />}
         {pending
-          ? <span>{attachedLabel || "Attachment"} â€” will upload when back online</span>
+          ? <span>{attachedLabel || "Attachment"} — will upload when back online</span>
           : <a href={fileUrl(attachmentUrl)} target="_blank" rel="noreferrer" style={{ color: T.success }}>{attachedLabel || "Attachment"}</a>}
         <button type="button" onClick={clearAttachment} aria-label="Remove attachment"
           style={{ background: "none", border: "none", cursor: "pointer", color: T.sub, padding: 0, display: "flex" }}>
@@ -557,7 +567,7 @@ export function AttachmentPicker({ onUpload, attachmentUrl, setAttachmentUrl, la
           }}>
           <Mic size={12} /> {state === "recording" ? "Stop recording" : "Record voice note"}
         </button>
-        {state === "uploading" && <span style={{ fontSize: 12, color: T.sub }}>Uploadingâ€¦</span>}
+        {state === "uploading" && <span style={{ fontSize: 12, color: T.sub }}>Uploading…</span>}
       </div>
       {error && <div style={{ fontSize: 11.5, color: T.danger, marginTop: 4 }}>{error}</div>}
     </div>
