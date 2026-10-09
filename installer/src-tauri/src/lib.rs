@@ -15,6 +15,7 @@ pub fn run() {
             ssh::scripts_info,
             auth::installer_login,
             auth::installer_plan_config,
+            auth::installer_license_initiate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAFE_Links installer");

@@ -79,3 +79,54 @@ pub async fn installer_plan_config(token: String) -> Result<serde_json::Value, S
     serde_json::from_str::<serde_json::Value>(&body)
         .map_err(|e| format!("parse error: {} — body: {}", e, body))
 }
+
+
+#[derive(Serialize)]
+struct LicenseInitiateRequest {
+    #[serde(rename = "planId")]
+    plan_id: String,
+    provider: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct LicenseInitiateResponse {
+    pub ok: bool,
+    pub provider: String,
+    pub reference: String,
+    #[serde(rename = "authorizationUrl")]
+    pub authorization_url: String,
+    pub amount: f64,
+    pub currency: String,
+    #[serde(rename = "plan_id")]
+    pub plan_id: String,
+    #[serde(rename = "plan_name")]
+    pub plan_name: String,
+}
+
+#[tauri::command]
+pub async fn installer_license_initiate(
+    token: String,
+    plan_id: String,
+    provider: String,
+) -> Result<LicenseInitiateResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("http client: {}", e))?;
+
+    let resp = client
+        .post(format!("{}/api/installer/license/initiate", API_BASE))
+        .bearer_auth(&token)
+        .json(&LicenseInitiateRequest { plan_id, provider })
+        .send()
+        .await
+        .map_err(|e| format!("network error: {}", e))?;
+
+    let status = resp.status();
+    let body = resp.text().await.map_err(|e| format!("read body: {}", e))?;
+    if !status.is_success() {
+        return Err(format!("license-initiate failed - HTTP {}: {}", status.as_u16(), body));
+    }
+    serde_json::from_str::<LicenseInitiateResponse>(&body)
+        .map_err(|e| format!("parse error: {} - body: {}", e, body))
+}
