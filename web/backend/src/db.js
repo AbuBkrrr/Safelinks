@@ -506,4 +506,30 @@ export async function runAuthUpgradeMigration() {
   console.log("✔ Auth upgrade migration complete");
 }
 
-
+// ============================================================
+// Standalone migration: installer session tracking columns.
+// Extends the existing `installations` table so the native Tauri installer
+// can record its own view of a router-provisioning session (parallel to
+// the router's own self-registration via POST /api/agent/register). See
+// src/routes/installer.js. Every ALTER uses IF NOT EXISTS so this is a
+// no-op on databases that already have the columns — safe on every boot.
+// ============================================================
+export async function runInstallerMigration() {
+  await db.exec(`
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS installer_id TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS agent_version TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS router_model TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS router_firmware TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS router_mac TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS ssid TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS pairing_code TEXT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_ssid_broadcast BOOLEAN;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_captive_redirect BOOLEAN;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_wan_internet BOOLEAN;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS completed_at BIGINT;
+    ALTER TABLE installations ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
+    CREATE INDEX IF NOT EXISTS idx_installations_installer_id ON installations(installer_id);
+    CREATE INDEX IF NOT EXISTS idx_installations_pairing_code ON installations(pairing_code);
+  `);
+  console.log("Installer migration complete");
+}

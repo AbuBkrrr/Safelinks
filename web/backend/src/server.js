@@ -13,6 +13,7 @@ import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
+import { registerInstallerRoutes } from "./routes/installer.js";
 import { registerPaymentRoutes } from ".\/routes\/payments.js";
 
 const UPLOAD_CONTENT_TYPES = {
@@ -88,8 +89,9 @@ async function main() {
   }
 
   await migrate();
-  const { runAuthUpgradeMigration } = await import("./db.js");
+  const { runAuthUpgradeMigration, runInstallerMigration } = await import("./db.js");
   await runAuthUpgradeMigration();
+  await runInstallerMigration();
   const seedResult = await seed();
   startScheduler();
 
@@ -100,6 +102,7 @@ async function main() {
   registerResellerRoutes(router);
   registerRouterRoutes(router);
   registerAgentRoutes(router);
+  registerInstallerRoutes(router);
   registerPaymentRoutes(router);
 
   router.get("/health", async (req, res) =>
