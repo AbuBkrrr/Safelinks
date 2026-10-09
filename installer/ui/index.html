@@ -33,6 +33,27 @@
   .pill.ok { background:#0f5132; color:#7ae0b0; }
   .pill.warn { background:#664d03; color:#ffd166; }
   .pill.bad { background:#5c1f1f; color:#ff9e9e; }
+
+
+  /* ========== Router config modal (Stage 2d-1) ========== */
+  .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:100; align-items:center; justify-content:center; padding:20px; }
+  .modal-backdrop.show { display:flex; }
+  .modal { background:#0f172a; border:1px solid #334155; border-radius:14px; padding:24px 22px; max-width:560px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.5); }
+  .modal h4 { margin:0 0 6px; font-size:16px; color:#fff; }
+  .modal .sub { color:#94a3b8; font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  .modal .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .modal .field { margin-bottom:12px; }
+  .modal .field label { display:block; font-size:12.5px; color:#cbd5e1; font-weight:600; margin-bottom:4px; }
+  .modal .field input { width:100%; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:10px 12px; border-radius:8px; font-size:13px; font-family:ui-monospace, monospace; }
+  .modal .field input:focus { outline:none; border-color:#667eea; }
+  .modal .hint { font-size:11.5px; color:#94a3b8; margin-top:4px; }
+  .modal .info { background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px 14px; font-size:12.5px; color:#cbd5e1; margin-bottom:12px; line-height:1.6; }
+  .modal .info code { background:#0f172a; padding:2px 6px; border-radius:4px; font-size:11.5px; }
+  .modal .warn { background:#5c1f1f33; border:1px solid #5c1f1f; color:#ff9e9e; padding:12px 14px; border-radius:8px; font-size:12.5px; margin-bottom:14px; line-height:1.6; }
+  .modal .ok { background:#0f513233; border:1px solid #0f5132; color:#7ae0b0; padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:14px; }
+  .modal .step-num { display:inline-block; width:22px; height:22px; border-radius:50%; background:#667eea; color:#fff; text-align:center; line-height:22px; font-size:11px; font-weight:700; margin-right:8px; }
+  .btn-secondary { background:#334155; }
+  .btn-ghost { background:transparent; border:1px solid #334155; color:#cbd5e1; }
 </style>
 </head>
 <body>
@@ -95,11 +116,14 @@
     <div class="status" id="status">Idle.</div>
     <div id="localInfo"></div>
     <table id="results" style="display:none;">
-      <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th></tr></thead>
+      <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 
+  <div id="configModal" class="modal-backdrop">
+    <div class="modal" id="configModalInner"></div>
+  </div>
 <script>
   (function () {
     const invoke = window.__TAURI__.core.invoke;
@@ -322,6 +346,7 @@
         st.textContent = "Signed in.";
         st.style.color = "#48bb78";
         renderAuth();
+    initConfigureWatcher();
       } catch (e) {
         st.textContent = String(e);
         st.style.color = "#fc8181";
@@ -348,6 +373,7 @@
       selectedProvider = null;
       stopPolling();
       renderAuth();
+    initConfigureWatcher();
     };
 
     $("btnRefresh").onclick = function () { loadPlanConfig(); };
@@ -394,8 +420,239 @@
       finally { btn.disabled = false; }
     };
 
+
+    // ============================================================
+    // Router configuration modal (Stage 2d-1: UI only, no SSH yet)
+    // ============================================================
+    let configTarget = null;
+    let configCondition = null;
+    let configStep = "condition";
+
+    function openConfigModal(device) {
+      configTarget = device;
+      configCondition = null;
+      configStep = "condition";
+      $("configModal").classList.add("show");
+      renderConfigModal();
+    }
+
+    function closeConfigModal() {
+      $("configModal").classList.remove("show");
+      configTarget = null;
+      configCondition = null;
+      configStep = "condition";
+    }
+
+    function resetGuideFor(vendor, kind) {
+      const v = (vendor || "").toLowerCase();
+      const k = (kind || "").toLowerCase();
+      if (k.indexOf("mikrotik") !== -1 || v.indexOf("mikrotik") !== -1) {
+        return {
+          title: "MikroTik factory reset",
+          steps: [
+            "Unplug power from the router.",
+            "Hold the RESET button (usually on the back).",
+            "Reconnect power while still holding RESET.",
+            "Wait for the ACT LED to blink rapidly, then release RESET (5-10 seconds).",
+            "Wait 2 minutes for the router to boot.",
+            "The WiFi name should revert to something like MikroTik-xxxx."
+          ]
+        };
+      }
+      if (k.indexOf("openwrt") !== -1 || v.indexOf("openwrt") !== -1) {
+        return {
+          title: "OpenWrt factory reset",
+          steps: [
+            "With the router powered on, press and hold RESET for 10 seconds.",
+            "Release the button. The router will reboot into factory defaults.",
+            "Default LAN IP is usually 192.168.1.1 with no password."
+          ]
+        };
+      }
+      if (v.indexOf("tplink") !== -1 || v.indexOf("tp-link") !== -1) {
+        return {
+          title: "TP-Link factory reset",
+          steps: [
+            "Power on the router and let it finish booting.",
+            "Press and hold the RESET / WPS button for 10 seconds.",
+            "Release. The router reboots to factory defaults.",
+            "The default WiFi SSID is printed on the sticker underneath."
+          ]
+        };
+      }
+      return {
+        title: "Generic factory reset",
+        steps: [
+          "Locate the RESET (or RESET/WPS) button - usually a small pinhole on the back or bottom.",
+          "With the router powered on, use a paperclip to press and hold it.",
+          "Hold for 10-30 seconds until the LEDs flash or the router reboots.",
+          "Release and wait 2-3 minutes for the router to come back up.",
+          "The WiFi name should revert to the factory default shown on the router sticker."
+        ]
+      };
+    }
+
+    function defaultCredsFor(vendor, kind) {
+      const v = (vendor || "").toLowerCase();
+      const k = (kind || "").toLowerCase();
+      if (k.indexOf("mikrotik") !== -1 || v.indexOf("mikrotik") !== -1) {
+        return { user: "admin", hint: "MikroTik default: user admin, password blank. If you set a password, enter it." };
+      }
+      if (k.indexOf("openwrt") !== -1 || v.indexOf("openwrt") !== -1) {
+        return { user: "root", hint: "OpenWrt default: user root, password blank." };
+      }
+      if (v.indexOf("ubiquiti") !== -1 || v.indexOf("unifi") !== -1) {
+        return { user: "ubnt", hint: "Ubiquiti default: user ubnt / ubnt (older firmware)." };
+      }
+      return { user: "admin", hint: "Common defaults: admin / admin, admin / password, admin / blank." };
+    }
+
+    function renderConfigModal() {
+      const inner = $("configModalInner");
+      if (!configTarget) { inner.innerHTML = ""; return; }
+      const t = configTarget;
+
+      let head = "<h4>Configure router " + t.ip + "</h4>";
+      head += "<div class='sub'>" + (t.vendor || "Unknown vendor") + " - MAC " + (t.mac || "n/a") + " - ports " + ((t.open_ports || []).join(", ") || "n/a") + "</div>";
+
+      if (configStep === "condition") {
+        inner.innerHTML = head +
+          "<div class='info'>Before we configure this router, we need to know its current state. " +
+          "This protects you from accidentally modifying a router you do not own.</div>" +
+          "<div class='row'>" +
+            "<button class='btn-secondary' style='flex:1;' onclick='configChooseCondition(\"new\")'>New / factory-sealed</button>" +
+            "<button class='btn-secondary' style='flex:1;' onclick='configChooseCondition(\"used\")'>Used / already configured</button>" +
+          "</div>" +
+          "<div class='row'>" +
+            "<button class='btn-ghost' style='flex:1;' onclick='closeConfigModal()'>Cancel</button>" +
+          "</div>";
+        return;
+      }
+
+      if (configStep === "reset") {
+        const guide = resetGuideFor(t.vendor, t.kind);
+        let steps = "";
+        guide.steps.forEach(function(s, i) {
+          steps += "<div style='margin-bottom:8px;'><span class='step-num'>" + (i + 1) + "</span>" + s + "</div>";
+        });
+        inner.innerHTML = head +
+          "<div class='info'><strong>" + guide.title + "</strong></div>" +
+          "<div class='info'>" + steps + "</div>" +
+          "<div class='sub' style='margin-top:6px;'>Did the router reset successfully? You should see the factory-default WiFi name " +
+          "when scanning for networks, or the router's LEDs blinking in the default boot pattern.</div>" +
+          "<div class='row'>" +
+            "<button style='flex:1;' onclick='configResetConfirmed(true)'>Yes, it reset</button>" +
+            "<button class='btn-secondary' style='flex:1;' onclick='configResetConfirmed(false)'>No / can't reset</button>" +
+          "</div>" +
+          "<div class='row'>" +
+            "<button class='btn-ghost' style='flex:1;' onclick='configBackToCondition()'>Back</button>" +
+          "</div>";
+        return;
+      }
+
+      if (configStep === "blocked") {
+        inner.innerHTML = head +
+          "<div class='warn'><strong>This router probably isn't yours.</strong><br><br>" +
+          "If you can't factory-reset it, either the reset button isn't working or you don't have physical access. " +
+          "SAFE_Links can only configure routers that you own and can reset. Please contact the owner or use a different router.</div>" +
+          "<div class='row'>" +
+            "<button class='btn-ghost' style='flex:1;' onclick='closeConfigModal()'>Close</button>" +
+          "</div>";
+        return;
+      }
+
+      if (configStep === "wizard") {
+        const defaults = defaultCredsFor(t.vendor, t.kind);
+        const ssidDefault = "SAFE_Links-WiFi";
+        inner.innerHTML = head +
+          "<div class='ok'>Ownership confirmed. Fill in the details below. SAFE_Links will SSH into the router, " +
+          "apply the captive-portal configuration, and verify the WiFi is broadcasting.</div>" +
+          "<div class='field'><label>WiFi network name (SSID)</label>" +
+            "<input id='cfgSsid' type='text' value='" + ssidDefault + "' /></div>" +
+          "<div class='field'><label>WiFi password (min 8 characters)</label>" +
+            "<input id='cfgWifiPass' type='text' placeholder='e.g. MyBusiness2026' /></div>" +
+          "<div class='field'><label>Router admin username</label>" +
+            "<input id='cfgAdminUser' type='text' value='" + defaults.user + "' /></div>" +
+          "<div class='field'><label>Router admin password</label>" +
+            "<input id='cfgAdminPass' type='password' placeholder='(leave blank if none)' />" +
+            "<div class='hint'>" + defaults.hint + "</div></div>" +
+          "<div id='cfgStatus' style='margin-top:6px; font-size:12.5px;'></div>" +
+          "<div class='row'>" +
+            "<button style='flex:1;' onclick='configApply()'>Apply configuration</button>" +
+            "<button class='btn-secondary' style='flex:1;' onclick='configTest()'>Test connection</button>" +
+          "</div>" +
+          "<div class='row'>" +
+            "<button class='btn-ghost' style='flex:1;' onclick='closeConfigModal()'>Cancel</button>" +
+          "</div>";
+        return;
+      }
+    }
+
+    window.configChooseCondition = function(condition) {
+      configCondition = condition;
+      configStep = condition === "new" ? "wizard" : "reset";
+      renderConfigModal();
+    };
+    window.configResetConfirmed = function(didReset) {
+      configStep = didReset ? "wizard" : "blocked";
+      renderConfigModal();
+    };
+    window.configBackToCondition = function() {
+      configStep = "condition";
+      renderConfigModal();
+    };
+    window.closeConfigModal = closeConfigModal;
+
+    window.configTest = function() {
+      const st = $("cfgStatus");
+      if (!st) return;
+      st.innerHTML = "<span class='pill warn'>Stub: SSH test will run here (Stage 2d-2).</span>";
+    };
+    window.configApply = function() {
+      const st = $("cfgStatus");
+      if (!st) return;
+      const ssid = ($("cfgSsid") || {}).value || "";
+      const pass = ($("cfgWifiPass") || {}).value || "";
+      if (!ssid.trim()) { st.innerHTML = "<span class='pill bad'>SSID is required.</span>"; return; }
+      if (pass.length < 8) { st.innerHTML = "<span class='pill bad'>WiFi password must be at least 8 characters.</span>"; return; }
+      st.innerHTML = "<span class='pill warn'>Stub: config push will run here (Stage 2d-2/2d-3).</span>";
+    };
+
+    function attachConfigureButtons() {
+      const rows = document.querySelectorAll("#results tbody tr");
+      rows.forEach(function(tr) {
+        if (tr.querySelector(".btn-configure")) return;
+        // Skip the header-ish/no-cells rows
+        if (tr.cells.length < 6) return;
+        const td = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.className = "btn-configure";
+        btn.textContent = "Configure";
+        btn.style.cssText = "background:#667eea;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;";
+        btn.onclick = function() {
+          const ip = (tr.cells[0].textContent || "").trim();
+          const mac = (tr.cells[1].textContent || "").trim();
+          const vendor = (tr.cells[2].textContent || "").replace(" IMMEDIATE ROUTER", "").trim();
+          const kind = (tr.cells[4].textContent || "").trim();
+          const ports = ((tr.cells[5].textContent || "").trim())
+            .split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+          openConfigModal({ ip: ip, mac: mac, vendor: vendor, kind: kind, open_ports: ports });
+        };
+        td.appendChild(btn);
+        tr.appendChild(td);
+      });
+    }
+
+    function initConfigureWatcher() {
+      const tbody = document.querySelector("#results tbody");
+      if (!tbody) return;
+      const observer = new MutationObserver(function() { attachConfigureButtons(); });
+      observer.observe(tbody, { childList: true });
+      attachConfigureButtons();
+    }
     window.addEventListener("DOMContentLoaded", renderAuth);
     renderAuth();
+    initConfigureWatcher();
   })();
 </script>
 </body>
