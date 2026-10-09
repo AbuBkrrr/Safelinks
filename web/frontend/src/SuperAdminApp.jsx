@@ -22,6 +22,8 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("overview");
 
   const resellers = useResource(() => api.admin.resellers(), [], (r) => r.resellers);
+  const [viewCurrency, setViewCurrency] = useState(null);
+  const [planPriceRows, setPlanPriceRows] = useState({});  // { planId: [rows...] }
   const platformPlans = useResource(() => api.admin.platformPlans(), [], (r) => r.plans);
   const installations = useResource(() => api.admin.installations(), [], (r) => r.installations);
   const sessions = useResource(() => api.admin.sessions(), [], (r) => r.sessions);
@@ -113,6 +115,31 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       } : prev);
     }
   }
+
+  // Fetch per-currency prices for every plan so the card list can render
+  // whichever currency the Super Admin chooses to view.
+  async function loadPlanPricesForList() {
+    try {
+      const plans = (platformPlans.data || []);
+      const next = {};
+      for (const p of plans) {
+        const res = await api.admin.planPrices(p.id);
+        next[p.id] = { prices: res.prices || [], currencies: res.supported_currencies || [], default: res.platform_currency };
+      }
+      setPlanPriceRows(next);
+      if (!viewCurrency) {
+        const anyPlan = Object.values(next)[0];
+        setViewCurrency(anyPlan?.default || "NGN");
+      }
+    } catch (err) {
+      console.warn("loadPlanPricesForList failed:", err.message);
+    }
+  }
+
+  useEffect(() => {
+    if (platformPlans.data && platformPlans.data.length) loadPlanPricesForList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platformPlans.data]);
 
   async function savePlatformPlan(p) {
     try {
@@ -325,119 +352,158 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       {tab === "plans" && (
         <Panel title="Platform plans (what resellers pay you)">
           {platformPlans.loading ? <Loading /> : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px,1fr))", gap: 12 }}>
-              {(platformPlans.data || []).map((p) => {
-                const editing = planEdits?.id === p.id;
-                return (
-                  <div key={p.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
-                    {editing ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <Field label="Plan name">
-                          <input style={inputStyle} value={planEdits.name}
-                            onChange={(e) => setPlanEdits({ ...planEdits, name: e.target.value })} />
-                        </Field>
-
-                        {planEdits.pricesLoading ? (
-                          <div style={{ fontSize: 12, color: T.sub }}>Loading prices…</div>
-                        ) : planEdits.pricesError ? (
-                          <div style={{ fontSize: 12, color: T.danger }}>{planEdits.pricesError}</div>
-                        ) : (
-                          <>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginTop: 4 }}>Prices (per currency)</div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                              {(planEdits.availableCurrencies || []).map((cur) => {
-                                const row = planEdits.prices.find((x) => x.currency === cur);
-                                const active = planEdits.activeCurrency === cur;
-                                const has = !!row && row.enabled;
-                                return (
-                                  <button key={cur} type="button"
-                                    onClick={() => setPlanEdits({ ...planEdits, activeCurrency: cur, currencyPrice: undefined, currencyEnabled: undefined })}
-                                    style={{
-                                      padding: "4px 10px",
-                                      borderRadius: 20,
-                                      border: active ? `2px solid ${T.primary}` : `1px solid ${T.border}`,
-                                      background: active ? `${T.primary}18` : (has ? "#f0fff4" : "#fff"),
-                                      color: has ? T.ink : T.sub,
-                                      fontWeight: has ? 600 : 400,
-                                      fontSize: 12,
-                                      cursor: "pointer",
-                                    }}>
-                                    {cur}{row?.is_platform_default ? " ★" : ""}
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {planEdits.activeCurrency && (() => {
-                              const cur = planEdits.activeCurrency;
-                              const row = planEdits.prices.find((x) => x.currency === cur) || { price: "", enabled: false, is_platform_default: false };
-                              const priceVal = planEdits.currencyPrice !== undefined ? planEdits.currencyPrice : row.price;
-                              const enabledVal = planEdits.currencyEnabled !== undefined ? planEdits.currencyEnabled : row.enabled;
-                              return (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f8fafc", borderRadius: 8 }}>
-                                  <Field label={`Price in ${cur}${row.is_platform_default ? " (platform default ★)" : ""}`}>
-                                    <input style={inputStyle} type="number" min="0"
-                                      value={priceVal}
-                                      onChange={(e) => setPlanEdits({ ...planEdits, currencyPrice: e.target.value })} />
-                                  </Field>
-                                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
-                                    <input type="checkbox"
-                                      checked={!!enabledVal}
-                                      onChange={(e) => setPlanEdits({ ...planEdits, currencyEnabled: e.target.checked })} />
-                                    Enabled for new subscriptions
-                                  </label>
-                                </div>
-                              );
-                            })()}
-                          </>
-                        )}
-
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <Field label="Pool start">
-                            <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_start}
-                              onChange={(e) => setPlanEdits({ ...planEdits, pool_start: e.target.value })} />
-                          </Field>
-                          <Field label="Pool end">
-                            <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_end}
-                              onChange={(e) => setPlanEdits({ ...planEdits, pool_end: e.target.value })} />
-                          </Field>
-                        </div>
-
-                        <Field label={`Bandwidth per user: ${planEdits.bandwidth_percent}% ≈ ${Math.max(1, Math.round(100 * Number(planEdits.bandwidth_percent) / 100))} Mbps`}>
-                          <input type="range" min="1" max="100"
-                            value={planEdits.bandwidth_percent}
-                            onChange={(e) => setPlanEdits({ ...planEdits, bandwidth_percent: Number(e.target.value) })}
-                            style={{ width: "100%" }} />
-                        </Field>
-
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /> Save</Btn>
-                          <Btn size="sm" variant="ghost" onClick={() => setPlanEdits(null)}>Cancel</Btn>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-                        <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>
-                            {formatMoney(p.price, platformCurrency)}
-                            <span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span>
-                          </div>
-                          <Btn size="sm" variant="outline" onClick={() => openPlanEditor(p)}>Edit plan</Btn>
-                        </div>
-                        <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>
-                          Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
-                        </div>
-                        <div style={{ fontSize: 11.5, color: T.sub, marginTop: 4, fontFamily: "monospace" }}>
-                          Pool: {p.pool_start || "192.168.88.10"} – {p.pool_end || "192.168.88.254"} · {p.bandwidth_percent ?? 5}% BW/user
-                        </div>
-                      </>
-                    )}
+            <>
+              {viewCurrency && (
+                <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: T.sub }}>Viewing prices in:</div>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {["NGN","USD","GBP","EUR","XOF","XAF","GHS","KES","UGX","TZS","RWF","ZAR","ZMW","EGP","MAD"].map((cur) => {
+                      const active = viewCurrency === cur;
+                      return (
+                        <button key={cur} type="button"
+                          onClick={() => setViewCurrency(cur)}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            border: active ? `2px solid ${T.primary}` : `1px solid ${T.border}`,
+                            background: active ? `${T.primary}18` : "white",
+                            color: active ? T.primary : T.sub,
+                            fontWeight: active ? 700 : 500,
+                            fontSize: 12,
+                            cursor: "pointer",
+                          }}>{cur}</button>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px,1fr))", gap: 12 }}>
+                {(platformPlans.data || []).map((p) => {
+                  const editing = planEdits?.id === p.id;
+                  const priceInfo = planPriceRows[p.id] || { prices: [], currencies: [], default: null };
+                  const row = priceInfo.prices.find((x) => x.currency === viewCurrency);
+                  const displayPrice = row ? Number(row.price) : Number(p.price);
+                  const displayCur = row ? row.currency : (priceInfo.default || viewCurrency);
+                  const isFallback = !row && priceInfo.default !== viewCurrency;
+                  const hasAnyCurrencies = priceInfo.prices.filter((x) => x.enabled).length;
+                  return (
+                    <div key={p.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
+                      {editing ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <Field label="Plan name">
+                            <input style={inputStyle} value={planEdits.name}
+                              onChange={(e) => setPlanEdits({ ...planEdits, name: e.target.value })} />
+                          </Field>
+
+                          {planEdits.pricesLoading ? (
+                            <div style={{ fontSize: 12, color: T.sub }}>Loading prices…</div>
+                          ) : planEdits.pricesError ? (
+                            <div style={{ fontSize: 12, color: T.danger }}>{planEdits.pricesError}</div>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginTop: 4 }}>Prices (per currency)</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                {(planEdits.availableCurrencies || []).map((cur) => {
+                                  const r2 = planEdits.prices.find((x) => x.currency === cur);
+                                  const active = planEdits.activeCurrency === cur;
+                                  const has = !!r2 && r2.enabled;
+                                  return (
+                                    <button key={cur} type="button"
+                                      onClick={() => setPlanEdits({ ...planEdits, activeCurrency: cur, currencyPrice: undefined, currencyEnabled: undefined })}
+                                      style={{
+                                        padding: "4px 10px",
+                                        borderRadius: 20,
+                                        border: active ? `2px solid ${T.primary}` : `1px solid ${T.border}`,
+                                        background: active ? `${T.primary}18` : (has ? "#f0fff4" : "#fff"),
+                                        color: has ? T.ink : T.sub,
+                                        fontWeight: has ? 600 : 400,
+                                        fontSize: 12,
+                                        cursor: "pointer",
+                                      }}>
+                                      {cur}{r2?.is_platform_default ? " ★" : ""}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {planEdits.activeCurrency && (() => {
+                                const cur = planEdits.activeCurrency;
+                                const r2 = planEdits.prices.find((x) => x.currency === cur) || { price: "", enabled: false, is_platform_default: false };
+                                const priceVal = planEdits.currencyPrice !== undefined ? planEdits.currencyPrice : r2.price;
+                                const enabledVal = planEdits.currencyEnabled !== undefined ? planEdits.currencyEnabled : r2.enabled;
+                                return (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, background: "#f8fafc", borderRadius: 8 }}>
+                                    <Field label={`Price in ${cur}${r2.is_platform_default ? " (platform default ★)" : ""}`}>
+                                      <input style={inputStyle} type="number" min="0"
+                                        value={priceVal}
+                                        onChange={(e) => setPlanEdits({ ...planEdits, currencyPrice: e.target.value })} />
+                                    </Field>
+                                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                                      <input type="checkbox"
+                                        checked={!!enabledVal}
+                                        onChange={(e) => setPlanEdits({ ...planEdits, currencyEnabled: e.target.checked })} />
+                                      Enabled for new subscriptions
+                                    </label>
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          )}
+
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <Field label="Pool start">
+                              <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_start}
+                                onChange={(e) => setPlanEdits({ ...planEdits, pool_start: e.target.value })} />
+                            </Field>
+                            <Field label="Pool end">
+                              <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_end}
+                                onChange={(e) => setPlanEdits({ ...planEdits, pool_end: e.target.value })} />
+                            </Field>
+                          </div>
+
+                          <Field label={`Bandwidth per user: ${planEdits.bandwidth_percent}% ≈ ${Math.max(1, Math.round(100 * Number(planEdits.bandwidth_percent) / 100))} Mbps`}>
+                            <input type="range" min="1" max="100"
+                              value={planEdits.bandwidth_percent}
+                              onChange={(e) => setPlanEdits({ ...planEdits, bandwidth_percent: Number(e.target.value) })}
+                              style={{ width: "100%" }} />
+                          </Field>
+
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /> Save</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => setPlanEdits(null)}>Cancel</Btn>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>
+                              {formatMoney(displayPrice, displayCur)}
+                              <span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span>
+                              {isFallback && <span style={{ fontSize: 10, color: T.sub, marginLeft: 6 }}>(fallback to {displayCur})</span>}
+                            </div>
+                            <Btn size="sm" variant="outline" onClick={() => openPlanEditor(p)}>Edit plan</Btn>
+                          </div>
+                          <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>
+                            Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
+                          </div>
+                          <div style={{ fontSize: 11.5, color: T.sub, marginTop: 4, fontFamily: "monospace" }}>
+                            Pool: {p.pool_start || "192.168.88.10"} – {p.pool_end || "192.168.88.254"} · {p.bandwidth_percent ?? 5}% BW/user
+                          </div>
+                          <div style={{ fontSize: 11, color: T.sub, marginTop: 6 }}>
+                            {hasAnyCurrencies > 0
+                              ? `Priced in ${priceInfo.prices.filter((x) => x.enabled).map((x) => x.currency).join(", ")}`
+                              : "No per-currency prices set yet"}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </Panel>
       )}
