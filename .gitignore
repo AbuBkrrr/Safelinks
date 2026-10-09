@@ -26,3 +26,9 @@ android/local.properties
 web/frontend/dist/
 web/backend/dist/
 *.tsbuildinfo
+
+# Installer
+installer/node_modules/
+installer/src-tauri/target/
+installer/dist/
+installer/icon-source.png
