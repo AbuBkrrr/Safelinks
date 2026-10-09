@@ -65,12 +65,12 @@ export const CURRENCIES = [
   { code: "NGN", symbol: "₦", label: "Nigerian Naira (NGN)" },
   { code: "KES", symbol: "KSh", label: "Kenyan Shilling (KES)" },
   { code: "UGX", symbol: "USh", label: "Ugandan Shilling (UGX)" },
-  { code: "GHS", symbol: "GHâ‚µ", label: "Ghanaian Cedi (GHS)" },
+  { code: "GHS", symbol: "GH₵", label: "Ghanaian Cedi (GHS)" },
   { code: "ZAR", symbol: "R", label: "South African Rand (ZAR)" },
   { code: "TZS", symbol: "TSh", label: "Tanzanian Shilling (TZS)" },
   { code: "XOF", symbol: "CFA", label: "West African CFA Franc (XOF)" },
-  { code: "EUR", symbol: "â‚¬", label: "Euro (EUR)" },
-  { code: "GBP", symbol: "Â£", label: "British Pound (GBP)" },
+  { code: "EUR", symbol: "€", label: "Euro (EUR)" },
+  { code: "GBP", symbol: "£", label: "British Pound (GBP)" },
 ];
 export function currencySymbol(code) {
   return CURRENCIES.find((c) => c.code === code)?.symbol || code || "$";
