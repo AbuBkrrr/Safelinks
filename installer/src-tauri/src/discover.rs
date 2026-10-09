@@ -33,6 +33,43 @@ pub fn local_subnet() -> Option<(Ipv4Addr, u8, Ipv4Addr)> {
     local_subnets().into_iter().next()
 }
 
+/// Returns the default gateway IP (the immediate router the PC is talking to).
+pub fn default_gateway() -> Option<Ipv4Addr> {
+    #[cfg(windows)]
+    {
+        // route print -4 shows lines like:
+        //  0.0.0.0          0.0.0.0      192.168.0.1     192.168.0.107     25
+        if let Ok(o) = Command::new("route").arg("print").arg("-4").output() {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 4 {
+                    if parts[0] == "0.0.0.0" && parts[1] == "0.0.0.0" {
+                        if let Ok(gw) = parts[2].parse::<Ipv4Addr>() {
+                            if !gw.is_unspecified() { return Some(gw); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        if let Ok(o) = Command::new("ip").args(["route", "show", "default"]).output() {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.lines() {
+                // "default via 192.168.1.1 dev eth0 ..."
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 3 && parts[0] == "default" && parts[1] == "via" {
+                    if let Ok(gw) = parts[2].parse::<Ipv4Addr>() { return Some(gw); }
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn default_router_subnets() -> Vec<Ipv4Addr> {
     vec![
         Ipv4Addr::new(192, 168, 88, 0),
@@ -51,7 +88,6 @@ pub fn default_router_subnets() -> Vec<Ipv4Addr> {
 pub fn routed_subnets() -> Vec<Ipv4Addr> {
     let mut out = Vec::new();
     let mut seen: HashSet<u32> = HashSet::new();
-
     #[cfg(windows)]
     {
         if let Ok(o) = Command::new("route").arg("print").arg("-4").output() {
@@ -69,7 +105,6 @@ pub fn routed_subnets() -> Vec<Ipv4Addr> {
             }
         }
     }
-
     #[cfg(not(windows))]
     {
         if let Ok(o) = Command::new("ip").args(["route", "show"]).output() {
@@ -133,7 +168,6 @@ async fn ping_once(ip: Ipv4Addr) -> bool {
 
 pub fn arp_table() -> HashMap<Ipv4Addr, String> {
     let mut map = HashMap::new();
-
     #[cfg(windows)]
     {
         if let Ok(o) = Command::new("arp").arg("-a").output() {
@@ -149,7 +183,6 @@ pub fn arp_table() -> HashMap<Ipv4Addr, String> {
             }
         }
     }
-
     #[cfg(not(windows))]
     {
         if let Ok(o) = Command::new("ip").args(["neigh", "show"]).output() {

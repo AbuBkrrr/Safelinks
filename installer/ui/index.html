@@ -9,12 +9,17 @@
   .sub { color:#94a3b8; font-size:13px; margin-bottom:20px; }
   button { background:#667eea; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
   button:disabled { opacity:.5; cursor:not-allowed; }
+  .choice-btn { background:#1e293b; color:#e2e8f0; border:2px solid #334155; padding:12px 20px; border-radius:10px; cursor:pointer; font-weight:600; font-size:14px; transition:all 0.15s; }
+  .choice-btn:hover { border-color:#667eea; }
+  .choice-btn.active { background:#667eea22; border-color:#667eea; color:#fff; }
   input[type=text] { background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:9px 12px; border-radius:8px; font-size:13px; font-family:ui-monospace, 'Cascadia Mono', monospace; min-width:240px; }
   input[type=text]:focus { outline:none; border-color:#667eea; }
   .status { margin:16px 0; font-size:13px; color:#94a3b8; }
   table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px; }
   th { text-align:left; padding:8px; background:#1e293b; color:#94a3b8; font-weight:600; }
   td { padding:8px; border-bottom:1px solid #1e293b; vertical-align:top; }
+  tr.gateway-row { background:#667eea0f; }
+  tr.gateway-row td:first-child::before { content:"★ "; color:#667eea; font-weight:700; }
   .tag { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap; }
   .router-mikrotik { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b55; }
   .router-openwrt  { background:#22c55e22; color:#22c55e; border:1px solid #22c55e55; }
@@ -24,33 +29,65 @@
   .router-likely   { background:#3b82f622; color:#3b82f6; border:1px solid #3b82f655; }
   .unknown-with-ports { background:#64748b22; color:#94a3b8; border:1px solid #64748b55; }
   .device          { background:#1e293b; color:#94a3b8; }
+  .gw-tag { background:#667eea; color:#fff; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; margin-left:6px; }
   .mono { font-family: ui-monospace, 'Cascadia Mono', monospace; }
   pre { background:#1e293b; padding:14px; border-radius:8px; font-size:12px; overflow:auto; max-height:300px; }
   .title-cell { font-size:11px; color:#64748b; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .row-hint { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; font-size:12px; color:#94a3b8; }
+  .section { background:#1e293b44; border:1px solid #334155; border-radius:12px; padding:16px 18px; margin-bottom:16px; }
+  .section h3 { font-size:14px; margin:0 0 12px; color:#cbd5e1; }
+  .choice-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .info-box { background:#667eea11; border:1px solid #667eea44; border-radius:10px; padding:12px 16px; margin-top:14px; font-size:13px; color:#cbd5e1; line-height:1.55; }
+  .info-box strong { color:#fff; }
+  .warn-box { background:#f59e0b11; border:1px solid #f59e0b44; border-radius:10px; padding:12px 16px; margin-top:14px; font-size:13px; color:#fde68a; line-height:1.55; }
+  .warn-box ol { margin:6px 0 0 20px; padding:0; }
+  .warn-box li { margin:4px 0; }
 </style>
 </head>
 <body>
   <h1>SAFE_Links Installer</h1>
-  <div class="sub">Phase 1 — Universal LAN detection engine (multi-subnet).</div>
+  <div class="sub">Phase 1 — Universal LAN detection engine.</div>
 
-  <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-    <button id="btnLocal">Get Local Info</button>
-    <button id="btnScan">Scan LAN</button>
-    <button id="btnClear" style="background:#334155;">Clear</button>
+  <!-- Step 1: New or Used -->
+  <div class="section">
+    <h3>Step 1 — Is this a new or a used router?</h3>
+    <div class="choice-row">
+      <button class="choice-btn" data-state="new" onclick="pickRouterState('new')">📦 New (out of the box)</button>
+      <button class="choice-btn" data-state="used" onclick="pickRouterState('used')">🔧 Used (has existing config)</button>
+    </div>
+    <div id="stateNote" class="info-box" style="display:none;"></div>
   </div>
 
-  <div class="row-hint">
-    <span>Extra subnets to scan (comma-separated, optional):</span>
-    <input id="extraSubnets" type="text" placeholder="192.168.88.0/24, 10.0.0.0/24" />
+  <!-- Step 2: Connect -->
+  <div class="section">
+    <h3>Step 2 — Connect your PC to the router's LAN port</h3>
+    <div class="info-box">
+      <strong>Important:</strong> the installer can only see the router your PC is <em>directly</em> plugged into. If there's another router between your PC and the target router, that target router is behind NAT and unreachable.<br><br>
+      Plug an Ethernet cable from your PC into any <strong>LAN</strong> port (not WAN) on the router you want to configure. Wait 20 seconds for DHCP.
+    </div>
   </div>
 
-  <div class="status" id="status">Idle.</div>
-  <div id="localInfo"></div>
-  <table id="results" style="display:none;">
-    <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <!-- Step 3: Scan -->
+  <div class="section">
+    <h3>Step 3 — Scan the network</h3>
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <button id="btnLocal">Get Local Info</button>
+      <button id="btnScan">Scan LAN</button>
+      <button id="btnClear" style="background:#334155;">Clear</button>
+    </div>
+
+    <div class="row-hint">
+      <span>Extra subnets to scan (comma-separated, optional):</span>
+      <input id="extraSubnets" type="text" placeholder="192.168.88.0/24, 10.0.0.0/24" />
+    </div>
+
+    <div class="status" id="status">Idle.</div>
+    <div id="localInfo"></div>
+    <table id="results" style="display:none;">
+      <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
 <script>
 const { invoke } = window.__TAURI__.core;
@@ -59,6 +96,31 @@ const localEl  = document.getElementById('localInfo');
 const tbl      = document.getElementById('results');
 const tbody    = tbl.querySelector('tbody');
 const extraEl  = document.getElementById('extraSubnets');
+const noteEl   = document.getElementById('stateNote');
+
+let routerState = null;
+
+function pickRouterState(state) {
+  routerState = state;
+  document.querySelectorAll('.choice-btn').forEach(b => b.classList.toggle('active', b.dataset.state === state));
+  noteEl.style.display = 'block';
+  if (state === 'new') {
+    noteEl.className = 'info-box';
+    noteEl.innerHTML = '<strong>New router:</strong> should be at factory defaults. Scan → configure. The auto-config routine will work in Phase 2.';
+  } else {
+    noteEl.className = 'warn-box';
+    noteEl.innerHTML = '<strong>Used router:</strong> must be reset to factory defaults before we can configure it reliably.<br><br>'
+      + 'Why: a previously-configured router may have a custom LAN subnet, custom SSH credentials, firewall rules, or an existing WiFi config. If we push a config on top of that, we can break it or fail silently.<br><br>'
+      + '<strong>Reset procedure (MikroTik):</strong>'
+      + '<ol>'
+      + '<li>With the router powered on, find the small <strong>Reset</strong> button on the back.</li>'
+      + '<li>Hold it for 10 seconds using a paperclip. The LED will start blinking.</li>'
+      + '<li>Release. Wait ~60 seconds for the router to reboot.</li>'
+      + '<li>Your PC will lose the current IP. Unplug and replug the Ethernet cable, or renew DHCP.</li>'
+      + '<li>You should now get an IP in <code>192.168.88.x</code>. Then click <em>Scan LAN</em> — the router should appear as <em>router-mikrotik</em>.</li>'
+      + '</ol>';
+  }
+}
 
 document.getElementById('btnClear').onclick = () => {
   tbody.innerHTML=''; tbl.style.display='none'; localEl.innerHTML=''; statusEl.textContent='Idle.';
@@ -67,11 +129,16 @@ document.getElementById('btnClear').onclick = () => {
 document.getElementById('btnLocal').onclick = async () => {
   try {
     const info = await invoke('local_info');
-    localEl.innerHTML = `<pre class="mono">Primary IP:  ${info.ip}\nAll subnets:  ${info.subnet}</pre>`;
+    const gwLine = info.gateway ? `\nGateway:     ${info.gateway}  (your immediate router)` : '';
+    localEl.innerHTML = `<pre class="mono">Primary IP:  ${info.ip}\nAll subnets:  ${info.subnet}${gwLine}</pre>`;
   } catch (e) { statusEl.textContent = 'Error: ' + e; }
 };
 
 document.getElementById('btnScan').onclick = async () => {
+  if (!routerState) {
+    statusEl.textContent = 'Pick "New" or "Used" first (Step 1).';
+    return;
+  }
   const btn = document.getElementById('btnScan');
   btn.disabled = true;
   statusEl.textContent = 'Scanning all local + routed + default + extra subnets in parallel… (~20s)';
@@ -81,13 +148,17 @@ document.getElementById('btnScan').onclick = async () => {
   try {
     const devices = await invoke('scan_lan', { extraSubnets: extras.length ? extras : null });
     const ms = Date.now() - t0;
-    statusEl.textContent = `Found ${devices.length} device(s) in ${(ms/1000).toFixed(1)}s.`;
+    const gwCount = devices.filter(d => d.is_gateway).length;
+    statusEl.textContent = `Found ${devices.length} device(s) in ${(ms/1000).toFixed(1)}s. ` +
+      (gwCount ? `★ = your immediate router (gateway).` : 'No gateway detected.');
     for (const d of devices) {
       const tr = document.createElement('tr');
+      if (d.is_gateway) tr.classList.add('gateway-row');
+      const gwTag = d.is_gateway ? '<span class="gw-tag">★ IMMEDIATE ROUTER</span>' : '';
       tr.innerHTML = `
         <td class="mono">${d.ip}</td>
         <td class="mono">${d.mac || '—'}</td>
-        <td>${d.vendor || '—'}</td>
+        <td>${d.vendor || '—'}${gwTag}</td>
         <td class="title-cell" title="${(d.web_title||'').replace(/"/g,'&quot;')}">${d.web_title || '—'}</td>
         <td><span class="tag ${d.kind}">${d.kind}</span></td>
         <td class="mono">${d.open_ports.join(', ') || '—'}</td>`;
