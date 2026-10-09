@@ -533,3 +533,38 @@ export async function runInstallerMigration() {
   `);
   console.log("Installer migration complete");
 }
+
+// ============================================================
+// Standalone migration: installer plan-config columns.
+// Adds pool_start, pool_end, bandwidth_mbps_per_user to
+// platform_plans so each plan drives the DHCP pool range and
+// per-user bandwidth cap in the installer's router config.
+// Backfills the 3 known plans when their columns still hold
+// the migration default, so a Super Admin edit is preserved.
+// Runs AFTER seed() so freshly-seeded plans get backfilled.
+// Safe to re-run on every boot (idempotent).
+// ============================================================
+export async function runInstallerPlanMigration() {
+  await db.exec(
+    "ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS pool_start TEXT DEFAULT '192.168.88.10'"
+  );
+  await db.exec(
+    "ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS pool_end TEXT DEFAULT '192.168.88.254'"
+  );
+  await db.exec(
+    "ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS bandwidth_mbps_per_user INTEGER DEFAULT 5"
+  );
+  // Backfill only if pool_end still equals the migration default.
+  // If Super Admin has customized a plan, this WHERE does not match
+  // and the row is left alone.
+  await db.prepare(
+    "UPDATE platform_plans SET pool_end = ?, bandwidth_mbps_per_user = ? WHERE id = ? AND pool_end = ?"
+  ).run("192.168.88.30", 2, "basic", "192.168.88.254");
+  await db.prepare(
+    "UPDATE platform_plans SET pool_end = ?, bandwidth_mbps_per_user = ? WHERE id = ? AND pool_end = ?"
+  ).run("192.168.88.110", 5, "professional", "192.168.88.254");
+  await db.prepare(
+    "UPDATE platform_plans SET bandwidth_mbps_per_user = ? WHERE id = ? AND bandwidth_mbps_per_user = ?"
+  ).run(10, "enterprise", 5);
+  console.log("Installer plan-config migration complete");
+}
