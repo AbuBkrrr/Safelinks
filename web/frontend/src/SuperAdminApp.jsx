@@ -339,10 +339,10 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                           })}>Edit plan</Btn>
                         </div>
                         <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>
-                          Up to {p.maxClients ?? p.max_clients} clients \u00b7 {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
+                          Up to {p.maxClients ?? p.max_clients} clients {'\u00b7'} {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
                         </div>
                         <div style={{ fontSize: 11.5, color: T.sub, marginTop: 4, fontFamily: "monospace" }}>
-                          Pool: {p.pool_start || "192.168.88.10"}\u2013{p.pool_end || "192.168.88.254"} \u00b7 {p.bandwidth_percent ?? 5}% BW/user
+                          Pool: {p.pool_start || "192.168.88.10"} {'\u2013'} {p.pool_end || "192.168.88.254"} {'\u00b7'} {p.bandwidth_percent ?? 5}% BW/user
                         </div>
                       </>
                     )}
