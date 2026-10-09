@@ -9,6 +9,8 @@
   .sub { color:#94a3b8; font-size:13px; margin-bottom:20px; }
   button { background:#667eea; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; }
   button:disabled { opacity:.5; cursor:not-allowed; }
+  input[type=text] { background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:9px 12px; border-radius:8px; font-size:13px; font-family:ui-monospace, 'Cascadia Mono', monospace; min-width:240px; }
+  input[type=text]:focus { outline:none; border-color:#667eea; }
   .status { margin:16px 0; font-size:13px; color:#94a3b8; }
   table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px; }
   th { text-align:left; padding:8px; background:#1e293b; color:#94a3b8; font-weight:600; }
@@ -25,16 +27,22 @@
   .mono { font-family: ui-monospace, 'Cascadia Mono', monospace; }
   pre { background:#1e293b; padding:14px; border-radius:8px; font-size:12px; overflow:auto; max-height:300px; }
   .title-cell { font-size:11px; color:#64748b; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row-hint { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; font-size:12px; color:#94a3b8; }
 </style>
 </head>
 <body>
   <h1>SAFE_Links Installer</h1>
-  <div class="sub">Phase 1 — Universal LAN detection engine.</div>
+  <div class="sub">Phase 1 — Universal LAN detection engine (multi-subnet).</div>
 
   <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
     <button id="btnLocal">Get Local Info</button>
     <button id="btnScan">Scan LAN</button>
     <button id="btnClear" style="background:#334155;">Clear</button>
+  </div>
+
+  <div class="row-hint">
+    <span>Extra subnets to scan (comma-separated, optional):</span>
+    <input id="extraSubnets" type="text" placeholder="192.168.88.0/24, 10.0.0.0/24" />
   </div>
 
   <div class="status" id="status">Idle.</div>
@@ -50,6 +58,7 @@ const statusEl = document.getElementById('status');
 const localEl  = document.getElementById('localInfo');
 const tbl      = document.getElementById('results');
 const tbody    = tbl.querySelector('tbody');
+const extraEl  = document.getElementById('extraSubnets');
 
 document.getElementById('btnClear').onclick = () => {
   tbody.innerHTML=''; tbl.style.display='none'; localEl.innerHTML=''; statusEl.textContent='Idle.';
@@ -58,18 +67,19 @@ document.getElementById('btnClear').onclick = () => {
 document.getElementById('btnLocal').onclick = async () => {
   try {
     const info = await invoke('local_info');
-    localEl.innerHTML = `<pre class="mono">Local IP:  ${info.ip}\nSubnet:    ${info.subnet}</pre>`;
+    localEl.innerHTML = `<pre class="mono">Primary IP:  ${info.ip}\nAll subnets:  ${info.subnet}</pre>`;
   } catch (e) { statusEl.textContent = 'Error: ' + e; }
 };
 
 document.getElementById('btnScan').onclick = async () => {
   const btn = document.getElementById('btnScan');
   btn.disabled = true;
-  statusEl.textContent = 'Pinging 254 hosts, probing ports, reading HTTP banners… (~20s)';
+  statusEl.textContent = 'Scanning all local + routed + default + extra subnets in parallel… (~20s)';
   tbody.innerHTML=''; tbl.style.display='none';
   const t0 = Date.now();
+  const extras = (extraEl.value || '').split(',').map(s => s.trim()).filter(Boolean);
   try {
-    const devices = await invoke('scan_lan');
+    const devices = await invoke('scan_lan', { extraSubnets: extras.length ? extras : null });
     const ms = Date.now() - t0;
     statusEl.textContent = `Found ${devices.length} device(s) in ${(ms/1000).toFixed(1)}s.`;
     for (const d of devices) {
