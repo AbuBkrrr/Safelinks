@@ -271,9 +271,13 @@
           planId: selectedPlanId,
           provider: selectedProvider
         });
-        $("payStatus").innerHTML = "<span class='pill ok'>Checkout opened in browser</span>";
-        try { await shell.open(res.authorizationUrl); }
-        catch (e) { window.open(res.authorizationUrl, "_blank"); }
+        try {
+          await shell.open(res.authorizationUrl);
+          $("payStatus").innerHTML = "<span class='pill ok'>Checkout opened in browser</span>";
+        } catch (e) {
+          $("payStatus").innerHTML = "<span class='pill warn'>Auto-open failed: " + String(e) + ". Copy URL: " + res.authorizationUrl + "</span>";
+          try { window.open(res.authorizationUrl, "_blank"); } catch (_) {}
+        }
         startPolling();
       } catch (e) {
         $("payStatus").innerHTML = "<span class='pill bad'>" + String(e) + "</span>";
