@@ -178,7 +178,7 @@ document.getElementById('btnScan').onclick = async () => {
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <input id="loginEmail" type="email" placeholder="reseller@example.com" style="min-width:220px;" />
         <input id="loginPassword" type="password" placeholder="Password" style="min-width:180px;" />
-        <button id="btnLogin">Sign in</button>
+        <button id="btnLogin">Sign in</button>        <button id="btnCreateAccount" style="background:#334155;">Create account</button>
       </div>
       <div id="loginStatus" style="margin-top:10px; font-size:13px; color:#94a3b8;"></div>
     </div>
@@ -232,6 +232,19 @@ document.getElementById('btnScan').onclick = async () => {
         render();
       } catch (e) {
         st.textContent = String(e);
+        st.style.color = "#fc8181";
+      }
+    });
+
+    document.getElementById("btnCreateAccount").addEventListener("click", async () => {
+      const st = document.getElementById("loginStatus");
+      st.textContent = "Opening signup in your browser…";
+      st.style.color = "#94a3b8";
+      try {
+        await window.__TAURI__.shell.open("https://www.safelinks.name.ng/signup");
+        st.textContent = "Signup opened in your browser. Return here and click Sign in when done.";
+      } catch (e) {
+        st.textContent = "Could not open browser: " + String(e);
         st.style.color = "#fc8181";
       }
     });
