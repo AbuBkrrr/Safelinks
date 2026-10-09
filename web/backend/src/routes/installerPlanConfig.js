@@ -25,7 +25,7 @@ export function registerInstallerPlanConfigRoutes(router) {
     if (!reseller) return json(res, 404, { error: "Reseller not found" });
 
     const plan = await db.prepare(
-      "SELECT id, name, price, max_clients, max_devices_per_client, description, pool_start, pool_end, bandwidth_mbps_per_user FROM platform_plans WHERE id = ?"
+      "SELECT id, name, price, max_clients, max_devices_per_client, description, pool_start, pool_end, bandwidth_mbps_per_user, bandwidth_percent FROM platform_plans WHERE id = ?"
     ).get(reseller.subscription_plan);
 
     const now = Date.now();
@@ -50,6 +50,7 @@ export function registerInstallerPlanConfigRoutes(router) {
       pool_start: plan ? plan.pool_start : null,
       pool_end: plan ? plan.pool_end : null,
       bandwidth_mbps_per_user: plan ? plan.bandwidth_mbps_per_user : null,
+      bandwidth_percent: plan ? plan.bandwidth_percent : null,
 
       license_status: licenseStatus,
       license_expiry: expiry,

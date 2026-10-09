@@ -566,5 +566,17 @@ export async function runInstallerPlanMigration() {
   await db.prepare(
     "UPDATE platform_plans SET bandwidth_mbps_per_user = ? WHERE id = ? AND bandwidth_mbps_per_user = ?"
   ).run(10, "enterprise", 5);
+  await db.exec(
+    "ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS bandwidth_percent INTEGER DEFAULT 5"
+  );
+  // Backfill the 3 known plans once, so percentages match the pre-existing
+  // Mbps values on a platform-wide 100 Mbps uplink: 2% = 2 Mbps, 5% = 5 Mbps,
+  // 10% = 10 Mbps. Fires only if column still holds the migration default (5).
+  await db.prepare(
+    "UPDATE platform_plans SET bandwidth_percent = ? WHERE id = ? AND bandwidth_percent = ?"
+  ).run(2, "basic", 5);
+  await db.prepare(
+    "UPDATE platform_plans SET bandwidth_percent = ? WHERE id = ? AND bandwidth_percent = ?"
+  ).run(10, "enterprise", 5);
   console.log("Installer plan-config migration complete");
 }

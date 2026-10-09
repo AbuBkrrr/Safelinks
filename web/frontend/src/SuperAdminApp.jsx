@@ -84,7 +84,13 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   const [planEdits, setPlanEdits] = useState(null);
   async function savePlatformPlan(p) {
     try {
-      await api.admin.updatePlatformPlan(p.id, { price: Number(p.price) });
+    await api.admin.updatePlatformPlan(p.id, {
+      name: p.name,
+      price: Number(p.price),
+      pool_start: p.pool_start,
+      pool_end: p.pool_end,
+      bandwidth_percent: Number(p.bandwidth_percent),
+    });
       notify(`${p.name} pricing updated.`);
       setPlanEdits(null);
       platformPlans.refetch();
@@ -277,27 +283,69 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       {tab === "plans" && (
         <Panel title="Platform plans (what resellers pay you)">
           {platformPlans.loading ? <Loading /> : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px,1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 12 }}>
               {(platformPlans.data || []).map((p) => {
                 const editing = planEdits?.id === p.id;
                 return (
                   <div key={p.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
                     {editing ? (
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <input style={{ ...inputStyle, width: 90 }} type="number" value={planEdits.price}
-                          onChange={(e) => setPlanEdits({ ...planEdits, price: e.target.value })} />
-                        <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /></Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => setPlanEdits(null)}>Cancel</Btn>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <Field label="Plan name">
+                          <input style={inputStyle} value={planEdits.name}
+                            onChange={(e) => setPlanEdits({ ...planEdits, name: e.target.value })} />
+                        </Field>
+                        <Field label={`Price (${platformCurrency}/mo)`}>
+                          <input style={inputStyle} type="number" min="0" value={planEdits.price}
+                            onChange={(e) => setPlanEdits({ ...planEdits, price: e.target.value })} />
+                        </Field>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <Field label="Pool start">
+                            <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_start}
+                              onChange={(e) => setPlanEdits({ ...planEdits, pool_start: e.target.value })} />
+                          </Field>
+                          <Field label="Pool end">
+                            <input style={{ ...inputStyle, fontFamily: "monospace" }} value={planEdits.pool_end}
+                              onChange={(e) => setPlanEdits({ ...planEdits, pool_end: e.target.value })} />
+                          </Field>
+                        </div>
+                        <Field label={`Bandwidth per user: ${planEdits.bandwidth_percent}% \u2248 ${Math.max(1, Math.round(100 * Number(planEdits.bandwidth_percent) / 100))} Mbps`}>
+                          <input
+                            type="range"
+                            min="1"
+                            max="100"
+                            value={planEdits.bandwidth_percent}
+                            onChange={(e) => setPlanEdits({ ...planEdits, bandwidth_percent: Number(e.target.value) })}
+                            style={{ width: "100%" }}
+                          />
+                        </Field>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /> Save</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => setPlanEdits(null)}>Cancel</Btn>
+                        </div>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>{formatMoney(p.price, platformCurrency)}<span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span></div>
-                        <Btn size="sm" variant="outline" onClick={() => setPlanEdits({ id: p.id, name: p.name, price: p.price })}>Edit price</Btn>
-                      </div>
+                      <>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
+                        <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>{formatMoney(p.price, platformCurrency)}<span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span></div>
+                          <Btn size="sm" variant="outline" onClick={() => setPlanEdits({
+                            id: p.id,
+                            name: p.name,
+                            price: p.price,
+                            pool_start: p.pool_start || "192.168.88.10",
+                            pool_end: p.pool_end || "192.168.88.254",
+                            bandwidth_percent: p.bandwidth_percent ?? 5,
+                          })}>Edit plan</Btn>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>
+                          Up to {p.maxClients ?? p.max_clients} clients \u00b7 {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client
+                        </div>
+                        <div style={{ fontSize: 11.5, color: T.sub, marginTop: 4, fontFamily: "monospace" }}>
+                          Pool: {p.pool_start || "192.168.88.10"}\u2013{p.pool_end || "192.168.88.254"} \u00b7 {p.bandwidth_percent ?? 5}% BW/user
+                        </div>
+                      </>
                     )}
-                    <div style={{ fontSize: 11.5, color: T.sub, marginTop: 8 }}>Up to {p.maxClients ?? p.max_clients} clients · {p.maxDevicesPerClient ?? p.max_devices_per_client} devices/client</div>
                   </div>
                 );
               })}

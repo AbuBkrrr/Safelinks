@@ -47,8 +47,42 @@ export function registerSuperAdminRoutes(router) {
 
   router.put("/api/admin/platform-plans/:id", async (req, res, { params, body }) => {
     if (!requireSuperAdmin(req, res)) return;
-    if (typeof body.price !== "number") return json(res, 400, { error: "price must be a number" });
-    const result = await db.prepare("UPDATE platform_plans SET price = ? WHERE id = ?").run(body.price, params.id);
+
+    // Accept any subset of editable fields. Each is validated
+    // individually; invalid fields are silently ignored (client
+    // would not normally send garbage).
+    const updates = [];
+    const vals = [];
+
+    if (typeof body.name === "string" && body.name.trim()) {
+      updates.push("name = ?"); vals.push(body.name.trim());
+    }
+    if (typeof body.price === "number" && body.price >= 0) {
+      updates.push("price = ?"); vals.push(body.price);
+    }
+    if (typeof body.pool_start === "string" && body.pool_start.trim()) {
+      updates.push("pool_start = ?"); vals.push(body.pool_start.trim());
+    }
+    if (typeof body.pool_end === "string" && body.pool_end.trim()) {
+      updates.push("pool_end = ?"); vals.push(body.pool_end.trim());
+    }
+    if (typeof body.bandwidth_percent === "number" && body.bandwidth_percent >= 1 && body.bandwidth_percent <= 100) {
+      updates.push("bandwidth_percent = ?"); vals.push(Math.round(body.bandwidth_percent));
+      // Recompute the denormalized Mbps value from the platform-wide uplink.
+      // 100 Mbps baseline is a documented constant; the installer reads
+      // bandwidth_mbps_per_user directly to configure the router hotspot.
+      const TOTAL_BANDWIDTH_MBPS = 100;
+      const mbps = Math.max(1, Math.round(TOTAL_BANDWIDTH_MBPS * body.bandwidth_percent / 100));
+      updates.push("bandwidth_mbps_per_user = ?"); vals.push(mbps);
+    }
+
+    if (updates.length === 0) return json(res, 400, { error: "No valid fields to update" });
+
+    vals.push(params.id);
+    const result = await db.prepare(
+      `UPDATE platform_plans SET ${updates.join(", ")} WHERE id = ?`
+    ).run(...vals);
+
     if (result.changes === 0) return json(res, 404, { error: "Plan not found" });
     json(res, 200, { ok: true });
   });
