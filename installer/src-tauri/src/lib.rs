@@ -3,6 +3,8 @@ mod commands;
 mod discover;
 mod fingerprint;
 mod preflight;
+mod router;
+mod ssh;
 
 use tauri::Emitter;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -52,6 +54,9 @@ pub fn run() {
             commands::scan_lan,
             commands::probe_router,
             preflight::check_prerequisites,
+            router::installer_router_test_ssh,
+            router::installer_router_apply_config,
+            ssh::scripts_info,
             auth::store_credentials,
             auth::store_google_session,
             auth::load_credentials,

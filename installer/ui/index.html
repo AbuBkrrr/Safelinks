@@ -67,6 +67,21 @@
   .status { margin:16px 0; font-size:13px; color:#94a3b8; }
   .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   .btn-row { display:flex; gap:10px; margin-top:20px; }
+
+  /* Router config modal */
+  .cfg-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .cfg-modal { background:#0f172a; border:1px solid #334155; border-radius:12px; padding:24px; max-width:560px; width:100%; max-height:90vh; overflow-y:auto; position:relative; }
+  .cfg-modal h3 { margin:0 0 6px; font-size:16px; color:#fff; }
+  .cfg-modal .sub { color:#94a3b8; font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  .cfg-modal .field { margin-bottom:12px; }
+  .cfg-modal .field label { display:block; font-size:12.5px; color:#cbd5e1; font-weight:600; margin-bottom:4px; }
+  .cfg-modal .field input { width:100%; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:10px 12px; border-radius:8px; font-size:13px; box-sizing:border-box; }
+  .cfg-modal .field input:focus { outline:none; border-color:#667eea; }
+  .cfg-modal .btn-row { display:flex; gap:8px; margin-top:16px; }
+  .cfg-modal .btn-row button { flex:1; padding:10px; }
+  .cfg-modal .status { margin-top:12px; font-size:12.5px; color:#cbd5e1; white-space:pre-wrap; max-height:200px; overflow-y:auto; background:#1e293b; padding:10px; border-radius:8px; font-family:ui-monospace,monospace; }
+  .cfg-modal .btn-close { position:absolute; top:10px; right:10px; background:transparent; border:none; color:#94a3b8; font-size:22px; cursor:pointer; padding:0 8px; line-height:1; }
+  .cfg-modal .btn-close:hover { color:#fff; }
 </style>
 </head>
 <body>
@@ -164,7 +179,7 @@
       <div class="status" id="status">Idle.</div>
       <div id="localInfo"></div>
       <table id="results" style="display:none;">
-        <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th></tr></thead>
+        <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -172,6 +187,36 @@
 
 </div>
 
+<div id="cfg-modal" class="cfg-modal-backdrop" style="display:none;">
+  <div class="cfg-modal">
+    <button class="btn-close" onclick="closeCfgModal()">&#215;</button>
+    <h3>Configure router <span id="cfg-ip" class="mono">-</span></h3>
+    <div class="sub">Enter the router admin credentials, then set your WiFi network name and password. Click <b>Apply configuration</b> to push the SAFE_Links captive-portal setup.</div>
+
+    <div class="field">
+      <label>Router admin username</label>
+      <input id="cfg-user" type="text" value="admin" />
+    </div>
+    <div class="field">
+      <label>Router admin password</label>
+      <input id="cfg-pass" type="password" placeholder="(blank for factory-default MikroTik)" />
+    </div>
+    <div class="field">
+      <label>WiFi network name (SSID)</label>
+      <input id="cfg-ssid" type="text" placeholder="SAFE_Links-WiFi" />
+    </div>
+    <div class="field">
+      <label>WiFi password (min 8 characters)</label>
+      <input id="cfg-wifi-pass" type="text" placeholder="e.g. MyBusiness2026" />
+    </div>
+
+    <div class="btn-row">
+      <button id="cfg-test" class="secondary">Test SSH</button>
+      <button id="cfg-apply" class="success">Apply configuration</button>
+    </div>
+    <div id="cfg-status" class="status" style="display:none;"></div>
+  </div>
+</div>
 <script>
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
@@ -333,6 +378,16 @@ document.getElementById('btnScan').onclick = async () => {
         <td><span class="tag ${d.kind}">${d.kind}</span></td>
         <td class="mono">${d.open_ports.join(', ') || '—'}</td>`;
       tbody.appendChild(tr);
+      {
+        const cfgTd = document.createElement('td');
+        const cfgBtn = document.createElement('button');
+        cfgBtn.className = 'secondary';
+        cfgBtn.style.cssText = 'padding:4px 10px; font-size:12px;';
+        cfgBtn.textContent = 'Configure';
+        cfgBtn.onclick = () => openCfgModal(d);
+        cfgTd.appendChild(cfgBtn);
+        tr.appendChild(cfgTd);
+      }
     }
     tbl.style.display = devices.length ? '' : 'none';
   } catch (e) {
@@ -340,6 +395,66 @@ document.getElementById('btnScan').onclick = async () => {
   } finally { btn.disabled = false; }
 };
 
+// ---------- Router configuration modal ----------
+function openCfgModal(device) {
+  document.getElementById('cfg-ip').textContent = device.ip;
+  var st = document.getElementById('cfg-status');
+  st.style.display = 'none';
+  st.textContent = '';
+  var ssidInput = document.getElementById('cfg-ssid');
+  if (!ssidInput.value) ssidInput.value = 'SAFE_Links-WiFi';
+  document.getElementById('cfg-modal').style.display = 'flex';
+}
+
+function closeCfgModal() {
+  document.getElementById('cfg-modal').style.display = 'none';
+}
+
+function cfgSetStatus(msg, color) {
+  var el = document.getElementById('cfg-status');
+  el.style.display = 'block';
+  el.style.color = color || '#cbd5e1';
+  el.textContent = msg;
+}
+
+document.getElementById('cfg-test').onclick = async function() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  if (!ip) return;
+  cfgSetStatus('Testing SSH to ' + ip + '...', '#fbbf24');
+  try {
+    var r = await invoke('installer_router_test_ssh', { ip: ip, user: user, password: pass });
+    cfgSetStatus('SUCCESS\n' + r.identity + '\n' + r.resource, '#22c55e');
+  } catch (e) {
+    cfgSetStatus('FAILED: ' + e, '#fc8181');
+  }
+};
+
+document.getElementById('cfg-apply').onclick = async function() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  var ssid = document.getElementById('cfg-ssid').value.trim();
+  var wifiPassword = document.getElementById('cfg-wifi-pass').value;
+  if (!ip) return;
+  if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
+  if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
+  cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
+  try {
+    var r = await invoke('installer_router_apply_config', {
+      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword
+    });
+    var tail = r.log.slice(-12).join('\n');
+    cfgSetStatus(
+      (r.ok ? 'SUCCESS' : 'PARTIAL') + ' -- applied ' + r.applied + ', failed ' + r.failed + '\n\n' + tail,
+      r.ok ? '#22c55e' : '#fbbf24'
+    );
+  } catch (e) {
+    cfgSetStatus('FAILED: ' + e, '#fc8181');
+  }
+};
+// ---------- end modal ----------
 document.getElementById('btn-dashboard').onclick = async () => {
   try { await invoke('open_dashboard'); } catch (e) { alert('Could not open dashboard: ' + e); }
 };
