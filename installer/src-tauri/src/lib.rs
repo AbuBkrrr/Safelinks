@@ -1,8 +1,8 @@
+mod auth;
 mod commands;
 mod discover;
 mod fingerprint;
-mod ssh;
-mod auth;
+mod preflight;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,10 +12,13 @@ pub fn run() {
             commands::local_info,
             commands::scan_lan,
             commands::probe_router,
-            ssh::scripts_info,
-            auth::installer_login,
-            auth::installer_plan_config,
-            auth::installer_license_initiate,
+            preflight::check_prerequisites,
+            auth::store_credentials,
+            auth::load_credentials,
+            auth::clear_credentials,
+            auth::login_and_store,
+            auth::try_auto_login,
+            auth::open_dashboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAFE_Links installer");
