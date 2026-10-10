@@ -19,6 +19,9 @@
   button.secondary:hover { background:#475569; }
   button.success { background:#22c55e; }
   button.success:hover { background:#16a34a; }
+  button.google { background:#ffffff; color:#1f2937; display:flex; align-items:center; justify-content:center; gap:10px; }
+  button.google:hover { background:#f1f5f9; }
+  button.google svg { width:18px; height:18px; }
   input[type=email], input[type=password], input[type=text] {
     background:#1e293b; color:#e2e8f0; border:2px solid #334155;
     padding:12px 14px; border-radius:10px; font-size:14px; width:100%;
@@ -41,6 +44,11 @@
   .error { background:#7f1d1d; border:1px solid #991b1b; color:#fecaca; padding:10px 14px; border-radius:8px; font-size:13px; margin-top:14px; display:none; }
   .error.show { display:block; }
   .info { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:10px 14px; border-radius:8px; font-size:12px; margin-top:14px; }
+  .divider { display:flex; align-items:center; gap:12px; color:#64748b; font-size:12px; margin:16px 0 4px; }
+  .divider::before, .divider::after { content:""; flex:1; height:1px; background:#334155; }
+  .small-link { color:#94a3b8; font-size:12px; cursor:pointer; text-decoration:underline; background:none; border:none; padding:0; font-weight:500; }
+  .small-link:hover { color:#cbd5e1; background:none; }
+  .footer-links { display:flex; justify-content:space-between; margin-top:14px; }
   table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px; }
   th { text-align:left; padding:8px; background:#1e293b; color:#94a3b8; font-weight:600; }
   td { padding:8px; border-bottom:1px solid #1e293b; vertical-align:top; }
@@ -83,6 +91,18 @@
       <h2>Sign in to SAFE_Links</h2>
       <div class="sub">Use the reseller account you created at safelinks.name.ng</div>
       <div class="section">
+        <button id="btn-google" class="google" style="width:100%;">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34 6.3 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34 6.3 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+            <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.3 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+            <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.4-.4-3.5z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="divider">or sign in with email</div>
+
         <label for="in-email">Email</label>
         <input id="in-email" type="email" placeholder="you@example.com" autocomplete="username" />
         <label for="in-password">Password</label>
@@ -92,7 +112,13 @@
       <div class="btn-row">
         <button id="btn-login" class="success" style="flex:1;">Sign in &amp; continue</button>
       </div>
-      <div class="info">Your password is stored securely by Windows Credential Manager. The next time you open the installer, you will be signed in automatically.</div>
+
+      <div class="footer-links">
+        <button id="btn-forgot" class="small-link">Forgot password?</button>
+        <button id="btn-signup" class="small-link">Create an account</button>
+      </div>
+
+      <div class="info">Your credentials are stored securely by Windows Credential Manager. Next time you open the installer, you will be signed in automatically.</div>
     </div>
   </div>
 
@@ -102,7 +128,10 @@
         <h2 style="margin:0;">Router setup</h2>
         <div class="sub" id="scan-user" style="margin:4px 0 0;"></div>
       </div>
-      <button id="btn-dashboard" class="secondary">Open dashboard</button>
+      <div class="row">
+        <button id="btn-logout" class="secondary">Sign out</button>
+        <button id="btn-dashboard" class="secondary">Open dashboard</button>
+      </div>
     </div>
 
     <div class="section">
@@ -145,6 +174,7 @@
 
 <script>
 const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
 let routerState = null;
 let currentSession = null;
 
@@ -188,16 +218,17 @@ async function runPreflight() {
   }
 }
 
+function renderSession(sess) {
+  currentSession = sess;
+  document.getElementById('scan-user').textContent =
+    `Signed in as ${sess.user?.companyName || sess.user?.email || 'reseller'} (${sess.auth_method === 'google' ? 'Google' : 'Email'})`;
+  show('scan');
+}
+
 async function tryAutoLogin() {
   try {
     const sess = await invoke('try_auto_login');
-    if (sess) {
-      currentSession = sess;
-      document.getElementById('scan-user').textContent =
-        `Signed in as ${sess.user?.companyName || sess.user?.email || 'reseller'}`;
-      show('scan');
-      return true;
-    }
+    if (sess) { renderSession(sess); return true; }
   } catch (_) {}
   return false;
 }
@@ -217,10 +248,7 @@ async function doLogin() {
   btn.textContent = 'Signing in…';
   try {
     const res = await invoke('login_and_store', { email, password });
-    currentSession = res;
-    document.getElementById('scan-user').textContent =
-      `Signed in as ${res.user?.companyName || res.user?.email || email}`;
-    show('scan');
+    renderSession(res);
   } catch (e) {
     errEl.textContent = String(e);
     errEl.classList.add('show');
@@ -229,6 +257,26 @@ async function doLogin() {
     btn.textContent = 'Sign in & continue';
   }
 }
+
+// Deep-link callback from web after Google sign-in
+listen('deep-link-auth', async (event) => {
+  const { token, role, email, companyName } = event.payload || {};
+  if (!token || !email) return;
+  try {
+    const res = await invoke('store_google_session', {
+      email,
+      token,
+      role: role || 'reseller',
+      user: { email, companyName: companyName || '', companyNameRaw: companyName },
+    });
+    renderSession(res);
+  } catch (e) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = String(e);
+    errEl.classList.add('show');
+    show('login');
+  }
+});
 
 function pickRouterState(state) {
   routerState = state;
@@ -296,6 +344,26 @@ document.getElementById('btn-dashboard').onclick = async () => {
   try { await invoke('open_dashboard'); } catch (e) { alert('Could not open dashboard: ' + e); }
 };
 
+document.getElementById('btn-google').onclick = async () => {
+  try { await invoke('open_google_signin'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+document.getElementById('btn-forgot').onclick = async () => {
+  try { await invoke('open_forgot_password'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+document.getElementById('btn-signup').onclick = async () => {
+  try { await invoke('open_signup'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+document.getElementById('btn-logout').onclick = async () => {
+  try {
+    await invoke('clear_credentials');
+    currentSession = null;
+    show('login');
+  } catch (e) { alert('Logout error: ' + e); }
+};
+
 document.getElementById('btn-recheck').onclick = runPreflight;
 document.getElementById('btn-continue').onclick = async () => {
   const ok = await tryAutoLogin();
@@ -311,7 +379,7 @@ document.getElementById('in-password').addEventListener('keydown', e => {
   const rep = await invoke('check_prerequisites').catch(() => null);
   if (rep && rep.all_required_ok) {
     const ok = await tryAutoLogin();
-    if (!ok) show('preflight');
+    if (!ok) show('login');
   }
 })();
 </script>

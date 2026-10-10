@@ -1,9 +1,24 @@
 use std::collections::{HashMap, HashSet};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::process::Command as TokioCommand;
+use tokio::net::TcpStream;
+use tokio::sync::Semaphore;
 use tokio::time::timeout;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Spawn a process WITHOUT flashing a console window on Windows.
+fn hidden_command(program: &str) -> Command {
+    let mut c = Command::new(program);
+    #[cfg(windows)]
+    c.creation_flags(CREATE_NO_WINDOW);
+    c
+}
 
 pub fn local_subnets() -> Vec<(Ipv4Addr, u8, Ipv4Addr)> {
     let mut out: Vec<(Ipv4Addr, u8, Ipv4Addr)> = Vec::new();
@@ -33,33 +48,26 @@ pub fn local_subnet() -> Option<(Ipv4Addr, u8, Ipv4Addr)> {
     local_subnets().into_iter().next()
 }
 
-/// Returns the default gateway IP (the immediate router the PC is talking to).
 pub fn default_gateway() -> Option<Ipv4Addr> {
     #[cfg(windows)]
     {
-        // route print -4 shows lines like:
-        //  0.0.0.0          0.0.0.0      192.168.0.1     192.168.0.107     25
-        if let Ok(o) = Command::new("route").arg("print").arg("-4").output() {
+        if let Ok(o) = hidden_command("route").args(["print", "-4"]).output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 4 {
-                    if parts[0] == "0.0.0.0" && parts[1] == "0.0.0.0" {
-                        if let Ok(gw) = parts[2].parse::<Ipv4Addr>() {
-                            if !gw.is_unspecified() { return Some(gw); }
-                        }
+                if parts.len() >= 4 && parts[0] == "0.0.0.0" && parts[1] == "0.0.0.0" {
+                    if let Ok(gw) = parts[2].parse::<Ipv4Addr>() {
+                        if !gw.is_unspecified() { return Some(gw); }
                     }
                 }
             }
         }
     }
-
     #[cfg(not(windows))]
     {
-        if let Ok(o) = Command::new("ip").args(["route", "show", "default"]).output() {
+        if let Ok(o) = hidden_command("ip").args(["route", "show", "default"]).output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
-                // "default via 192.168.1.1 dev eth0 ..."
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 3 && parts[0] == "default" && parts[1] == "via" {
                     if let Ok(gw) = parts[2].parse::<Ipv4Addr>() { return Some(gw); }
@@ -70,27 +78,12 @@ pub fn default_gateway() -> Option<Ipv4Addr> {
     None
 }
 
-pub fn default_router_subnets() -> Vec<Ipv4Addr> {
-    vec![
-        Ipv4Addr::new(192, 168, 88, 0),
-        Ipv4Addr::new(192, 168, 1, 0),
-        Ipv4Addr::new(192, 168, 0, 0),
-        Ipv4Addr::new(192, 168, 2, 0),
-        Ipv4Addr::new(192, 168, 8, 0),
-        Ipv4Addr::new(192, 168, 10, 0),
-        Ipv4Addr::new(10, 0, 0, 0),
-        Ipv4Addr::new(10, 0, 1, 0),
-        Ipv4Addr::new(10, 1, 0, 0),
-        Ipv4Addr::new(172, 16, 0, 0),
-    ]
-}
-
 pub fn routed_subnets() -> Vec<Ipv4Addr> {
     let mut out = Vec::new();
     let mut seen: HashSet<u32> = HashSet::new();
     #[cfg(windows)]
     {
-        if let Ok(o) = Command::new("route").arg("print").arg("-4").output() {
+        if let Ok(o) = hidden_command("route").args(["print", "-4"]).output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -107,7 +100,7 @@ pub fn routed_subnets() -> Vec<Ipv4Addr> {
     }
     #[cfg(not(windows))]
     {
-        if let Ok(o) = Command::new("ip").args(["route", "show"]).output() {
+        if let Ok(o) = hidden_command("ip").args(["route", "show"]).output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
                 if let Some(first) = line.split_whitespace().next() {
@@ -128,14 +121,30 @@ pub fn routed_subnets() -> Vec<Ipv4Addr> {
     out
 }
 
-pub async fn ping_sweep(base: Ipv4Addr, prefix: u8) -> Vec<Ipv4Addr> {
-    if prefix != 24 { return Vec::new(); }
+/// Liveness probe: try TCP-connect to any of a handful of common router ports.
+/// Returns true as soon as one connection succeeds.
+pub async fn tcp_alive(ip: Ipv4Addr) -> bool {
+    const PORTS: &[u16] = &[80, 443, 22, 8080, 53, 7547, 8291, 8728, 21, 23];
+    for &port in PORTS {
+        let addr = SocketAddr::new(IpAddr::V4(ip), port);
+        if let Ok(Ok(_)) = timeout(Duration::from_millis(250), TcpStream::connect(addr)).await {
+            return true;
+        }
+    }
+    false
+}
+
+/// Sweep a /24 by TCP-probing common ports. Concurrency capped.
+pub async fn tcp_sweep(base: Ipv4Addr, concurrency: usize) -> Vec<Ipv4Addr> {
     let o = base.octets();
+    let sem = Arc::new(Semaphore::new(concurrency));
     let mut handles = Vec::with_capacity(254);
     for host in 1u8..=254 {
         let ip = Ipv4Addr::new(o[0], o[1], o[2], host);
+        let sem_clone = sem.clone();
         handles.push(tokio::spawn(async move {
-            if ping_once(ip).await { Some(ip) } else { None }
+            let _permit = match sem_clone.acquire_owned().await { Ok(p) => p, Err(_) => return None };
+            if tcp_alive(ip).await { Some(ip) } else { None }
         }));
     }
     let mut live = Vec::new();
@@ -145,32 +154,11 @@ pub async fn ping_sweep(base: Ipv4Addr, prefix: u8) -> Vec<Ipv4Addr> {
     live
 }
 
-async fn ping_once(ip: Ipv4Addr) -> bool {
-    #[cfg(windows)]
-    let mut cmd = {
-        let mut c = TokioCommand::new("ping");
-        c.args(["-n", "1", "-w", "500", &ip.to_string()]);
-        c
-    };
-    #[cfg(not(windows))]
-    let mut cmd = {
-        let mut c = TokioCommand::new("ping");
-        c.args(["-c", "1", "-W", "1", &ip.to_string()]);
-        c
-    };
-    cmd.stdout(std::process::Stdio::null());
-    cmd.stderr(std::process::Stdio::null());
-    match timeout(Duration::from_secs(2), cmd.status()).await {
-        Ok(Ok(s)) => s.success(),
-        _ => false,
-    }
-}
-
 pub fn arp_table() -> HashMap<Ipv4Addr, String> {
     let mut map = HashMap::new();
     #[cfg(windows)]
     {
-        if let Ok(o) = Command::new("arp").arg("-a").output() {
+        if let Ok(o) = hidden_command("arp").arg("-a").output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -185,7 +173,7 @@ pub fn arp_table() -> HashMap<Ipv4Addr, String> {
     }
     #[cfg(not(windows))]
     {
-        if let Ok(o) = Command::new("ip").args(["neigh", "show"]).output() {
+        if let Ok(o) = hidden_command("ip").args(["neigh", "show"]).output() {
             let text = String::from_utf8_lossy(&o.stdout);
             for line in text.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();

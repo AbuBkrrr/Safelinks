@@ -61,20 +61,23 @@ fn parse_cidr(s: &str) -> Option<(Ipv4Addr, u8)> {
     Some((Ipv4Addr::new(o[0], o[1], o[2], 0), prefix))
 }
 
+/// Hard cap: never sweep more than this many subnets in one run.
+const MAX_SUBNETS_PER_RUN: usize = 4;
+/// Concurrency per subnet (in-flight TCP probes).
+const PROBE_CONCURRENCY: usize = 64;
+
 #[tauri::command]
 pub async fn scan_lan(extra_subnets: Option<Vec<String>>) -> Result<Vec<Device>, String> {
     let gateway = discover::default_gateway();
     let mut bases: Vec<Ipv4Addr> = Vec::new();
     let mut seen: HashSet<u32> = HashSet::new();
+
+    // Priority order:
+    // 1. Local subnets (always)
     for (_, _, base) in discover::local_subnets() {
         if seen.insert(u32::from(base)) { bases.push(base); }
     }
-    for base in discover::routed_subnets() {
-        if seen.insert(u32::from(base)) { bases.push(base); }
-    }
-    for base in discover::default_router_subnets() {
-        if seen.insert(u32::from(base)) { bases.push(base); }
-    }
+    // 2. Explicitly requested by the user
     if let Some(extra) = extra_subnets {
         for s in extra {
             if let Some((base, prefix)) = parse_cidr(&s) {
@@ -82,18 +85,29 @@ pub async fn scan_lan(extra_subnets: Option<Vec<String>>) -> Result<Vec<Device>,
             }
         }
     }
-    bases.truncate(12);
+    // 3. Routed subnets (only if we still have room)
+    if bases.len() < MAX_SUBNETS_PER_RUN {
+        for base in discover::routed_subnets() {
+            if seen.insert(u32::from(base)) {
+                bases.push(base);
+                if bases.len() >= MAX_SUBNETS_PER_RUN { break; }
+            }
+        }
+    }
+    // Hard cap
+    bases.truncate(MAX_SUBNETS_PER_RUN);
 
+    // TCP sweep in parallel across subnets; concurrency capped per subnet.
     let mut subnet_handles = Vec::new();
     for base in bases {
         subnet_handles.push(tokio::spawn(async move {
-            discover::ping_sweep(base, 24).await
+            discover::tcp_sweep(base, PROBE_CONCURRENCY).await
         }));
     }
 
     let mut all_live: Vec<Ipv4Addr> = Vec::new();
     let mut live_seen: HashSet<u32> = HashSet::new();
-    // Always seed with the gateway so it's included even if ICMP is filtered
+    // Always seed the gateway so it's included even if it blocks all probed ports.
     if let Some(gw) = gateway {
         if live_seen.insert(u32::from(gw)) { all_live.push(gw); }
     }
@@ -120,12 +134,10 @@ pub async fn scan_lan(extra_subnets: Option<Vec<String>>) -> Result<Vec<Device>,
     let mut out = Vec::new();
     for h in handles {
         if let Ok(d) = h.await {
-            // Keep gateway even if no ports found
             if d.kind == "device" && d.open_ports.is_empty() && !d.is_gateway { continue; }
             out.push(d);
         }
     }
-    // Sort: gateway first, then by kind priority
     out.sort_by_key(|d| {
         let gw_rank = if d.is_gateway { 0 } else { 1 };
         let kind_rank = match d.kind.as_str() {
