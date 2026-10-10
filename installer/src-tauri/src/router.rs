@@ -170,31 +170,35 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    for raw in CONFIGURE_RSC.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
-        match exec(&mut session, line).await {
-            Ok(_) => { applied += 1; if log.len() < 80 { log.push(format!("OK : {}", line)); } }
-            Err(e) => { failed += 1; log.push(format!("ERR: {} -- {}", line, e)); }
+    // Prepend runtime globals, wrap the whole .rsc as one script, send in a single exec.
+    // RouterOS multi-line constructs (`:if (...) do={ ... }`) only work when executed
+    // as a single script - sending them line-by-line breaks every block.
+    let script = format!(
+        ":global SL_WAN_MODE \"dhcp\"\n:global SL_LAN_IP \"192.168.88.1\"\n:global SL_SSID \"{}\"\n:global SL_WIFI_PASS \"{}\"\n{{\n{}\n}}",
+        escape_ros(&ssid),
+        escape_ros(&wifi_password),
+        CONFIGURE_RSC
+    );
+
+    match exec(&mut session, &script).await {
+        Ok(out) => {
+            if out.contains("STATUS OK") {
+                applied = 1;
+                log.push("Script executed, STATUS OK".to_string());
+                if log.len() < 80 {
+                    // keep a tail of the output for the UI
+                    let tail: Vec<&str> = out.lines().rev().take(10).collect();
+                    for line in tail.iter().rev() { log.push((*line).to_string()); }
+                }
+            } else {
+                failed = 1;
+                log.push(format!("No STATUS OK marker; output: {}", out.trim()));
+            }
         }
-    }
-
-    let ssid_cmd = format!(
-        "/interface wireless set [find default-name=wlan1] ssid=\"{}\"",
-        escape_ros(&ssid)
-    );
-    match exec(&mut session, &ssid_cmd).await {
-        Ok(_) => { applied += 1; log.push(format!("OK : ssid set to '{}'", ssid)); }
-        Err(e) => { failed += 1; log.push(format!("ERR: ssid set -- {}", e)); }
-    }
-
-    let sec_cmd = format!(
-        "/interface wireless security-profiles set [find default=yes] authentication-types=wpa2-psk wpa2-pre-shared-key=\"{}\"",
-        escape_ros(&wifi_password)
-    );
-    match exec(&mut session, &sec_cmd).await {
-        Ok(_) => { applied += 1; log.push("OK : wifi password set".to_string()); }
-        Err(e) => { failed += 1; log.push(format!("ERR: wifi password -- {}", e)); }
+        Err(e) => {
+            failed = 1;
+            log.push(format!("Script failed: {}", e));
+        }
     }
 
     let _ = session
