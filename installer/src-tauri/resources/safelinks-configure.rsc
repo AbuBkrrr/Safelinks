@@ -1,5 +1,5 @@
-# safelinks-configure.rsc - configures WAN, LAN bridge, WiFi, Hotspot and pairs agent.
-# Runs as a single script - globals are set by the installer before execution.
+# safelinks-configure.rsc - configures WAN, LAN bridge, WiFi (if present), Hotspot.
+# Guards wireless paths so the script runs on wired-only routers too.
 
 :global SL_WAN_MODE
 :global SL_WAN_USER
@@ -17,7 +17,7 @@
 
 :log info "safelinks-configure: starting"
 
-# --- 1. WAN (ether1, unchanged) ---
+# --- 1. WAN (ether1) ---
 :if ($SL_WAN_MODE = "dhcp") do={
     /ip dhcp-client remove [find interface="ether1"]
     /ip dhcp-client add interface="ether1" disabled=no comment="SafeLinks WAN"
@@ -29,34 +29,42 @@
     :log info "WAN: PPPoE"
 }
 
-# --- 2. LAN bridge (all LAN ports + WiFi share the hotspot) ---
+# --- 2. LAN bridge (all LAN ports share the hotspot) ---
 /interface bridge port remove [find bridge="safelinks-bridge"]
 /interface bridge remove [find name="safelinks-bridge"]
 /interface bridge add name="safelinks-bridge" comment="SafeLinks bridge"
 
-# Add each LAN port that exists (ether2..ether5 on RB750GL and similar)
 :foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
     :if ([:len [/interface ethernet find name=$iface]] > 0) do={
         /interface bridge port add bridge="safelinks-bridge" interface=$iface comment="SafeLinks LAN"
     }
 }
 
-# Add WiFi to bridge if present (both new 'wifi' and legacy 'wireless')
-:foreach iface in=[/interface wifi find] do={
-    :local ifname [/interface wifi get $iface name]
-    /interface bridge port add bridge="safelinks-bridge" interface=$ifname comment="SafeLinks WiFi"
-}
-:foreach iface in=[/interface wireless find] do={
-    :local ifname [/interface wireless get $iface name]
-    /interface bridge port add bridge="safelinks-bridge" interface=$ifname comment="SafeLinks Wireless"
-}
+# --- 3. Add wireless to bridge IF the package is installed ---
+:do {
+    :foreach iface in=[/interface wireless find] do={
+        :local ifname [/interface wireless get $iface name]
+        :if ([:len [/interface bridge port find interface=$ifname bridge="safelinks-bridge"]] = 0) do={
+            /interface bridge port add bridge="safelinks-bridge" interface=$ifname comment="SafeLinks Wireless"
+        }
+    }
+} on-error={ :log info "no wireless package - skipping" }
 
-# --- 3. LAN IP on the bridge ---
+:do {
+    :foreach iface in=[/interface wifi find] do={
+        :local ifname [/interface wifi get $iface name]
+        :if ([:len [/interface bridge port find interface=$ifname bridge="safelinks-bridge"]] = 0) do={
+            /interface bridge port add bridge="safelinks-bridge" interface=$ifname comment="SafeLinks WiFi"
+        }
+    }
+} on-error={ :log info "no wifi package - skipping" }
+
+# --- 4. LAN IP on the bridge ---
 /ip address remove [find interface="ether2"]
 /ip address remove [find interface="safelinks-bridge"]
 /ip address add address=($SL_LAN_IP . "/24") interface="safelinks-bridge" comment="SafeLinks LAN"
 
-# --- 4. DHCP pool + server ---
+# --- 5. DHCP pool + server ---
 /ip pool remove [find name="safelinks-pool"]
 /ip pool add name="safelinks-pool" ranges=("192.168.88.10-192.168.88.254")
 
@@ -68,34 +76,39 @@
 /ip firewall nat remove [find comment="SafeLinks NAT"]
 /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="SafeLinks NAT"
 
-# --- 5. WiFi security + SSID (silently skipped on wired-only routers) ---
-:if ([:len [/interface wifi find]] > 0) do={
-    /interface wifi security remove [find name="safelinks-sec"]
-    /interface wifi security add name="safelinks-sec" authentication-types=wpa2-psk,wpa3-psk passphrase=$SL_WIFI_PASS
-    /interface wifi set [find] ssid=$SL_SSID security="safelinks-sec" disabled=no
-    :log info ("WiFi (wifi): " . $SL_SSID)
-}
-:if ([:len [/interface wireless find]] > 0) do={
-    /interface wireless security-profiles remove [find name="safelinks-sec"]
-    /interface wireless security-profiles add name="safelinks-sec" mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=$SL_WIFI_PASS
-    /interface wireless set [find] ssid=$SL_SSID security-profile="safelinks-sec" disabled=no
-    :log info ("WiFi (wireless): " . $SL_SSID)
-}
+# --- 6. WiFi security + SSID (guarded - only runs if wireless present) ---
+:do {
+    :if ([:len [/interface wireless find]] > 0) do={
+        /interface wireless security-profiles remove [find name="safelinks-sec"]
+        /interface wireless security-profiles add name="safelinks-sec" mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=$SL_WIFI_PASS
+        /interface wireless set [find] ssid=$SL_SSID security-profile="safelinks-sec" disabled=no
+        :log info ("WiFi (wireless): " . $SL_SSID)
+    }
+} on-error={ :log info "no wireless package" }
 
-# --- 6. Hotspot on the bridge (covers wired + wireless) ---
+:do {
+    :if ([:len [/interface wifi find]] > 0) do={
+        /interface wifi security remove [find name="safelinks-sec"]
+        /interface wifi security add name="safelinks-sec" authentication-types=wpa2-psk passphrase=$SL_WIFI_PASS
+        /interface wifi set [find] ssid=$SL_SSID security="safelinks-sec" disabled=no
+        :log info ("WiFi (wifi): " . $SL_SSID)
+    }
+} on-error={ :log info "no wifi package" }
+
+# --- 7. Hotspot on the bridge (wired + wireless both land here) ---
 /ip hotspot remove [find name="safelinks-hotspot"]
 /ip hotspot profile remove [find name="safelinks-profile"]
 /ip hotspot profile add name="safelinks-profile" hotspot-address=$SL_LAN_IP dns-name="www.safelinks.name.ng" html-directory=hotspot
 /ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=no
 
-# --- 7. Walled garden (pre-auth allowed destinations) ---
+# --- 8. Walled garden (pre-auth allowed) ---
 /ip hotspot walled-garden remove [find comment="SafeLinks portal"]
 /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="*.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
 
-# --- 8. Pairing code ---
+# --- 9. Pairing code ---
 :if ([:typeof $SL_PAIR_CODE] != "nothing") do={
     :if ([:len [/file find name="safelinks-pair.txt"]] > 0) do={ /file remove [find name="safelinks-pair.txt"] }
     /file add name="safelinks-pair.txt" contents=$SL_PAIR_CODE

@@ -170,15 +170,21 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    // Prepend runtime globals, wrap the whole .rsc as one script, send in a single exec.
-    // RouterOS multi-line constructs (`:if (...) do={ ... }`) only work when executed
-    // as a single script - sending them line-by-line breaks every block.
-    let script = format!(
-        ":global SL_WAN_MODE \"dhcp\"\n:global SL_LAN_IP \"192.168.88.1\"\n:global SL_SSID \"{}\"\n:global SL_WIFI_PASS \"{}\"\n{{\n{}\n}}",
+    // RouterOS treats \n inside SSH exec as whitespace, not line breaks. A multi-line
+    // .rsc would collapse into a single line and every `:if ... do={ ... }` block
+    // would fail with "expected closing brace". So flatten every statement with `;`
+    // and send the whole thing as one exec.
+    let mut script = format!(
+        ":global SL_WAN_MODE \"dhcp\"; :global SL_LAN_IP \"192.168.88.1\"; :global SL_SSID \"{}\"; :global SL_WIFI_PASS \"{}\"; ",
         escape_ros(&ssid),
-        escape_ros(&wifi_password),
-        CONFIGURE_RSC
+        escape_ros(&wifi_password)
     );
+    for raw in CONFIGURE_RSC.lines() {
+        let t = raw.trim();
+        if t.is_empty() || t.starts_with('#') { continue; }
+        script.push_str(t);
+        script.push_str("; ");
+    }
 
     match exec(&mut session, &script).await {
         Ok(out) => {
