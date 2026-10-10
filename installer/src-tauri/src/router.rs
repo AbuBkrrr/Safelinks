@@ -10,7 +10,6 @@ use serde::Serialize;
 
 use crate::ssh::CONFIGURE_RSC;
 
-/// Accept any server host key. MikroTik ships a self-signed key by default.
 struct AcceptAllKeys;
 
 #[async_trait::async_trait]
@@ -41,11 +40,22 @@ async fn connect(ip: &str, user: &str, password: &str) -> Result<Handle<AcceptAl
     .map_err(|_| "Auth timed out".to_string())?
     .map_err(|e| format!("Auth error: {}", e))?;
 
-    // russh 0.45: authenticate_password returns Result<bool, Error>
     if !auth {
         return Err(format!("Authentication rejected for user '{}'", user));
     }
     Ok(session)
+}
+
+fn is_ros_error(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    let trimmed = s.trim_start();
+    lower.contains("no such item")
+        || lower.contains("syntax error")
+        || lower.contains("bad command name")
+        || lower.contains("invalid value")
+        || lower.contains("script error")
+        || lower.contains("failure:")
+        || trimmed.starts_with('!')
 }
 
 async fn exec(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, String> {
@@ -68,11 +78,24 @@ async fn exec(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, 
             _ => {}
         }
     }
-    Ok(String::from_utf8_lossy(&out).into_owned())
+    let s = String::from_utf8_lossy(&out).into_owned();
+    if is_ros_error(&s) {
+        return Err(s.trim().to_string());
+    }
+    Ok(s)
 }
 
 fn escape_ros(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn count_ros_entries(s: &str) -> usize {
+    s.lines()
+        .filter(|l| {
+            let t = l.trim_start();
+            t.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false)
+        })
+        .count()
 }
 
 #[derive(Serialize)]
@@ -81,6 +104,30 @@ pub struct TestSshResult {
     pub ip: String,
     pub identity: String,
     pub resource: String,
+}
+
+#[derive(Serialize)]
+pub struct ApplyResult {
+    pub ok: bool,
+    pub ssid: String,
+    pub applied: usize,
+    pub failed: usize,
+    pub log: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct StatusCheck {
+    pub label: String,
+    pub ok: bool,
+    pub warn_only: bool,
+    pub detail: String,
+}
+
+#[derive(Serialize)]
+pub struct RouterStatus {
+    pub ssh_ok: bool,
+    pub overall_ok: bool,
+    pub checks: Vec<StatusCheck>,
 }
 
 #[tauri::command]
@@ -101,15 +148,6 @@ pub async fn installer_router_test_ssh(
         identity: identity.trim().to_string(),
         resource: resource.trim().to_string(),
     })
-}
-
-#[derive(Serialize)]
-pub struct ApplyResult {
-    pub ok: bool,
-    pub ssid: String,
-    pub applied: usize,
-    pub failed: usize,
-    pub log: Vec<String>,
 }
 
 #[tauri::command]
@@ -170,4 +208,102 @@ pub async fn installer_router_apply_config(
         failed,
         log,
     })
+}
+
+async fn build_status(session: &mut Handle<AcceptAllKeys>) -> RouterStatus {
+    let mut checks: Vec<StatusCheck> = Vec::new();
+
+    let id_out = exec(session, "/system identity print").await.unwrap_or_default();
+    let id_val = id_out
+        .lines()
+        .find(|l| l.trim_start().starts_with("name:"))
+        .map(|l| l.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    checks.push(StatusCheck {
+        label: "Router identity".into(),
+        ok: true,
+        warn_only: false,
+        detail: id_val,
+    });
+
+    let hs_out = exec(session, "/ip hotspot print").await.unwrap_or_default();
+    let hs_count = count_ros_entries(&hs_out);
+    checks.push(StatusCheck {
+        label: "Hotspot server".into(),
+        ok: hs_count > 0,
+        warn_only: false,
+        detail: if hs_count > 0 {
+            format!("{} active", hs_count)
+        } else {
+            "Not found - captive portal will not redirect".into()
+        },
+    });
+
+    let dhcp_out = exec(session, "/ip dhcp-server print").await.unwrap_or_default();
+    let dhcp_count = count_ros_entries(&dhcp_out);
+    checks.push(StatusCheck {
+        label: "DHCP server".into(),
+        ok: dhcp_count > 0,
+        warn_only: false,
+        detail: if dhcp_count > 0 {
+            format!("{} active", dhcp_count)
+        } else {
+            "Not found - clients will not get an IP".into()
+        },
+    });
+
+    let wg_out = exec(session, "/ip hotspot walled-garden print").await.unwrap_or_default();
+    let wg_count = count_ros_entries(&wg_out);
+    let has_safelinks = wg_out.contains("safelinks.name.ng");
+    let has_backend = wg_out.contains("backend-services-production");
+    checks.push(StatusCheck {
+        label: "Walled garden".into(),
+        ok: wg_count >= 2 && has_safelinks && has_backend,
+        warn_only: false,
+        detail: if wg_count == 0 {
+            "No entries - clients cannot reach the portal".into()
+        } else {
+            format!(
+                "{} entries (portal: {}, backend: {})",
+                wg_count,
+                if has_safelinks { "yes" } else { "no" },
+                if has_backend { "yes" } else { "no" }
+            )
+        },
+    });
+
+    let wlan_out = exec(session, "/interface print where type=wlan").await.unwrap_or_default();
+    let wlan_count = count_ros_entries(&wlan_out);
+    checks.push(StatusCheck {
+        label: "WiFi radio".into(),
+        ok: wlan_count > 0,
+        warn_only: true,
+        detail: if wlan_count > 0 {
+            format!("{} radio(s) detected", wlan_count)
+        } else {
+            "No wireless interface - wired-only deploy".into()
+        },
+    });
+
+    let overall_ok = checks.iter().filter(|c| !c.warn_only).all(|c| c.ok);
+
+    RouterStatus {
+        ssh_ok: true,
+        overall_ok,
+        checks,
+    }
+}
+
+#[tauri::command]
+pub async fn installer_router_check_status(
+    ip: String,
+    user: String,
+    password: String,
+) -> Result<RouterStatus, String> {
+    let mut session = connect(&ip, &user, &password).await?;
+    let status = build_status(&mut session).await;
+    let _ = session
+        .disconnect(russh::Disconnect::ByApplication, "", "")
+        .await;
+    Ok(status)
 }

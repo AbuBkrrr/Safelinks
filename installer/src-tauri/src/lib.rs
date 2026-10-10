@@ -56,6 +56,7 @@ pub fn run() {
             preflight::check_prerequisites,
             router::installer_router_test_ssh,
             router::installer_router_apply_config,
+            router::installer_router_check_status,
             ssh::scripts_info,
             auth::store_credentials,
             auth::store_google_session,

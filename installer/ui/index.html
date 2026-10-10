@@ -82,6 +82,16 @@
   .cfg-modal .status { margin-top:12px; font-size:12.5px; color:#cbd5e1; white-space:pre-wrap; max-height:200px; overflow-y:auto; background:#1e293b; padding:10px; border-radius:8px; font-family:ui-monospace,monospace; }
   .cfg-modal .btn-close { position:absolute; top:10px; right:10px; background:transparent; border:none; color:#94a3b8; font-size:22px; cursor:pointer; padding:0 8px; line-height:1; }
   .cfg-modal .btn-close:hover { color:#fff; }
+
+  /* Readiness panel */
+  .readiness-panel { margin-top:16px; padding-top:16px; border-top:1px solid #334155; }
+  .readiness-panel .title { font-size:13px; font-weight:600; color:#cbd5e1; margin-bottom:8px; }
+  .readiness-panel .overall { font-size:12.5px; margin-bottom:10px; font-weight:600; }
+  .readiness-panel .check-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-bottom:1px solid #1e293b; }
+  .readiness-panel .check-icon { width:16px; text-align:center; font-weight:700; flex-shrink:0; }
+  .readiness-panel .check-label { color:#e2e8f0; font-weight:600; min-width:130px; flex-shrink:0; }
+  .readiness-panel .check-detail { color:#94a3b8; flex:1; }
+  .readiness-panel .btn-row { margin-top:12px; }
 </style>
 </head>
 <body>
@@ -215,6 +225,16 @@
       <button id="cfg-apply" class="success">Apply configuration</button>
     </div>
     <div id="cfg-status" class="status" style="display:none;"></div>
+
+    <div id="cfg-readiness" class="readiness-panel" style="display:none;">
+      <div class="title">Router readiness</div>
+      <div id="cfg-overall" class="overall"></div>
+      <div id="cfg-checks"></div>
+      <div class="btn-row">
+        <button id="cfg-check" class="secondary">Check status</button>
+        <button id="cfg-repair" class="secondary" style="display:none;">Repair missing items</button>
+      </div>
+    </div>
   </div>
 </div>
 <script>
@@ -417,6 +437,57 @@ function cfgSetStatus(msg, color) {
   el.textContent = msg;
 }
 
+// ---------- Readiness panel ----------
+async function runCheckStatus() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  if (!ip) return;
+  var panel = document.getElementById('cfg-readiness');
+  if (!panel) return;
+  panel.style.display = 'block';
+  var checksEl = document.getElementById('cfg-checks');
+  checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
+  try {
+    var r = await invoke('installer_router_check_status', { ip: ip, user: user, password: pass });
+    renderChecks(r);
+  } catch (e) {
+    checksEl.innerHTML = '<div style="color:#fc8181; font-size:12.5px;">Check failed: ' + e + '</div>';
+  }
+}
+
+function renderChecks(status) {
+  var checksEl = document.getElementById('cfg-checks');
+  var html = '';
+  for (var i = 0; i < status.checks.length; i++) {
+    var c = status.checks[i];
+    var icon, color;
+    if (c.ok) { icon = '\u2713'; color = '#22c55e'; }
+    else if (c.warn_only) { icon = '!'; color = '#fbbf24'; }
+    else { icon = '\u2715'; color = '#fc8181'; }
+    html += '<div class="check-row">';
+    html += '<span class="check-icon" style="color:' + color + ';">' + icon + '</span>';
+    html += '<span class="check-label">' + c.label + '</span>';
+    html += '<span class="check-detail">' + c.detail + '</span>';
+    html += '</div>';
+  }
+  checksEl.innerHTML = html;
+  var needsRepair = status.checks.some(function(c) { return !c.ok && !c.warn_only; });
+  document.getElementById('cfg-repair').style.display = needsRepair ? 'inline-block' : 'none';
+  var overall = document.getElementById('cfg-overall');
+  if (status.overall_ok) {
+    overall.innerHTML = '<span style="color:#22c55e;">Overall: READY</span>';
+  } else {
+    overall.innerHTML = '<span style="color:#fc8181;">Overall: NOT READY</span>';
+  }
+}
+
+document.getElementById('cfg-check').onclick = runCheckStatus;
+document.getElementById('cfg-repair').onclick = function() {
+  var applyBtn = document.getElementById('cfg-apply');
+  if (applyBtn) applyBtn.click();
+};
+// ---------- end readiness panel ----------
 document.getElementById('cfg-test').onclick = async function() {
   var ip = document.getElementById('cfg-ip').textContent;
   var user = document.getElementById('cfg-user').value || 'admin';
@@ -450,6 +521,8 @@ document.getElementById('cfg-apply').onclick = async function() {
       (r.ok ? 'SUCCESS' : 'PARTIAL') + ' -- applied ' + r.applied + ', failed ' + r.failed + '\n\n' + tail,
       r.ok ? '#22c55e' : '#fbbf24'
     );
+    // Auto-run readiness check after Apply
+    runCheckStatus();
   } catch (e) {
     cfgSetStatus('FAILED: ' + e, '#fc8181');
   }
