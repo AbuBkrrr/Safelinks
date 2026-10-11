@@ -30,6 +30,13 @@
 }
 
 # --- 2. LAN bridge (all LAN ports share the hotspot) ---
+# Detach every interface we manage from ANY bridge it currently belongs to.
+# Factory-default RB750GL ships with ether2-5 in the default "bridge".
+:foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
+    :if ([:len [/interface ethernet find name=$iface]] > 0) do={
+        /interface bridge port remove [find interface=$iface]
+    }
+}
 /interface bridge port remove [find bridge="safelinks-bridge"]
 /interface bridge remove [find name="safelinks-bridge"]
 /interface bridge add name="safelinks-bridge" comment="SafeLinks bridge"
@@ -39,7 +46,6 @@
         /interface bridge port add bridge="safelinks-bridge" interface=$iface comment="SafeLinks LAN"
     }
 }
-
 # --- 3. Add wireless to bridge IF the package is installed ---
 :do {
     :foreach iface in=[/interface wireless find] do={
