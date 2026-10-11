@@ -86,6 +86,66 @@ async fn exec(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, 
 }
 
 
+async fn run_script_via_shell(
+    session: &mut Handle<AcceptAllKeys>,
+    script: &str,
+) -> Result<String, String> {
+    // RouterOS exec mode collapses everything to one line. Interactive shell
+    // mode accepts newline-separated multi-line scripts. We open a shell
+    // channel, dump the whole script, then read until output goes idle.
+    let mut channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| format!("shell channel open failed: {}", e))?;
+
+    channel
+        .request_shell(true)
+        .await
+        .map_err(|e| format!("request_shell failed: {}", e))?;
+
+    // Let RouterOS print its first prompt
+    tokio::time::sleep(Duration::from_millis(900)).await;
+
+    // Drain the initial banner
+    let mut pre: Vec<u8> = Vec::new();
+    loop {
+        match tokio::time::timeout(Duration::from_millis(400), channel.wait()).await {
+            Ok(Some(ChannelMsg::Data { ref data })) => pre.extend_from_slice(data),
+            _ => break,
+        }
+    }
+
+    // Send the whole script. \n works in shell mode.
+    let mut payload = String::new();
+    payload.push_str(script);
+    if !script.ends_with('\n') { payload.push('\n'); }
+
+    channel
+        .data(payload.as_bytes())
+        .await
+        .map_err(|e| format!("write failed: {}", e))?;
+
+    // Read until output goes quiet for 3 consecutive seconds, or 90s hard cap.
+    let hard_deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+    let mut out: Vec<u8> = Vec::new();
+
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= hard_deadline { break; }
+
+        let wait_for = Duration::from_secs(3);
+        match tokio::time::timeout(wait_for, channel.wait()).await {
+            Ok(Some(ChannelMsg::Data { ref data })) => out.extend_from_slice(data),
+            Ok(Some(ChannelMsg::ExtendedData { ref data, .. })) => out.extend_from_slice(data),
+            Ok(Some(ChannelMsg::Eof)) | Ok(Some(ChannelMsg::Close)) | Ok(None) => break,
+            Ok(Some(_)) => {}
+            Err(_) => break, // idle timeout - script has finished
+        }
+    }
+
+    let _ = channel.close().await;
+    Ok(String::from_utf8_lossy(&out).into_owned())
+}
 async fn exec_raw(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, String> {
     // Like exec() but does NOT reject on RouterOS runtime error strings.
     // Script transport wants the raw output so we can look for STATUS OK.
@@ -255,27 +315,17 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    // 1. Set preamble globals as individual exec calls so they exist in the
-    //    session before the .rsc references them.
-    let preamble = vec![
-        format!(":global SL_SSID \"{}\"", escape_ros(&ssid)),
-        format!(":global SL_WIFI_PASS \"{}\"", escape_ros(&wifi_password)),
-        ":global SL_WAN_MODE \"dhcp\"".to_string(),
-        ":global SL_LAN_IP \"192.168.88.1\"".to_string(),
-    ];
-    for p in &preamble {
-        let _ = exec_raw(&mut session, p).await;
-    }
+    // Build the script with our values inlined at the top so the .rsc sees them.
+    let mut file_contents = String::new();
+    file_contents.push_str(&format!(":global SL_SSID \"{}\"\n", escape_ros(&ssid)));
+    file_contents.push_str(&format!(":global SL_WIFI_PASS \"{}\"\n", escape_ros(&wifi_password)));
+    file_contents.push_str(":global SL_WAN_MODE \"dhcp\"\n");
+    file_contents.push_str(":global SL_LAN_IP \"192.168.88.1\"\n");
+    file_contents.push_str(CONFIGURE_RSC);
 
-    // 2. RouterOS exec mode cannot parse multi-line :do{...} or :if ... do={...}
-    //    blocks - they must be on one line with balanced braces. Compress each
-    //    top-level statement to a single line and join with \r\n.
-    let statements = compress_rsc_to_statements(CONFIGURE_RSC);
-    let script = statements.join("\r\n");
-
-    // 3. Send as one exec. Parse the output for RouterOS error patterns;
-    //    "STATUS OK" alone is not proof of success.
-    match exec_raw(&mut session, &script).await {
+    // Run through an interactive shell channel. Exec mode is single-line only;
+    // shell mode parses the .rsc line by line, preserving block structure.
+    match run_script_via_shell(&mut session, &file_contents).await {
         Ok(out) => {
             let errors = count_ros_errors(&out);
             if out.contains("STATUS OK") && errors == 0 {
@@ -288,7 +338,7 @@ pub async fn installer_router_apply_config(
                 failed = 1;
                 log.push("Script ran but STATUS OK marker was not returned.".to_string());
             }
-            let tail: Vec<&str> = out.lines().rev().take(25).collect();
+            let tail: Vec<&str> = out.lines().rev().take(30).collect();
             for line in tail.iter().rev() {
                 let t = line.trim();
                 if !t.is_empty() { log.push(t.to_string()); }
