@@ -123,6 +123,66 @@ fn count_ros_entries(s: &str) -> usize {
         .count()
 }
 
+
+/// Compress a .rsc file into one top-level statement per line, preserving
+/// block structure. RouterOS exec mode rejects multi-line :do{} and
+/// :if ... do={} blocks - they must be on one line with balanced braces.
+/// Bare ":global NAME" declarations are dropped (they are set by the preamble).
+fn compress_rsc_to_statements(rsc: &str) -> Vec<String> {
+    let mut statements: Vec<String> = Vec::new();
+    let mut pending = String::new();
+    let mut depth: i32 = 0;
+
+    for raw in rsc.lines() {
+        let t = raw.trim();
+        if t.is_empty() { continue; }
+        if t.starts_with('#') { continue; }
+
+        // Skip bare ":global NAME" - set by preamble instead.
+        if t.starts_with(":global ") {
+            let parts: Vec<&str> = t.split_whitespace().collect();
+            if parts.len() == 2 { continue; }
+        }
+
+        for ch in t.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+        }
+
+        if !pending.is_empty() { pending.push(' '); }
+        pending.push_str(t);
+
+        if depth <= 0 {
+            statements.push(pending.clone());
+            pending.clear();
+            depth = 0;
+        }
+    }
+
+    if !pending.is_empty() { statements.push(pending); }
+    statements
+}
+
+/// Count RouterOS error markers. "no such item" is deliberately NOT counted -
+/// it is benign output from remove commands when the target did not exist.
+fn count_ros_errors(s: &str) -> usize {
+    let lower = s.to_lowercase();
+    let patterns = [
+        "syntax error",
+        "bad parameter name",
+        "expected closing brace",
+        "expected end of command",
+        "invalid value",
+        "input does not match",
+        "script error",
+        "failure:",
+        "bad command name",
+    ];
+    patterns.iter().map(|p| lower.matches(p).count()).sum()
+}
 #[derive(Serialize)]
 pub struct TestSshResult {
     pub ok: bool,
@@ -195,33 +255,38 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    // RouterOS SSH exec treats \r\n as a statement separator AND preserves
-    // multi-line :do {} on-error={} block structure. Flattening with "; "
-    // collapses the whole script into one line and RouterOS rejects it with
-    // "expected end of command". So build the script with explicit \r\n
-    // endings and send it as a single exec.
-    let mut script = String::new();
-    script.push_str(":global SL_WAN_MODE \"dhcp\"\r\n");
-    script.push_str(":global SL_LAN_IP \"192.168.88.1\"\r\n");
-    script.push_str(&format!(":global SL_SSID \"{}\"\r\n", escape_ros(&ssid)));
-    script.push_str(&format!(":global SL_WIFI_PASS \"{}\"\r\n", escape_ros(&wifi_password)));
-    for raw in CONFIGURE_RSC.lines() {
-        script.push_str(raw);
-        script.push_str("\r\n");
+    // 1. Set preamble globals as individual exec calls so they exist in the
+    //    session before the .rsc references them.
+    let preamble = vec![
+        format!(":global SL_SSID \"{}\"", escape_ros(&ssid)),
+        format!(":global SL_WIFI_PASS \"{}\"", escape_ros(&wifi_password)),
+        ":global SL_WAN_MODE \"dhcp\"".to_string(),
+        ":global SL_LAN_IP \"192.168.88.1\"".to_string(),
+    ];
+    for p in &preamble {
+        let _ = exec_raw(&mut session, p).await;
     }
 
-    // Use exec_raw (not exec) here. The apply script has its own on-error
-    // guards, and its remove commands print benign "no such item" output
-    // when there is nothing to remove. exec() would abort on that. We just
-    // want to run the script and look for the STATUS OK marker.
+    // 2. RouterOS exec mode cannot parse multi-line :do{...} or :if ... do={...}
+    //    blocks - they must be on one line with balanced braces. Compress each
+    //    top-level statement to a single line and join with \r\n.
+    let statements = compress_rsc_to_statements(CONFIGURE_RSC);
+    let script = statements.join("\r\n");
+
+    // 3. Send as one exec. Parse the output for RouterOS error patterns;
+    //    "STATUS OK" alone is not proof of success.
     match exec_raw(&mut session, &script).await {
         Ok(out) => {
-            if out.contains("STATUS OK") {
+            let errors = count_ros_errors(&out);
+            if out.contains("STATUS OK") && errors == 0 {
                 applied = 1;
-                log.push("Script executed. STATUS OK.".to_string());
+                log.push("SUCCESS: router is configured and serving the portal.".to_string());
+            } else if errors > 0 {
+                failed = errors;
+                log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
             } else {
                 failed = 1;
-                log.push("Script ran but no STATUS OK marker was returned.".to_string());
+                log.push("Script ran but STATUS OK marker was not returned.".to_string());
             }
             let tail: Vec<&str> = out.lines().rev().take(25).collect();
             for line in tail.iter().rev() {
