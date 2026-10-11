@@ -117,25 +117,41 @@
 /ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=no
 
 # --- 8. Walled garden (pre-auth allowed) ---
-# Explicit entries for the portal + backend + OAuth + payments. Wildcards are
-# unreliable in RouterOS; list every hostname the browser will hit.
+# Two mechanisms needed:
+#   1) HTTP (port 80): host-based walled-garden matches on the Host header.
+#   2) HTTPS (port 443): Host header is encrypted, so we must match by IP.
+#      We use /ip firewall address-list with a DNS hostname entry. RouterOS
+#      resolves the name and updates the list periodically, so the portal's
+#      Railway IP is always allowed even if it changes.
+
+# Step 8a. HTTP host-based entries (browser hits these pre-HSTS)
 /ip hotspot walled-garden remove [find comment="SafeLinks portal"]
 /ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="oauth2.googleapis.com" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="api.flutterwave.com" action=allow comment="SafeLinks portal"
 
-# Allow DNS resolution pre-auth
+# Step 8b. Address-list with hostnames (RouterOS auto-resolves these to IPs
+# and keeps the list current). This is what makes HTTPS work.
+/ip firewall address-list remove [find list="safelinks-portal"]
+/ip firewall address-list add list="safelinks-portal" address="safelinks.name.ng" comment="SafeLinks portal host"
+/ip firewall address-list add list="safelinks-portal" address="www.safelinks.name.ng" comment="SafeLinks portal host"
+/ip firewall address-list add list="safelinks-portal" address="backend-services-production-78d8.up.railway.app" comment="SafeLinks backend"
+/ip firewall address-list add list="safelinks-portal" address="accounts.google.com" comment="SafeLinks OAuth"
+/ip firewall address-list add list="safelinks-portal" address="checkout.flutterwave.com" comment="SafeLinks payments"
+
+# Step 8c. IP walled-garden: allow the whole portal address-list through HTTPS
+/ip hotspot walled-garden ip remove [find comment~"SafeLinks"]
+/ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" comment="SafeLinks portal IPs"
 /ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS"
 /ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS"
 /ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS"
+/ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin winbox"
+/ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin ssh"
 
-# Allow Winbox (8291), SSH (22), and web (80/443) on the LAN for admin recovery
-/ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin"
-/ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin"
+# Step 8d. Also allow QUIC (UDP 443) so browsers don't stall before fallback
+/ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic"
 
 # --- 9. Pairing code ---
 :if ([:typeof $slPairCode] != "nothing") do={
