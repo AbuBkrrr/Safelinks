@@ -66,9 +66,18 @@
 } on-error={ :log info "no wifi package - skipping" }
 
 # --- 4. LAN IP on the bridge ---
+# Remove LAN IP from ANY interface it might currently be on. Factory RB750GL
+# ships 192.168.88.1/24 on the default "bridge" - if we leave it there, two
+# interfaces claim the same IP and Winbox/SSH time out.
 /ip address remove [find interface="ether2"]
 /ip address remove [find interface="safelinks-bridge"]
+/ip address remove [find interface="bridge"]
 /ip address add address=($slLanIp . "/24") interface="safelinks-bridge" comment="SafeLinks LAN"
+
+# Disable the factory-default bridge + its DHCP server so only
+# safelinks-bridge is live and answering.
+/interface bridge disable [find name="bridge"]
+/ip dhcp-server disable [find name="defconf"]
 
 # --- 5. DHCP pool + server ---
 /ip pool remove [find name="safelinks-pool"]
@@ -108,11 +117,25 @@
 /ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=no
 
 # --- 8. Walled garden (pre-auth allowed) ---
+# Explicit entries for the portal + backend + OAuth + payments. Wildcards are
+# unreliable in RouterOS; list every hostname the browser will hit.
 /ip hotspot walled-garden remove [find comment="SafeLinks portal"]
+/ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="*.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="oauth2.googleapis.com" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="api.flutterwave.com" action=allow comment="SafeLinks portal"
+
+# Allow DNS resolution pre-auth
+/ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS"
+/ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS"
+/ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS"
+
+# Allow Winbox (8291), SSH (22), and web (80/443) on the LAN for admin recovery
+/ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin"
+/ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin"
 
 # --- 9. Pairing code ---
 :if ([:typeof $slPairCode] != "nothing") do={
