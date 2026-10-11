@@ -116,6 +116,23 @@
 /ip hotspot profile add name="safelinks-profile" hotspot-address=$slLanIp dns-name="www.safelinks.name.ng" html-directory=hotspot
 /ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=no
 
+# --- 7b. Replace factory hotspot pages with a redirect to the SAFE_Links portal ---
+# RouterOS serves hotspot/login.html when a client hits any HTTP site pre-auth.
+# We overwrite it so the browser is bounced straight to the SAFE_Links portal.
+# Single-quoted HTML attributes inside the double-quoted string - safe for .rsc.
+:do {
+    /file remove [find name="hotspot/login.html"]
+} on-error={ :log info "no default login.html to remove" }
+:do {
+    /file remove [find name="hotspot/redirect.html"]
+} on-error={ :log info "no default redirect.html to remove" }
+
+/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
+
+/file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
+
+:log info "Hotspot pages replaced with SAFE_Links redirect"
+
 # --- 8. Walled garden (pre-auth allowed) ---
 # Two mechanisms needed:
 #   1) HTTP (port 80): host-based walled-garden matches on the Host header.
