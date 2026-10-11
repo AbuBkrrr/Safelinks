@@ -317,10 +317,10 @@ pub async fn installer_router_apply_config(
 
     // Build the script with our values inlined at the top so the .rsc sees them.
     let mut file_contents = String::new();
-    file_contents.push_str(&format!(":global SL_SSID \"{}\"\n", escape_ros(&ssid)));
-    file_contents.push_str(&format!(":global SL_WIFI_PASS \"{}\"\n", escape_ros(&wifi_password)));
-    file_contents.push_str(":global SL_WAN_MODE \"dhcp\"\n");
-    file_contents.push_str(":global SL_LAN_IP \"192.168.88.1\"\n");
+    file_contents.push_str(&format!(":global slSsid \"{}\"\n", escape_ros(&ssid)));
+    file_contents.push_str(&format!(":global slWifiPass \"{}\"\n", escape_ros(&wifi_password)));
+    file_contents.push_str(":global slWanMode \"dhcp\"\n");
+    file_contents.push_str(":global slLanIp \"192.168.88.1\"\n");
     file_contents.push_str(CONFIGURE_RSC);
 
     // Run through an interactive shell channel. Exec mode is single-line only;
@@ -471,10 +471,10 @@ pub async fn installer_save_rsc(ssid: String, wifi_password: String) -> Result<S
     let mut lines_out: Vec<String> = Vec::new();
     for line in CONFIGURE_RSC.lines() {
         let t = line.trim_end();
-        if t == ":global SL_SSID" {
-            lines_out.push(format!(":global SL_SSID \"{}\"", escape_ros(&ssid)));
-        } else if t == ":global SL_WIFI_PASS" {
-            lines_out.push(format!(":global SL_WIFI_PASS \"{}\"", escape_ros(&wifi_password)));
+        if t == ":global slSsid" {
+            lines_out.push(format!(":global slSsid \"{}\"", escape_ros(&ssid)));
+        } else if t == ":global slWifiPass" {
+            lines_out.push(format!(":global slWifiPass \"{}\"", escape_ros(&wifi_password)));
         } else {
             lines_out.push(line.to_string());
         }
