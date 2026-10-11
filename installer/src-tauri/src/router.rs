@@ -85,6 +85,31 @@ async fn exec(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, 
     Ok(s)
 }
 
+
+async fn exec_raw(session: &mut Handle<AcceptAllKeys>, cmd: &str) -> Result<String, String> {
+    // Like exec() but does NOT reject on RouterOS runtime error strings.
+    // Script transport wants the raw output so we can look for STATUS OK.
+    let mut channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| format!("channel open failed: {}", e))?;
+
+    channel
+        .exec(true, cmd)
+        .await
+        .map_err(|e| format!("exec failed: {}", e))?;
+
+    let mut out: Vec<u8> = Vec::new();
+    loop {
+        match channel.wait().await {
+            Some(ChannelMsg::Data { ref data }) => out.extend_from_slice(data),
+            Some(ChannelMsg::ExtendedData { ref data, .. }) => out.extend_from_slice(data),
+            Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
+            _ => {}
+        }
+    }
+    Ok(String::from_utf8_lossy(&out).into_owned())
+}
 fn escape_ros(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -170,40 +195,43 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    // RouterOS treats \n inside SSH exec as whitespace, not line breaks. A multi-line
-    // .rsc would collapse into a single line and every `:if ... do={ ... }` block
-    // would fail with "expected closing brace". So flatten every statement with `;`
-    // and send the whole thing as one exec.
-    let mut script = format!(
-        ":global SL_WAN_MODE \"dhcp\"; :global SL_LAN_IP \"192.168.88.1\"; :global SL_SSID \"{}\"; :global SL_WIFI_PASS \"{}\"; ",
-        escape_ros(&ssid),
-        escape_ros(&wifi_password)
-    );
+    // RouterOS SSH exec treats \r\n as a statement separator AND preserves
+    // multi-line :do {} on-error={} block structure. Flattening with "; "
+    // collapses the whole script into one line and RouterOS rejects it with
+    // "expected end of command". So build the script with explicit \r\n
+    // endings and send it as a single exec.
+    let mut script = String::new();
+    script.push_str(":global SL_WAN_MODE \"dhcp\"\r\n");
+    script.push_str(":global SL_LAN_IP \"192.168.88.1\"\r\n");
+    script.push_str(&format!(":global SL_SSID \"{}\"\r\n", escape_ros(&ssid)));
+    script.push_str(&format!(":global SL_WIFI_PASS \"{}\"\r\n", escape_ros(&wifi_password)));
     for raw in CONFIGURE_RSC.lines() {
-        let t = raw.trim();
-        if t.is_empty() || t.starts_with('#') { continue; }
-        script.push_str(t);
-        script.push_str("; ");
+        script.push_str(raw);
+        script.push_str("\r\n");
     }
 
-    match exec(&mut session, &script).await {
+    // Use exec_raw (not exec) here. The apply script has its own on-error
+    // guards, and its remove commands print benign "no such item" output
+    // when there is nothing to remove. exec() would abort on that. We just
+    // want to run the script and look for the STATUS OK marker.
+    match exec_raw(&mut session, &script).await {
         Ok(out) => {
             if out.contains("STATUS OK") {
                 applied = 1;
-                log.push("Script executed, STATUS OK".to_string());
-                if log.len() < 80 {
-                    // keep a tail of the output for the UI
-                    let tail: Vec<&str> = out.lines().rev().take(10).collect();
-                    for line in tail.iter().rev() { log.push((*line).to_string()); }
-                }
+                log.push("Script executed. STATUS OK.".to_string());
             } else {
                 failed = 1;
-                log.push(format!("No STATUS OK marker; output: {}", out.trim()));
+                log.push("Script ran but no STATUS OK marker was returned.".to_string());
+            }
+            let tail: Vec<&str> = out.lines().rev().take(25).collect();
+            for line in tail.iter().rev() {
+                let t = line.trim();
+                if !t.is_empty() { log.push(t.to_string()); }
             }
         }
         Err(e) => {
             failed = 1;
-            log.push(format!("Script failed: {}", e));
+            log.push(format!("Script transport failed: {}", e));
         }
     }
 
