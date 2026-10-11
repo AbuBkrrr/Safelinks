@@ -460,3 +460,34 @@ pub async fn installer_router_check_status(
         .await;
     Ok(status)
 }
+
+
+// ========================================================================
+// Option B: save the .rsc to disk for manual Winbox import.
+// No SSH, no exec mode, no shell channel. Just writes a file.
+// ========================================================================
+#[tauri::command]
+pub async fn installer_save_rsc(ssid: String, wifi_password: String) -> Result<String, String> {
+    let mut lines_out: Vec<String> = Vec::new();
+    for line in CONFIGURE_RSC.lines() {
+        let t = line.trim_end();
+        if t == ":global SL_SSID" {
+            lines_out.push(format!(":global SL_SSID \"{}\"", escape_ros(&ssid)));
+        } else if t == ":global SL_WIFI_PASS" {
+            lines_out.push(format!(":global SL_WIFI_PASS \"{}\"", escape_ros(&wifi_password)));
+        } else {
+            lines_out.push(line.to_string());
+        }
+    }
+    let body = lines_out.join("\r\n") + "\r\n";
+
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "cannot find home directory".to_string())?;
+    let dir = std::path::PathBuf::from(home).join("Documents").join("SAFE_Links");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {}", e))?;
+    let path = dir.join("safelinks-configure.rsc");
+    std::fs::write(&path, body.as_bytes()).map_err(|e| format!("write failed: {}", e))?;
+
+    Ok(path.to_string_lossy().to_string())
+}

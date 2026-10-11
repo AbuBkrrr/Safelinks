@@ -222,7 +222,7 @@
 
     <div class="btn-row">
       <button id="cfg-test" class="secondary">Test SSH</button>
-      <button id="cfg-apply" class="success">Apply configuration</button>
+      <button id="cfg-apply" class="success">Save setup file</button>
     </div>
     <div id="cfg-status" class="status" style="display:none;"></div>
 
@@ -570,6 +570,36 @@ document.getElementById('in-password').addEventListener('keydown', e => {
     if (!ok) show('login');
   }
 })();
+
+// ============ Option B override: Save setup file ============
+function _optBSaveSetupFile() {
+  var ssid = document.getElementById('cfg-ssid').value.trim();
+  var wifiPassword = document.getElementById('cfg-wifi-pass').value;
+  if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
+  if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
+
+  cfgSetStatus('Saving setup file...', '#fbbf24');
+  invoke('installer_save_rsc', { ssid: ssid, wifiPassword: wifiPassword })
+    .then(function(path) {
+      var msg =
+        'Setup file saved to:\n  ' + path + '\n\n' +
+        'Next steps:\n' +
+        '  1. Open Winbox and connect to ' + document.getElementById('cfg-ip').textContent + '\n' +
+        '  2. In Winbox: Files - drag the .rsc file above into the router\n' +
+        '  3. In Winbox: New Terminal - run:\n' +
+        '       /import file=safelinks-configure.rsc\n' +
+        '  4. Come back here and click Check status.';
+      cfgSetStatus(msg, '#22c55e');
+    })
+    .catch(function(e) {
+      cfgSetStatus('Save failed: ' + e, '#fc8181');
+    });
+}
+
+// Replace any existing cfg-apply onclick with our new handler.
+// Runs after the original script block has attached its handler.
+document.getElementById('cfg-apply').onclick = _optBSaveSetupFile;
+// ============ end Option B override ============
 </script>
 </body>
 </html>

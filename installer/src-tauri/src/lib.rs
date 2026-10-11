@@ -54,6 +54,7 @@ pub fn run() {
             commands::scan_lan,
             commands::probe_router,
             preflight::check_prerequisites,
+            router::installer_save_rsc,
             router::installer_router_test_ssh,
             router::installer_router_apply_config,
             router::installer_router_check_status,
