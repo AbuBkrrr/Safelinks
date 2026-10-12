@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Shield, Wifi, Radio, Smartphone, LogIn, UserPlus } from "lucide-react";
 import { T, Btn, Toast, GlobalStyle } from "./ui.jsx";
@@ -87,6 +87,32 @@ export default function App() {
 
   const notify = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); }, []);
   const handleExit = useCallback(() => { clearSession(); setSessionState(null); setStage("landing"); }, []);
+
+  // Installer deep-link: if the URL carries ?token=<jwt>, adopt it as the session
+  // and jump straight into the reseller dashboard (skip login screen).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (!urlToken) return;
+    try {
+      const payload = JSON.parse(atob(urlToken.split('.')[1]));
+      const role = payload.role || 'reseller';
+      const user = {
+        id: payload.resellerId || payload.sub,
+        resellerId: payload.resellerId,
+        email: payload.email || '',
+        companyName: payload.companyName || '',
+      };
+      localStorage.setItem('SAFELINKS_token', urlToken);
+      localStorage.setItem('SAFELINKS_role', role);
+      localStorage.setItem('SAFELINKS_user', JSON.stringify(user));
+      setSessionState({ token: urlToken, role, user });
+      setStage(role === 'super_admin' ? 'super_admin' : 'reseller');
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch (e) {
+      // Malformed token - fall through to landing/login
+    }
+  }, []);
 
   if (route.name === "portal") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><CaptivePortal resellerId={route.resellerId} notify={notify} onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "install") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><StandaloneInstaller onExit={() => { window.location.href = "/"; }} /></div>);
