@@ -155,7 +155,7 @@
       </div>
       <div class="row">
         <button id="btn-logout" class="secondary">Sign out</button>
-        <button id="btn-dashboard" class="secondary">Open dashboard</button>
+        <button id="btn-dashboard" class="secondary" style="display:none;">Open dashboard</button>
       </div>
     </div>
 
@@ -203,13 +203,18 @@
     <h3>Configure router <span id="cfg-ip" class="mono">-</span></h3>
     <div class="sub">Enter the router admin credentials, then set your WiFi network name and password. Click <b>Apply configuration</b> to push the SAFE_Links captive-portal setup.</div>
 
-    <div class="field">
-      <label>Router admin username</label>
-      <input id="cfg-user" type="text" value="admin" />
+    <div id="cfg-admin-fields" style="display:none;">
+      <div class="field">
+        <label>Router admin username</label>
+        <input id="cfg-user" type="text" value="admin" />
+      </div>
+      <div class="field">
+        <label>Router admin password</label>
+        <input id="cfg-pass" type="password" placeholder="(blank for factory-default MikroTik)" />
+      </div>
     </div>
-    <div class="field">
-      <label>Router admin password</label>
-      <input id="cfg-pass" type="password" placeholder="(blank for factory-default MikroTik)" />
+    <div style="margin-bottom:14px; text-align:right;">
+      <a id="cfg-admin-toggle" style="color:#667eea; font-size:12px; cursor:pointer;">Advanced: enter router admin credentials</a>
     </div>
     <div class="field">
       <label>WiFi network name (SSID)</label>
@@ -285,6 +290,18 @@ async function runPreflight() {
 
 function renderSession(sess) {
   currentSession = sess;
+  // Persist the reseller ID + email so Save setup file can bake the correct
+  // portal URL (/portal/<reseller_id>) into the .rsc.
+  try {
+    const u = sess.user || {};
+    const rid = u.id || u.reseller_id || u.resellerId || u.resellerID || '';
+    if (rid) localStorage.setItem('reseller_id', String(rid));
+    if (u.email) localStorage.setItem('user_email', String(u.email));
+    if (sess.token) localStorage.setItem('auth_token', String(sess.token));
+    console.log('[renderSession] persisted reseller_id =', rid, 'email =', u.email);
+  } catch (e) {
+    console.warn('[renderSession] could not persist session:', e);
+  }
   document.getElementById('scan-user').textContent =
     `Signed in as ${sess.user?.companyName || sess.user?.email || 'reseller'} (${sess.auth_method === 'google' ? 'Google' : 'Email'})`;
   show('scan');
@@ -354,6 +371,7 @@ function pickRouterState(state) {
   } else {
     note.innerHTML = '<strong>Used router:</strong> must be reset to factory defaults first. Hold the Reset button 10 sec while powered, wait 60 sec, replug Ethernet, then scan again.';
   }
+  _slAutoScan();
 }
 
 const statusEl = document.getElementById('status');
@@ -424,6 +442,13 @@ function openCfgModal(device) {
   var ssidInput = document.getElementById('cfg-ssid');
   if (!ssidInput.value) ssidInput.value = 'SAFE_Links-WiFi';
   document.getElementById('cfg-modal').style.display = 'flex';
+
+  // Show readiness panel by default and auto-run status check.
+  var panel = document.getElementById('cfg-readiness');
+  if (panel) panel.style.display = 'block';
+  var checksEl = document.getElementById('cfg-checks');
+  if (checksEl) checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
+  setTimeout(function() { runCheckStatus(); }, 400);
 }
 
 function closeCfgModal() {
@@ -451,9 +476,65 @@ async function runCheckStatus() {
   try {
     var r = await invoke('installer_router_check_status', { ip: ip, user: user, password: pass });
     renderChecks(r);
+    if (r.overall_ok) {
+      var topDash = document.getElementById('btn-dashboard');
+      if (topDash) topDash.style.display = '';
+      showSuccessPanel(ip);
+    }
   } catch (e) {
     checksEl.innerHTML = '<div style="color:#fc8181; font-size:12.5px;">Check failed: ' + e + '</div>';
+    var eStr = String(e).toLowerCase();
+    if (eStr.indexOf('auth') !== -1 || eStr.indexOf('password') !== -1 || eStr.indexOf('login') !== -1 || eStr.indexOf('credential') !== -1) {
+      var af = document.getElementById('cfg-admin-fields');
+      var at = document.getElementById('cfg-admin-toggle');
+      if (af && af.style.display === 'none') {
+        af.style.display = 'block';
+        if (at) at.textContent = 'Hide advanced credentials';
+      }
+    }
   }
+}
+
+function showSuccessPanel(ip) {
+  var inner = document.getElementById('configModalInner');
+  if (!inner) return;
+  inner.innerHTML = [
+    '<button class="btn-close" onclick="closeCfgModal()">&#215;</button>',
+    '<h3 style="color:#7ae0b0;">Router is live</h3>',
+    '<div class="sub">Captive portal is running. Wi-Fi and portal are ready for customers on <b>' + (ip || '') + '</b>.</div>',
+    '<div style="display:flex; gap:10px; margin-top:22px; flex-wrap:wrap;">',
+    '  <button onclick="dashboardWithToken()" style="flex:1; min-width:180px; padding:14px; border:none; border-radius:10px; background:#667eea; color:white; font-weight:600; cursor:pointer;">Open dashboard</button>',
+    '  <button onclick="configureAnother()" style="flex:1; min-width:180px; padding:14px; border:1px solid #334155; border-radius:10px; background:#1e293b; color:#e2e8f0; font-weight:600; cursor:pointer;">Configure another router</button>',
+    '</div>'
+  ].join('');
+}
+
+function dashboardWithToken() {
+  var token = localStorage.getItem('auth_token') || '';
+  try {
+    invoke('open_dashboard', { token: token }).catch(function(e) { alert('Could not open dashboard: ' + e); });
+  } catch (e) {
+    alert('Could not open dashboard: ' + e);
+  }
+  try { closeCfgModal(); } catch (_) {}
+}
+
+function configureAnother() {
+  try { document.getElementById('btnClear').click(); } catch (_) {}
+  routerState = null;
+  try {
+    document.querySelectorAll('.choice-btn').forEach(function(b) { b.classList.remove('active'); });
+    var sn = document.getElementById('stateNote');
+    if (sn) sn.style.display = 'none';
+  } catch (_) {}
+  try { closeCfgModal(); } catch (_) {}
+}
+
+function _slAutoScan() {
+  setTimeout(function() {
+    var b = document.getElementById('btnScan');
+    if (b && !b.disabled) b.click();
+  }, 600);
 }
 
 function renderChecks(status) {
@@ -529,7 +610,15 @@ document.getElementById('cfg-apply').onclick = async function() {
 };
 // ---------- end modal ----------
 document.getElementById('btn-dashboard').onclick = async () => {
-  try { await invoke('open_dashboard'); } catch (e) { alert('Could not open dashboard: ' + e); }
+  var token = localStorage.getItem('auth_token') || '';
+  try { await invoke('open_dashboard', { token: token }); } catch (e) { alert('Could not open dashboard: ' + e); }
+};
+document.getElementById('cfg-admin-toggle').onclick = function() {
+  var f = document.getElementById('cfg-admin-fields');
+  if (!f) return;
+  var shown = f.style.display !== 'none';
+  f.style.display = shown ? 'none' : 'block';
+  this.textContent = shown ? 'Advanced: enter router admin credentials' : 'Hide advanced credentials';
 };
 
 document.getElementById('btn-google').onclick = async () => {
@@ -572,14 +661,19 @@ document.getElementById('in-password').addEventListener('keydown', e => {
 })();
 
 // ============ Option B override: Save setup file ============
-function _optBSaveSetupFile() {
+async function _optBSaveSetupFile() {
   var ssid = document.getElementById('cfg-ssid').value.trim();
   var wifiPassword = document.getElementById('cfg-wifi-pass').value;
   if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
   if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
 
   cfgSetStatus('Saving setup file...', '#fbbf24');
-  invoke('installer_save_rsc', { ssid: ssid, wifiPassword: wifiPassword })
+  invoke('installer_save_rsc', {
+      ssid: ssid,
+      wifiPassword: wifiPassword,
+      resellerId: localStorage.getItem('reseller_id') || 'default',
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; })
+    })
     .then(function(path) {
       var msg =
         'Setup file saved to:\n  ' + path + '\n\n' +

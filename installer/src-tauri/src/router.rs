@@ -467,7 +467,12 @@ pub async fn installer_router_check_status(
 // No SSH, no exec mode, no shell channel. Just writes a file.
 // ========================================================================
 #[tauri::command]
-pub async fn installer_save_rsc(ssid: String, wifi_password: String) -> Result<String, String> {
+pub async fn installer_save_rsc(
+    ssid: String,
+    wifi_password: String,
+    reseller_id: String,
+    admin_mac: String,
+) -> Result<String, String> {
     let mut lines_out: Vec<String> = Vec::new();
     for line in CONFIGURE_RSC.lines() {
         let t = line.trim_end();
@@ -475,6 +480,10 @@ pub async fn installer_save_rsc(ssid: String, wifi_password: String) -> Result<S
             lines_out.push(format!(":global slSsid \"{}\"", escape_ros(&ssid)));
         } else if t == ":global slWifiPass" {
             lines_out.push(format!(":global slWifiPass \"{}\"", escape_ros(&wifi_password)));
+        } else if t == ":global slResellerId" {
+            lines_out.push(format!(":global slResellerId \"{}\"", escape_ros(&reseller_id)));
+        } else if t == ":global slAdminMac" {
+            lines_out.push(format!(":global slAdminMac \"{}\"", escape_ros(&admin_mac)));
         } else {
             lines_out.push(line.to_string());
         }

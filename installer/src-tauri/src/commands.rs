@@ -164,3 +164,14 @@ pub async fn probe_router(ip: String) -> Result<Device, String> {
     let mac = arp.get(&parsed).cloned();
     Ok(enrich(parsed, ports, mac, gateway).await)
 }
+
+#[tauri::command]
+pub async fn get_local_mac() -> Result<String, String> {
+    match default_net::get_default_interface() {
+        Ok(iface) => match iface.mac_addr {
+            Some(m) => Ok(m.to_string().to_uppercase()),
+            None => Err("default interface has no MAC".into()),
+        },
+        Err(e) => Err(format!("could not detect default interface: {}", e)),
+    }
+}

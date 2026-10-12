@@ -51,6 +51,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::local_info,
+            commands::get_local_mac,
             commands::scan_lan,
             commands::probe_router,
             preflight::check_prerequisites,

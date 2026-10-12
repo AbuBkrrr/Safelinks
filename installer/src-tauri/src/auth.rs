@@ -191,8 +191,33 @@ pub fn open_url_external(url: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn open_dashboard() -> Result<(), String> {
-    open_url_external("https://www.safelinks.name.ng/")
+pub async fn open_dashboard(app: tauri::AppHandle, token: Option<String>) -> Result<(), String> {
+    let mut url = String::from("https://www.safelinks.name.ng/agent-login?source=installer");
+    if let Some(t) = token.as_deref() {
+        if !t.is_empty() {
+            url.push_str("&token=");
+            url.push_str(t);
+        }
+    }
+    // Reuse an existing dashboard window if already open, else create a new
+    // Tauri webview window pointing at the agent-login URL. Uses the same
+    // WebView2 profile as the main window, so the reseller's session cookies
+    // are shared and they are already logged in.
+    if let Some(w) = tauri::Manager::get_webview_window(&app, "dashboard") {
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "dashboard",
+        tauri::WebviewUrl::External(url.parse().map_err(|e| format!("bad url: {}", e))?),
+    )
+    .title("SAFE_Links Dashboard")
+    .inner_size(1200.0, 820.0)
+    .min_inner_size(900.0, 600.0)
+    .build()
+    .map_err(|e| format!("could not open dashboard window: {}", e))?;
+    Ok(())
 }
 
 #[tauri::command]

@@ -9,6 +9,8 @@
 :global slWifiPass
 :global slPairCode
 :global slApiUrl
+:global slResellerId
+:global slAdminMac
 
 :if ([:typeof $slWanMode] = "nothing") do={ :set slWanMode "dhcp" }
 :if ([:typeof $slLanIp] = "nothing") do={ :set slLanIp "192.168.88.1" }
@@ -29,22 +31,24 @@
     :log info "WAN: PPPoE"
 }
 
-# --- 2. LAN bridge (all LAN ports share the hotspot) ---
-# Detach every interface we manage from ANY bridge it currently belongs to.
-# Factory-default RB750GL ships with ether2-5 in the default "bridge".
-:foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
-    :if ([:len [/interface ethernet find name=$iface]] > 0) do={
-        /interface bridge port remove [find interface=$iface]
+# --- 2. LAN bridge: rename default bridge to safelinks-bridge ---
+# Renaming preserves the MAC address so the Winbox/SSH session on
+# 192.168.88.1 survives the import (no ARP cache invalidation).
+:if ([:len [/interface bridge find name="safelinks-bridge"]] = 0) do={
+    :if ([:len [/interface bridge find name="bridge"]] > 0) do={
+        /interface bridge set [find name="bridge"] name="safelinks-bridge" comment="SafeLinks bridge"
+        :log info "renamed default bridge -> safelinks-bridge (MAC preserved)"
+    } else={
+        /interface bridge add name="safelinks-bridge" comment="SafeLinks bridge"
+        :foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
+            :if ([:len [/interface ethernet find name=$iface]] > 0) do={
+                /interface bridge port add bridge="safelinks-bridge" interface=$iface comment="SafeLinks LAN"
+            }
+        }
+        :log info "created safelinks-bridge"
     }
-}
-/interface bridge port remove [find bridge="safelinks-bridge"]
-/interface bridge remove [find name="safelinks-bridge"]
-/interface bridge add name="safelinks-bridge" comment="SafeLinks bridge"
-
-:foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
-    :if ([:len [/interface ethernet find name=$iface]] > 0) do={
-        /interface bridge port add bridge="safelinks-bridge" interface=$iface comment="SafeLinks LAN"
-    }
+} else={
+    :log info "safelinks-bridge already exists"
 }
 # --- 3. Add wireless to bridge IF the package is installed ---
 :do {
@@ -65,32 +69,19 @@
     }
 } on-error={ :log info "no wifi package - skipping" }
 
-# --- 4. LAN IP on the bridge ---
-# Remove LAN IP from ANY interface it might currently be on. Factory RB750GL
-# ships 192.168.88.1/24 on the default "bridge" - if we leave it there, two
-# interfaces claim the same IP and Winbox/SSH time out.
-/ip address remove [find interface="ether2"]
-/ip address remove [find interface="safelinks-bridge"]
-/ip address remove [find interface="bridge"]
-/ip address add address=($slLanIp . "/24") interface="safelinks-bridge" comment="SafeLinks LAN"
-
-# Disable the factory-default bridge + its DHCP server so only
-# safelinks-bridge is live and answering.
-/interface bridge disable [find name="bridge"]
-/ip dhcp-server disable [find name="defconf"]
-
+# --- 4. LAN IP: already on the renamed bridge ---
+# The rename in section 2 preserved both the MAC and the 192.168.88.1/24 IP.
+# Nothing to do here - the address is already on safelinks-bridge.
 # --- 5. DHCP pool + server ---
+# The factory "defconf" DHCP server was bound to the default bridge. Since we
+# renamed that bridge to safelinks-bridge, defconf now sits on safelinks-bridge.
+# Remove ANY DHCP server bound to this interface (regardless of name) before
+# creating ours, otherwise the add command fails with "server already exists".
 /ip pool remove [find name="safelinks-pool"]
 /ip pool add name="safelinks-pool" ranges=("192.168.88.10-192.168.88.254")
 
-/ip dhcp-server remove [find name="safelinks-dhcp"]
+/ip dhcp-server remove [find interface="safelinks-bridge"]
 /ip dhcp-server add name="safelinks-dhcp" interface="safelinks-bridge" address-pool="safelinks-pool" disabled=no
-
-/ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes
-
-/ip firewall nat remove [find comment="SafeLinks NAT"]
-/ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="SafeLinks NAT"
-
 # --- 6. WiFi security + SSID (guarded - only runs if wireless present) ---
 :do {
     :if ([:len [/interface wireless find]] > 0) do={
@@ -127,12 +118,20 @@
     /file remove [find name="hotspot/redirect.html"]
 } on-error={ :log info "no default redirect.html to remove" }
 
-/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
+/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
 
-/file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
+/file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
 
 :log info "Hotspot pages replaced with SAFE_Links redirect"
 
+# --- 7c. Admin device bypass - reseller PC keeps internet during setup ---
+:if ([:typeof $slAdminMac] != "nothing") do={
+    :if ([:len $slAdminMac] > 0) do={
+        /ip hotspot ip-binding remove [find comment="SafeLinks admin bypass"]
+        /ip hotspot ip-binding add mac-address=$slAdminMac type=bypassed comment="SafeLinks admin bypass"
+        :log info ("admin bypass: " . $slAdminMac)
+    }
+}
 # --- 8. Walled garden (pre-auth allowed) ---
 # Two mechanisms needed:
 #   1) HTTP (port 80): host-based walled-garden matches on the Host header.
