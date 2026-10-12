@@ -231,7 +231,7 @@ export function registerAuthRoutes(router) {
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(
         resellerId, email, hashPassword(password), companyName, phoneDigits,
-        licenseKey, "pending", "basic", now,
+        licenseKey, "pending", "basic", now + 7 * 24 * 60 * 60 * 1000,
         `${ssidBase}-WiFi`, `Welcome to ${companyName}`, color,
         securityQuestion.trim(), hashAnswer(securityAnswer),
         referralCode, referrer?.id || null, false, now

@@ -107,9 +107,18 @@ async function fulfillLicensePayment(paymentRow) {
   const durationDays = plan?.duration_days || 30;
   const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
 
+  // Defensive: some payment rows were created without reseller_id populated
+  // (older initiate paths passed metadata.user_id only). Fall back to user_id
+  // so a real payment always activates the reseller. Log if both are null.
+  const targetResellerId = paymentRow.reseller_id || paymentRow.user_id;
+  if (!targetResellerId) {
+    console.error('[fulfillLicensePayment] no reseller_id/user_id on payment row', paymentRow.reference);
+    return { expiresAt, planId: plan?.id || "basic", skipped: true };
+  }
+
   await db.prepare(
     "UPDATE resellers SET subscription_plan = ?, subscription_expiry = ?, status = 'active' WHERE id = ?"
-  ).run(plan?.id || "basic", expiresAt, paymentRow.reseller_id);
+  ).run(plan?.id || "basic", expiresAt, targetResellerId);
 
   await db.prepare(
     "INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)"

@@ -49,7 +49,9 @@ export default function ResellerApp({ session, onExit, notify }) {
   const openCustomerTickets = (customerSupport.data || []).filter((t) => t.status === "open").length;
   const unreadNotifs = (notifications.data || []).filter((n) => !n.read).length;
   const pendingCount = (pending.data || []).filter((r) => r.status === "pending").length;
-  const licenseExpired = license.data ? license.data.subscription_expiry < Date.now() : false;
+  const licenseExpired = license.data
+    ? (Number(license.data.subscription_expiry) > 0 && Number(license.data.subscription_expiry) < Date.now())
+    : false;
   // Applies to everything the reseller charges their own end-users
   // (plans, vouchers, revenue) — NOT the platform license fee paid to
   // Super Admin, which is set by Super Admin (see platformCurrency below,
