@@ -196,6 +196,11 @@ add name="safelinks-checkin" source={
           /ip hotspot user disable [find name=$cmdUser]
         } else={ :if ($cmdType = "delete_user") do={
           /ip hotspot user remove [find name=$cmdUser]
+        } else={ :if ($cmdType = "bind_mac") do={
+          # Zero-click bypass: client MAC goes straight through the hotspot.
+          # $cmdUser is the MAC address (same field name reused).
+          /ip hotspot ip-binding remove [find mac-address=$cmdUser]
+          /ip hotspot ip-binding add mac-address=$cmdUser type=bypassed comment="SAFELinks auto"
         } else={
           :set execStatus "failed"
           :set execDetail ("unknown command type: " . $cmdType)

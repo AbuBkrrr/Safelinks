@@ -28,6 +28,12 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [voucher, setVoucher] = useState(null);
   const [cardProcessing, setCardProcessing] = useState(false);
   const [cardError, setCardError] = useState(null);
+  const [clientMac] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("mac") || null; } catch (_) { return null; }
+  });
+  const [clientIp] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("ip") || null; } catch (_) { return null; }
+  });
 
   async function uploadReceiptFile(file) {
     const dataBase64 = await fileToBase64(file);
@@ -69,6 +75,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       const res = await api.portalSignup(resellerId, {
         name: form.name, email: form.email, phone: form.phone, business: form.business || form.name,
         planId: selectedPlan.id, method, reference, receiptUrl,
+        clientMac, clientIp,
       });
       if (res && res.pendingActivationId) setPendingId(res.pendingActivationId);
       setStep("waiting");
@@ -116,6 +123,17 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     } catch (_) {}
   }, [resellerId]);
 
+  // Auto-redirect: if MAC bypass is in effect, client's next packet goes
+  // straight through — just send them to their destination. If not, fall
+  // through to the manual Start Browsing button.
+  useEffect(() => {
+    if (step !== "confirmed" || !clientMac) return;
+    const params = new URLSearchParams(window.location.search);
+    const dst = params.get("dst") || "http://budgetpro.com.ng/";
+    const t = setTimeout(() => { window.location.href = dst; }, 3000);
+    return () => clearTimeout(t);
+  }, [step, clientMac]);
+
   async function submitCard() {
     setCardProcessing(true);
     setCardError(null);
@@ -129,6 +147,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           business: form.business || form.name,
           planId: selectedPlan.id,
           provider: "flutterwave",
+          clientMac, clientIp,
         }),
       });
       const ct = r.headers.get("content-type") || "";
@@ -331,7 +350,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <Btn onClick={() => {
                 const gw = reseller.hotspotGateway || "192.168.88.1";
                 const params = new URLSearchParams(window.location.search);
-                const dst = params.get("dst");
+                const dst = params.get("dst") || "https://budgetpro.com.ng/";
                 const source = params.get("source");
                 const qs = "username=" + encodeURIComponent(voucher.username)
                          + "&password=" + encodeURIComponent(voucher.password)

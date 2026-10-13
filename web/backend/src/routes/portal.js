@@ -78,7 +78,7 @@ export function registerPortalRoutes(router) {
     // a legitimately busy hotspot.
     if (await rateLimitByIp(req, res, "portal-signup", { max: 30, windowMs: 60 * 60000 })) return;
     const resellerId = params.resellerId;
-    const { name, email, phone, business, planId, method, reference, receiptUrl } = body;
+    const { name, email, phone, business, planId, method, reference, receiptUrl, clientMac, clientIp } = body;
     if (!name || !email || !phone || !planId || !method) {
       return json(res, 400, { error: "name, email, phone, planId, and method are required" });
     }
@@ -92,9 +92,9 @@ export function registerPortalRoutes(router) {
 
     const now = Date.now();
     const pendingId = id("pa");
-    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time,receipt_url)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(pendingId, resellerId, name, email, phone, business || name, planId, plan.price, method, reference, "pending", now, receiptUrl || null);
+    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time,receipt_url,client_mac,client_ip)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(pendingId, resellerId, name, email, phone, business || name, planId, plan.price, method, reference, "pending", now, receiptUrl || null, clientMac || null, clientIp || null);
     await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
       .run(id("n"), `reseller:${resellerId}`, "payment_confirmation", "Payment confirmation needed",
         `${name} submitted a ${method.toLowerCase()} receipt for ${plan.name}.`, now, 0, "pending");
@@ -154,7 +154,7 @@ export function registerPortalRoutes(router) {
   router.post("/api/portal/:resellerId/card-checkout", async (req, res, { params, body }) => {
     if (await rateLimitByIp(req, res, "portal-card", { max: 10, windowMs: 15 * 60000 })) return;
     const resellerId = params.resellerId;
-    const { name, email, phone, business, planId, provider } = body || {};
+    const { name, email, phone, business, planId, provider, clientMac, clientIp } = body || {};
     if (!name || !email || !phone || !planId) return json(res, 400, { error: "name,email,phone,planId required" });
     const plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(planId, resellerId);
     if (!plan) return json(res, 404, { error: "Plan not found" });

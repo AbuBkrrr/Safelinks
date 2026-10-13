@@ -105,7 +105,7 @@
 /ip hotspot remove [find name="safelinks-hotspot"]
 /ip hotspot profile remove [find name="safelinks-profile"]
 /ip hotspot profile add name="safelinks-profile" hotspot-address=$slLanIp dns-name="hotspot.local" html-directory=hotspot
-/ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=no
+/ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=yes
 
 # --- 7b. Replace factory hotspot pages with a redirect to the SAFE_Links portal ---
 # RouterOS serves hotspot/login.html when a client hits any HTTP site pre-auth.
@@ -118,7 +118,7 @@
     /file remove [find name="hotspot/redirect.html"]
 } on-error={ :log info "no default redirect.html to remove" }
 
-/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
+/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><script>/*__macCapture*/(function(){var m='\$(mac)',i='\$(ip)',o='\$(link-orig)';if(!o||o.length<3)o='http://budgetpro.com.ng/';location.replace('https://www.safelinks.name.ng/portal/$slResellerId?mac='+encodeURIComponent(m)+'&ip='+encodeURIComponent(i)+'&dst='+encodeURIComponent(o));})();</script></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
 
 /file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
 
@@ -169,6 +169,15 @@
 # Step 8d. Also allow QUIC (UDP 443) so browsers don't stall before fallback
 /ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic"
 
+# --- 10. Enable hotspot ASYNCHRONOUSLY ---
+# Enabling the hotspot drops all traffic on the bridge for ~5-10 seconds
+# (including our SSH session). Running the enable via :execute forks it into
+# a separate RouterOS task so the config gets applied even if we're disconnected.
+# The installer will auto-reconnect and run verification below.
+:do { /ip hotspot disable safelinks-hotspot } on-error={}
+:execute "/ip hotspot enable safelinks-hotspot"
+:log info "hotspot enable dispatched (async)"
+
 # --- 9. Pairing code ---
 :if ([:typeof $slPairCode] != "nothing") do={
     :if ([:len [/file find name="safelinks-pair.txt"]] > 0) do={ /file remove [find name="safelinks-pair.txt"] }
@@ -176,5 +185,15 @@
     :log info "Pairing code saved"
 }
 
-:log info "safelinks-configure: done"
-:put "STATUS OK"
+# --- 11. Verification: only claim success if hotspot actually exists ---
+:local slHsOk false
+:do { :if ([:len [/ip hotspot find name="safelinks-hotspot"]] > 0) do={ :set slHsOk true } } on-error={}
+:local slBridgeOk false
+:do { :if ([:len [/interface bridge find name="safelinks-bridge"]] > 0) do={ :set slBridgeOk true } } on-error={}
+:if ($slHsOk = true && $slBridgeOk = true) do={
+    :log info "safelinks-configure: done"
+    :put "STATUS OK"
+} else={
+    :log error ("safelinks-configure: incomplete - bridge=" . $slBridgeOk . " hotspot=" . $slHsOk)
+    :put ("STATUS FAILED bridge=" . $slBridgeOk . " hotspot=" . $slHsOk)
+}

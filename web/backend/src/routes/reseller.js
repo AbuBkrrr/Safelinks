@@ -306,7 +306,12 @@ export function registerResellerRoutes(router) {
       await db.prepare("INSERT INTO delivery_logs (id,voucher_id,channel,status,time) VALUES (?,?,?,?,?)").run(id("dl"), voucherId, "whatsapp", "delivered", now);
       await db.prepare("INSERT INTO payments (id,user_type,user_id,amount,method,status,time,note) VALUES (?,?,?,?,?,?,?,?)")
         .run(id("pay"), "voucher", voucherId, pending.amount, pending.method, "completed", now, "Voucher purchase");
+      // Always create the hotspot user (fallback for clients without MAC)
       await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth });
+      // If we captured the client's MAC, ALSO bypass it directly — zero-click internet
+      if (pending.client_mac) {
+        await enqueueCommandForReseller(resellerId, "bind_mac", { mac: pending.client_mac });
+      }
       return json(res, 200, { ok: true, voucher: { username, password } });
     }
     json(res, 200, { ok: true });
