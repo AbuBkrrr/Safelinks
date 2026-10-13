@@ -13,6 +13,27 @@ use tauri_plugin_deep_link::DeepLinkExt;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // When the app is launched a second time via a deep-link URL,
+            // route "safelinks-installer://open?url=..." to the system browser.
+            for arg in &argv {
+                if arg.starts_with("safelinks-installer://open") {
+                    if let Some((_, q)) = arg.split_once('?') {
+                        for pair in q.split('&') {
+                            if let Some((k, v)) = pair.split_once('=') {
+                                if k == "url" {
+                                    let decoded = urlencoding_decode(v);
+                                    let _ = crate::auth::open_url_external(&decoded);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let handle = app.handle().clone();

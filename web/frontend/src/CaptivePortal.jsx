@@ -328,25 +328,26 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "passwordLabel") || "Password"}</div>
                 <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 15 }}>{voucher.password}</div>
               </div>
-              <Btn onClick={async () => {
+              <Btn onClick={() => {
                 const gw = reseller.hotspotGateway || "192.168.88.1";
                 const params = new URLSearchParams(window.location.search);
                 const dst = params.get("dst");
+                const source = params.get("source");
                 const qs = "username=" + encodeURIComponent(voucher.username)
                          + "&password=" + encodeURIComponent(voucher.password)
                          + (dst ? "&dst=" + encodeURIComponent(dst) : "");
                 const loginUrl = "http://" + gw + "/login?" + qs;
-                const T = typeof window !== "undefined" && window.__TAURI__;
-                if (T && T.core && T.core.invoke) {
-                  try {
-                    await T.core.invoke("open_in_system_browser", { url: loginUrl });
-                    setTimeout(() => {
-                      try { T.window.getCurrentWindow().close(); } catch (_) {}
-                    }, 800);
-                    return;
-                  } catch (_) {}
+                if (source === "installer") {
+                  const deeplink = "safelinks-installer://open?url=" + encodeURIComponent(loginUrl);
+                  const a = document.createElement("a");
+                  a.href = deeplink;
+                  a.style.display = "none";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                } else {
+                  window.location.href = loginUrl;
                 }
-                window.location.href = loginUrl;
               }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
