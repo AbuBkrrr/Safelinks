@@ -307,6 +307,8 @@ pub async fn installer_router_apply_config(
     password: String,
     ssid: String,
     wifi_password: String,
+    reseller_id: String,
+    admin_mac: String,
 ) -> Result<ApplyResult, String> {
     if ssid.is_empty() || ssid.len() > 32 {
         return Err("SSID must be 1..32 characters".into());
@@ -326,6 +328,8 @@ pub async fn installer_router_apply_config(
     file_contents.push_str(&format!(":global slWifiPass \"{}\"\n", escape_ros(&wifi_password)));
     file_contents.push_str(":global slWanMode \"dhcp\"\n");
     file_contents.push_str(":global slLanIp \"192.168.88.1\"\n");
+    file_contents.push_str(&format!(":global slResellerId \"{}\"\n", escape_ros(&reseller_id)));
+    file_contents.push_str(&format!(":global slAdminMac \"{}\"\n", escape_ros(&admin_mac)));
     file_contents.push_str(CONFIGURE_RSC);
 
     // Compress to one-line statements then exec each separately. Shell mode
