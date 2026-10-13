@@ -131,6 +131,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           provider: "flutterwave",
         }),
       });
+      const ct = r.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        throw new Error("Card service is not available yet (deploy still building). Try again in 2 minutes, or use Bank Transfer.");
+      }
       const j = await r.json();
       if (!r.ok || !j.checkoutUrl) throw new Error(j.error || "Could not start card payment");
       try {
@@ -323,9 +327,25 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "passwordLabel") || "Password"}</div>
                 <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 15 }}>{voucher.password}</div>
               </div>
-              <Btn onClick={() => {
+              <Btn onClick={async () => {
                 const gw = reseller.hotspotGateway || "192.168.88.1";
-                window.location.href = `http://${gw}/login?username=${encodeURIComponent(voucher.username)}&password=${encodeURIComponent(voucher.password)}`;
+                const params = new URLSearchParams(window.location.search);
+                const dst = params.get("dst");
+                const qs = "username=" + encodeURIComponent(voucher.username)
+                         + "&password=" + encodeURIComponent(voucher.password)
+                         + (dst ? "&dst=" + encodeURIComponent(dst) : "");
+                const loginUrl = "http://" + gw + "/login?" + qs;
+                const T = typeof window !== "undefined" && window.__TAURI__;
+                if (T && T.core && T.core.invoke) {
+                  try {
+                    await T.core.invoke("open_in_system_browser", { url: loginUrl });
+                    setTimeout(() => {
+                      try { T.window.getCurrentWindow().close(); } catch (_) {}
+                    }, 800);
+                    return;
+                  } catch (_) {}
+                }
+                window.location.href = loginUrl;
               }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
