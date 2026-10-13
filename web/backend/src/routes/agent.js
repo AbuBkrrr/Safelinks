@@ -25,6 +25,32 @@ function err(res, status, message) {
 }
 
 export function registerAgentRoutes(router) {
+  // GET /api/agent/install/:code
+  // Serves the agent RSC with the pairing code pre-injected. Router fetches
+  // this over its own WAN via /tool fetch, then /import's it locally.
+  // Avoids any large-file SSH transfer + escaping hazards.
+  router.get("/api/agent/install/:code", async (req, res, { params }) => {
+    const code = String(params.code || "").trim().toUpperCase();
+    if (!code) return text(res, 400, "STATUS ERROR\nMESSAGE missing code\n");
+    const pc = await db.prepare("SELECT code, status, expires_at FROM pairing_codes WHERE code = ?").get(code);
+    if (!pc || pc.status === "used" || pc.expires_at < Date.now()) {
+      return text(res, 410, "STATUS ERROR\nMESSAGE pairing code invalid or expired\n");
+    }
+    try {
+      const { readFileSync } = await import("node:fs");
+      const { fileURLToPath } = await import("node:url");
+      const { dirname, join } = await import("node:path");
+      const here = dirname(fileURLToPath(import.meta.url));
+      const rscPath = join(here, "..", "resources", "safelinks-agent.rsc");
+      let body = readFileSync(rscPath, "utf8");
+      body = body.replace("PASTE-CODE-HERE", code);
+      text(res, 200, body);
+    } catch (e) {
+      text(res, 500, "STATUS ERROR\nMESSAGE " + (e.message || "read failed") + "\n");
+    }
+  });
+
+
   // POST /api/agent/register
   // body (form-encoded): code, model, firmware, identity
   // Called ONCE by the router itself, using the pairing code a human
