@@ -156,27 +156,19 @@
       <div class="row">
         <button id="btn-logout" class="secondary">Sign out</button>
         <button id="btn-dashboard" class="secondary" style="display:none;">Open dashboard</button>
+        <button id="btn-portal" class="secondary" style="display:none;">Open Portal</button>
       </div>
     </div>
 
     <div class="section">
-      <h3>Step 1 — Is this a new or a used router?</h3>
-      <div class="row">
-        <button class="choice-btn secondary" data-state="new" onclick="pickRouterState('new')">📦 New (out of the box)</button>
-        <button class="choice-btn secondary" data-state="used" onclick="pickRouterState('used')">🔧 Used (has existing config)</button>
-      </div>
-      <div id="stateNote" class="info" style="display:none;"></div>
-    </div>
-
-    <div class="section">
-      <h3>Step 2 — Connect your PC to the router's LAN port</h3>
+      <h3>Step 1 — Connect your PC to the router's LAN port</h3>
       <div class="info">
         Plug an Ethernet cable from your PC into any <strong>LAN</strong> port (not WAN) on the router you want to configure. Wait 20 seconds for DHCP.
       </div>
     </div>
 
     <div class="section">
-      <h3>Step 3 — Scan the network</h3>
+      <h3>Step 2 — Scan the network</h3>
       <div class="row">
         <button id="btnLocal" class="secondary">Get Local Info</button>
         <button id="btnScan">Scan LAN</button>
@@ -225,9 +217,25 @@
       <input id="cfg-wifi-pass" type="text" placeholder="e.g. MyBusiness2026" />
     </div>
 
+    <div id="cfg-prereq" style="display:none; margin-bottom:14px;">
+      <div style="background:#1e293b; border-left:3px solid #f6ad55; padding:14px 16px; border-radius:8px;">
+        <div style="font-weight:600; color:#fbbf24; margin-bottom:8px;">SSH is disabled on this router</div>
+        <div style="font-size:13px; color:#cbd5e1; line-height:1.6;">The installer needs SSH to push config automatically. <b>One-time setup in Winbox:</b></div>
+        <ol style="font-size:13px; color:#cbd5e1; margin:10px 0 0 20px; line-height:1.7;">
+          <li>Open <b>Winbox</b> and connect to <b id="cfg-prereq-ip">192.168.88.1</b></li>
+          <li>Go to <b>IP &gt; Services</b></li>
+          <li>Double-click the <b>ssh</b> row</li>
+          <li>Check the <b>Enabled</b> box</li>
+          <li>Click <b>Apply</b> then <b>OK</b></li>
+        </ol>
+        <div style="margin-top:14px;">
+          <button id="cfg-prereq-recheck" class="secondary">Re-check SSH</button>
+        </div>
+      </div>
+    </div>
     <div class="btn-row">
       <button id="cfg-test" class="secondary">Test SSH</button>
-      <button id="cfg-apply" class="success">Save setup file</button>
+      <button id="cfg-apply" class="success">Configure Router</button>
     </div>
     <div id="cfg-status" class="status" style="display:none;"></div>
 
@@ -245,7 +253,7 @@
 <script>
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
-let routerState = null;
+let routerState = "new";
 let currentSession = null;
 
 function show(screen) {
@@ -264,7 +272,18 @@ function fmtItem(it) {
   </div>`;
 }
 
+window.__preflightFailsafe = window.__preflightFailsafe || null;
 async function runPreflight() {
+  if (window.__preflightFailsafe) clearTimeout(window.__preflightFailsafe);
+  window.__preflightFailsafe = setTimeout(function() {
+    var b = document.getElementById('btn-continue');
+    if (b && b.disabled) {
+      b.disabled = false;
+      b.textContent = 'Continue (offline)';
+      var n = document.getElementById('preflight-note');
+      if (n) { n.style.display = 'block'; n.textContent = 'Preflight is taking longer than expected. You can continue offline.'; }
+    }
+  }, 5000);
   const listEl = document.getElementById('preflight-list');
   const btn = document.getElementById('btn-continue');
   const note = document.getElementById('preflight-note');
@@ -434,22 +453,93 @@ document.getElementById('btnScan').onclick = async () => {
 };
 
 // ---------- Router configuration modal ----------
-function openCfgModal(device) {
+async function probeRouterSsh(ip) {
+  try {
+    var r = await invoke('installer_router_test_ssh', { ip: ip, user: 'admin', password: '' });
+    if (r && r.ok) return 'ready';
+    return 'auth';
+  } catch (e) {
+    var m = String(e).toLowerCase();
+    if (m.indexOf('auth') !== -1 || m.indexOf('rejected') !== -1 || m.indexOf('password') !== -1 || m.indexOf('credential') !== -1) return 'auth';
+    return 'down';
+  }
+}
+
+async function openCfgModal(device) {
   document.getElementById('cfg-ip').textContent = device.ip;
   var st = document.getElementById('cfg-status');
-  st.style.display = 'none';
-  st.textContent = '';
+  st.style.display = 'block';
+  st.style.color = '#94a3b8';
+  st.textContent = 'Probing SSH on ' + device.ip + '...';
   var ssidInput = document.getElementById('cfg-ssid');
   if (!ssidInput.value) ssidInput.value = 'SAFE_Links-WiFi';
   document.getElementById('cfg-modal').style.display = 'flex';
 
-  // Show readiness panel by default and auto-run status check.
-  var panel = document.getElementById('cfg-readiness');
-  if (panel) panel.style.display = 'block';
-  var checksEl = document.getElementById('cfg-checks');
-  if (checksEl) checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
-  setTimeout(function() { runCheckStatus(); }, 400);
+  var prereq = document.getElementById('cfg-prereq');
+  var readiness = document.getElementById('cfg-readiness');
+  if (prereq) prereq.style.display = 'none';
+  if (readiness) readiness.style.display = 'none';
+
+  var state = await probeRouterSsh(device.ip);
+
+  if (state === 'ready') {
+    st.style.color = '#22c55e';
+    st.textContent = 'SSH ready. Enter WiFi details above and click Configure Router.';
+    if (readiness) {
+      readiness.style.display = 'block';
+      var checksEl = document.getElementById('cfg-checks');
+      if (checksEl) checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
+      setTimeout(function() { runCheckStatus(); }, 400);
+    }
+  } else if (state === 'auth') {
+    st.style.color = '#fbbf24';
+    st.textContent = 'SSH reachable but default creds rejected. Reveal Advanced to enter router admin creds.';
+    var af = document.getElementById('cfg-admin-fields');
+    if (af) af.style.display = 'block';
+    var at = document.getElementById('cfg-admin-toggle');
+    if (at) at.textContent = 'Hide advanced credentials';
+    if (readiness) {
+      readiness.style.display = 'block';
+      setTimeout(function() { runCheckStatus(); }, 400);
+    }
+  } else {
+    st.style.color = '#fbbf24';
+    st.textContent = 'SSH unreachable on ' + device.ip + ' - enable SSH in Winbox to continue.';
+    if (prereq) {
+      prereq.style.display = 'block';
+      var pip = document.getElementById('cfg-prereq-ip');
+      if (pip) pip.textContent = device.ip;
+    }
+  }
 }
+
+var _rc = document.getElementById('cfg-prereq-recheck');
+if (_rc) _rc.onclick = async function() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var st = document.getElementById('cfg-status');
+  st.style.color = '#94a3b8';
+  st.textContent = 'Re-checking SSH on ' + ip + '...';
+  var state = await probeRouterSsh(ip);
+  if (state === 'ready' || state === 'auth') {
+    var p = document.getElementById('cfg-prereq');
+    if (p) p.style.display = 'none';
+    if (state === 'ready') {
+      st.style.color = '#22c55e';
+      st.textContent = 'SSH ready. Enter WiFi details above.';
+      runCheckStatus();
+    } else {
+      st.style.color = '#fbbf24';
+      st.textContent = 'SSH ready. Enter admin creds in Advanced.';
+      var af2 = document.getElementById('cfg-admin-fields');
+      if (af2) af2.style.display = 'block';
+      var at2 = document.getElementById('cfg-admin-toggle');
+      if (at2) at2.textContent = 'Hide advanced credentials';
+    }
+  } else {
+    st.style.color = '#fbbf24';
+    st.textContent = 'Still unreachable. Enable SSH in Winbox and try again.';
+  }
+};
 
 function closeCfgModal() {
   document.getElementById('cfg-modal').style.display = 'none';
@@ -479,7 +569,11 @@ async function runCheckStatus() {
     if (r.overall_ok) {
       var topDash = document.getElementById('btn-dashboard');
       if (topDash) topDash.style.display = '';
-      showSuccessPanel(ip);
+      var topPortal = document.getElementById('btn-portal');
+      if (topPortal) topPortal.style.display = '';
+      try { closeCfgModal(); } catch (_) {}
+      var st = document.getElementById('status');
+      if (st) st.textContent = 'Router ready - click Open dashboard above.';
     }
   } catch (e) {
     checksEl.innerHTML = '<div style="color:#fc8181; font-size:12.5px;">Check failed: ' + e + '</div>';
@@ -521,7 +615,7 @@ function dashboardWithToken() {
 
 function configureAnother() {
   try { document.getElementById('btnClear').click(); } catch (_) {}
-  routerState = null;
+  routerState = "new";
   try {
     document.querySelectorAll('.choice-btn').forEach(function(b) { b.classList.remove('active'); });
     var sn = document.getElementById('stateNote');
@@ -580,6 +674,15 @@ document.getElementById('cfg-test').onclick = async function() {
     cfgSetStatus('SUCCESS\n' + r.identity + '\n' + r.resource, '#22c55e');
   } catch (e) {
     cfgSetStatus('FAILED: ' + e, '#fc8181');
+    var es = String(e).toLowerCase();
+    if (es.indexOf('auth') !== -1 || es.indexOf('password') !== -1 || es.indexOf('credential') !== -1) {
+      var af3 = document.getElementById('cfg-admin-fields');
+      if (af3 && af3.style.display === 'none') {
+        af3.style.display = 'block';
+        var at3 = document.getElementById('cfg-admin-toggle');
+        if (at3) at3.textContent = 'Hide advanced credentials';
+      }
+    }
   }
 };
 
@@ -593,15 +696,47 @@ document.getElementById('cfg-apply').onclick = async function() {
   if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
   if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
   cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
+  var API_BASE = 'https://backend-services-production-78d8.up.railway.app';
   try {
+    var rid = localStorage.getItem('reseller_id') || '';
+    var localMac = '';
+    try { localMac = await invoke('get_local_mac'); } catch (_) {}
     var r = await invoke('installer_router_apply_config', {
-      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword
+      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword,
+      resellerId: rid, adminMac: localMac
     });
     var tail = r.log.slice(-12).join('\n');
     cfgSetStatus(
       (r.ok ? 'SUCCESS' : 'PARTIAL') + ' -- applied ' + r.applied + ', failed ' + r.failed + '\n\n' + tail,
       r.ok ? '#22c55e' : '#fbbf24'
     );
+
+    // -- Install SAFELinks agent: fetch pairing code, then router pulls RSC --
+    try {
+      var token = localStorage.getItem('auth_token') || '';
+      var codeResp = await fetch(API_BASE + '/api/reseller/pairing-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: '{}'
+      });
+      var codeJson = await codeResp.json();
+      var pairingCode = codeJson.code || codeJson.pairingCode;
+      if (!pairingCode) throw new Error('no pairing code returned');
+      cfgSetStatus('Hotspot configured. Installing agent (code ' + pairingCode + ')...', '#fbbf24');
+      var ar = await invoke('installer_router_install_agent', {
+        ip: ip, user: user, password: pass,
+        pairingCode: pairingCode,
+        apiBase: API_BASE
+      });
+      var agentTail = (ar.log || []).slice(-8).join('\n');
+      cfgSetStatus(
+        (ar.ok ? 'SUCCESS - agent paired' : 'PARTIAL - agent not paired') + '\n\n' + agentTail,
+        ar.ok ? '#22c55e' : '#fbbf24'
+      );
+    } catch (ae) {
+      cfgSetStatus('Hotspot ok, agent install failed: ' + ae, '#fbbf24');
+    }
+
     // Auto-run readiness check after Apply
     runCheckStatus();
   } catch (e) {
@@ -611,8 +746,24 @@ document.getElementById('cfg-apply').onclick = async function() {
 // ---------- end modal ----------
 document.getElementById('btn-dashboard').onclick = async () => {
   var token = localStorage.getItem('auth_token') || '';
-  try { await invoke('open_dashboard', { token: token }); } catch (e) { alert('Could not open dashboard: ' + e); }
+  try {
+    await invoke('open_dashboard', { token: token });
+    setTimeout(async () => {
+      try { const win = window.__TAURI__.window.getCurrentWindow(); await win.close(); } catch (_) {}
+    }, 400);
+  } catch (e) { alert('Could not open dashboard: ' + e); }
 };
+
+document.getElementById('btn-portal').onclick = async () => {
+  var rid = localStorage.getItem('reseller_id') || '';
+  if (!rid) { alert('No reseller_id found. Sign in again.'); return; }
+  try {
+    await invoke('open_portal', { resellerId: rid });
+  } catch (e) {
+    alert('Could not open portal: ' + e);
+  }
+};
+
 document.getElementById('cfg-admin-toggle').onclick = function() {
   var f = document.getElementById('cfg-admin-fields');
   if (!f) return;
@@ -692,7 +843,7 @@ async function _optBSaveSetupFile() {
 
 // Replace any existing cfg-apply onclick with our new handler.
 // Runs after the original script block has attached its handler.
-document.getElementById('cfg-apply').onclick = _optBSaveSetupFile;
+// (cfg-apply uses the auto-apply handler defined above.)
 // ============ end Option B override ============
 </script>
 </body>
