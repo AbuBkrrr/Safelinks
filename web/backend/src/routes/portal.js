@@ -132,4 +132,65 @@ export function registerPortalRoutes(router) {
 
     json(res, 201, { id: ticketId, message: `Sent to ${reseller.company_name}. They'll reach you at the contact you gave.` });
   });
+  // GET /api/portal/:resellerId/activation-status/:pendingId
+  // Polled by the Captive Portal every 3s while waiting for reseller confirm.
+  router.get("/api/portal/:resellerId/activation-status/:pendingId", async (req, res, { params }) => {
+    const resellerId = params.resellerId;
+    const pendingId = params.pendingId;
+    const row = await db.prepare("SELECT id,status,email,phone FROM pending_activations WHERE id=? AND reseller_id=?").get(pendingId, resellerId);
+    if (!row) return json(res, 404, { error: "Not found" });
+    if (row.status === "pending") return json(res, 200, { status: "pending" });
+    if (row.status === "rejected") return json(res, 200, { status: "rejected" });
+    // confirmed OR activated: fetch voucher matching this customer
+    let v = null;
+    if (row.email) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? AND email=? ORDER BY created_at DESC LIMIT 1").get(resellerId, row.email);
+    if (!v && row.phone) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? AND phone=? ORDER BY created_at DESC LIMIT 1").get(resellerId, row.phone);
+    if (!v) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? ORDER BY created_at DESC LIMIT 1").get(resellerId);
+    return json(res, 200, { status: "confirmed", voucher: v || null });
+  });
+
+  // POST /api/portal/:resellerId/card-checkout
+  // Creates pending_activation + initiates Flutterwave payment. Returns checkoutUrl.
+  router.post("/api/portal/:resellerId/card-checkout", async (req, res, { params, body }) => {
+    if (await rateLimitByIp(req, res, "portal-card", { max: 10, windowMs: 15 * 60000 })) return;
+    const resellerId = params.resellerId;
+    const { name, email, phone, business, planId, provider } = body || {};
+    if (!name || !email || !phone || !planId) return json(res, 400, { error: "name,email,phone,planId required" });
+    const plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(planId, resellerId);
+    if (!plan) return json(res, 404, { error: "Plan not found" });
+    const rrow = await db.prepare("SELECT currency FROM resellers WHERE id=?").get(resellerId);
+    const cur = (rrow && rrow.currency) || "NGN";
+    const reference = "VOU-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    const pendingId = id("pa");
+    const now = Date.now();
+    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      pendingId, resellerId, name, email, phone, business || name,
+      planId, plan.price, "Card", reference, "pending", now
+    );
+    const apiUrl = process.env.APP_URL || "https://www.safelinks.name.ng";
+    try {
+      const r = await fetch(apiUrl + "/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: provider || "flutterwave",
+          purpose: "voucher",
+          amountMajor: plan.price,
+          currency: cur,
+          email,
+          reference,
+          metadata: { reseller_id: resellerId, user_id: resellerId, plan_id: planId, customer_name: name, customer_email: email, customer_phone: phone },
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) return json(res, 400, { error: j.error || "Payment initiation failed" });
+      const checkoutUrl = j.authorizationUrl || j.checkoutUrl || j.url;
+      if (!checkoutUrl) return json(res, 500, { error: "No checkout URL returned" });
+      return json(res, 200, { ok: true, checkoutUrl, reference, pendingActivationId: pendingId });
+    } catch (e) {
+      return json(res, 500, { error: e.message || "Payment initiation failed" });
+    }
+  });
+
 }

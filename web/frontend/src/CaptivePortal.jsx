@@ -24,6 +24,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [receiptUrl, setReceiptUrl] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
+  const [pendingId, setPendingId] = useState(null);
+  const [voucher, setVoucher] = useState(null);
+  const [cardProcessing, setCardProcessing] = useState(false);
+  const [cardError, setCardError] = useState(null);
 
   async function uploadReceiptFile(file) {
     const dataBase64 = await fileToBase64(file);
@@ -62,16 +66,82 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     setProcessing(true);
     setError(null);
     try {
-      await api.portalSignup(resellerId, {
+      const res = await api.portalSignup(resellerId, {
         name: form.name, email: form.email, phone: form.phone, business: form.business || form.name,
         planId: selectedPlan.id, method, reference, receiptUrl,
       });
+      if (res && res.pendingActivationId) setPendingId(res.pendingActivationId);
       setStep("waiting");
       notify?.("Submitted — waiting on your reseller to confirm.");
     } catch (err) {
       setError(err.message || "Something went wrong submitting your payment.");
     }
     setProcessing(false);
+  }
+
+  // Poll backend for confirmation (every 3s while waiting)
+  useEffect(() => {
+    if (step !== "waiting" || !pendingId) return;
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const r = await fetch(`${base}/api/portal/${resellerId}/activation-status/${pendingId}`);
+        if (!r.ok) return;
+        const j = await r.json();
+        if (stopped) return;
+        if (j.status === "confirmed" && j.voucher) {
+          setVoucher(j.voucher);
+          setStep("confirmed");
+          try { localStorage.removeItem("safelinks_pending_id"); localStorage.removeItem("safelinks_reseller_id"); } catch(_) {}
+        } else if (j.status === "rejected") {
+          setError("Payment rejected. Contact the reseller.");
+        }
+      } catch (_) {}
+    };
+    tick();
+    const tid = setInterval(tick, 3000);
+    return () => { stopped = true; clearInterval(tid); };
+  }, [step, pendingId, resellerId]);
+
+  // Resume from card-payment redirect
+  useEffect(() => {
+    try {
+      const pid = localStorage.getItem("safelinks_pending_id");
+      const rid = localStorage.getItem("safelinks_reseller_id");
+      if (pid && rid && rid === resellerId) {
+        setPendingId(pid);
+        setStep("waiting");
+      }
+    } catch (_) {}
+  }, [resellerId]);
+
+  async function submitCard() {
+    setCardProcessing(true);
+    setCardError(null);
+    try {
+      const base = import.meta.env.VITE_API_URL || "";
+      const r = await fetch(`${base}/api/portal/${resellerId}/card-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name, email: form.email, phone: form.phone,
+          business: form.business || form.name,
+          planId: selectedPlan.id,
+          provider: "flutterwave",
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.checkoutUrl) throw new Error(j.error || "Could not start card payment");
+      try {
+        if (j.pendingActivationId) localStorage.setItem("safelinks_pending_id", j.pendingActivationId);
+        localStorage.setItem("safelinks_reseller_id", resellerId);
+      } catch (_) {}
+      window.location.href = j.checkoutUrl;
+    } catch (e) {
+      setCardError(e.message || "Card payment failed");
+    }
+    setCardProcessing(false);
   }
 
   if (info.loading) {
@@ -188,16 +258,39 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
 
           {step === "payment" && selectedPlan && (
             <>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{t(lang, "payDirectly", { company: reseller.companyName })}</div>
-              <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>{t(lang, "noCardNotice")}</div>
-              <TransferPayBlock
-                payee={{ name: reseller.companyName, bankName: reseller.bankAccount?.bankName, accountName: reseller.bankAccount?.accountName, accountNumber: reseller.bankAccount?.accountNumber, ussdCode: reseller.ussdCode }}
-                amount={formatMoney(selectedPlan.price, cur)} method={method} setMethod={setMethod}
-                reference={reference} setReference={setReference} onSubmit={submitTransfer}
-                submitLabel={processing ? "…" : t(lang, "continueToPayment")} submitting={processing}
-                onUploadFile={uploadReceiptFile} receiptUrl={receiptUrl} setReceiptUrl={setReceiptUrl}
-              />
-              {error && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                {["Card", "Bank Transfer", "USSD"].map((m) => (
+                  <div key={m} onClick={() => setMethod(m)} style={{
+                    flex: 1, textAlign: "center", padding: "9px 6px", borderRadius: 8, cursor: "pointer",
+                    border: `1.5px solid ${method === m ? (reseller.color || T.primary) : T.border}`,
+                    fontSize: 12, fontWeight: 600,
+                    color: method === m ? (reseller.color || T.primary) : T.sub,
+                  }}>{m === "Card" ? (t(lang, "cardPay") || "Card") : m}</div>
+                ))}
+              </div>
+              {method === "Card" ? (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{t(lang, "payDirectly", { company: reseller.companyName })}</div>
+                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>{t(lang, "cardNotice") || "Pay securely with your card via Flutterwave."}</div>
+                  <Btn disabled={cardProcessing} onClick={submitCard} style={{ width: "100%", justifyContent: "center", padding: "11px 0" }}>
+                    {cardProcessing ? "…" : (t(lang, "payWithCard") || "Pay with Card")}
+                  </Btn>
+                  {cardError && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{cardError}</div>}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{t(lang, "payDirectly", { company: reseller.companyName })}</div>
+                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>{t(lang, "noCardNotice")}</div>
+                  <TransferPayBlock
+                    payee={{ name: reseller.companyName, bankName: reseller.bankAccount?.bankName, accountName: reseller.bankAccount?.accountName, accountNumber: reseller.bankAccount?.accountNumber, ussdCode: reseller.ussdCode }}
+                    amount={formatMoney(selectedPlan.price, cur)} method={method} setMethod={setMethod}
+                    reference={reference} setReference={setReference} onSubmit={submitTransfer}
+                    submitLabel={processing ? "…" : t(lang, "continueToPayment")} submitting={processing}
+                    onUploadFile={uploadReceiptFile} receiptUrl={receiptUrl} setReceiptUrl={setReceiptUrl}
+                  />
+                  {error && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+                </>
+              )}
             </>
           )}
 
@@ -216,6 +309,27 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 </div>
               )}
               <Btn onClick={onExit} style={{ width: "100%", justifyContent: "center", padding: "11px 0" }}>{t(lang, "close")}</Btn>
+            </div>
+          )}
+
+          {step === "confirmed" && voucher && (
+            <div style={{ textAlign: "center", padding: "10px 0" }}>
+              <div style={{ width: 56, height: 56, margin: "0 auto 12px", borderRadius: "50%", background: "#d5f0e4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, color: "#0b5e42" }}>✓</div>
+              <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 6 }}>{t(lang, "paymentConfirmed") || "Payment confirmed!"}</div>
+              <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>{t(lang, "yourCredentials") || "Your internet is ready to activate."}</div>
+              <div style={{ background: T.bg, borderRadius: 10, padding: 14, marginBottom: 14, textAlign: "left", fontSize: 13 }}>
+                <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "usernameLabel") || "Username"}</div>
+                <div style={{ fontFamily: "monospace", fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{voucher.username}</div>
+                <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "passwordLabel") || "Password"}</div>
+                <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 15 }}>{voucher.password}</div>
+              </div>
+              <Btn onClick={() => {
+                const gw = reseller.hotspotGateway || "192.168.88.1";
+                window.location.href = `http://${gw}/login?username=${encodeURIComponent(voucher.username)}&password=${encodeURIComponent(voucher.password)}`;
+              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
+                🚀 {t(lang, "startBrowsing") || "Start Browsing"}
+              </Btn>
+              <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>{t(lang, "redirecting") || "You will be redirected to the login page and connected automatically."}</div>
             </div>
           )}
         </div>
