@@ -153,7 +153,7 @@ export function registerPaymentRoutes(router) {
   router.post("/api/payments/initiate", async (req, res, { body }) => {
     if (await rateLimitByIp(req, res, "payment-init", { max: 30, windowMs: 15 * 60000 })) return;
 
-    const { provider, purpose, amountMajor, currency, email, reference: suppliedRef, metadata } = body || {};
+    const { provider, purpose, amountMajor, currency, email, reference: suppliedRef, metadata, paymentOptions } = body || {};
     if (!provider || !purpose || !amountMajor) {
       return json(res, 400, { error: "provider, purpose, amountMajor are required" });
     }
@@ -196,6 +196,7 @@ export function registerPaymentRoutes(router) {
         reference,
         callbackUrl,
         metadata: { ...metadata, purpose },
+              paymentOptions,
       });
       json(res, 200, {
         ok: true,

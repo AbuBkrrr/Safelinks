@@ -180,6 +180,7 @@ export function registerPortalRoutes(router) {
           currency: cur,
           email,
           reference,
+          paymentOptions: "card,banktransfer,ussd,mobilemoney,bankaccount,paypal",
           metadata: { reseller_id: resellerId, user_id: resellerId, plan_id: planId, customer_name: name, customer_email: email, customer_phone: phone },
         }),
       });

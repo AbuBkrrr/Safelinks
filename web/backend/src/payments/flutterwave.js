@@ -42,13 +42,14 @@ function flwRequest(method, path, body) {
   });
 }
 
-export async function initiatePayment({ amountMajor, currency, email, reference, callbackUrl, metadata, name, phone }) {
+export async function initiatePayment({ amountMajor, currency, email, reference, callbackUrl, metadata, name, phone, paymentOptions }) {
   // Flutterwave sandbox has a quirk where the default link_expiration is in
   // the past (2024-02-14). Setting it explicitly to 24h in the future fixes
   // immediate-expiry errors.
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
   const { status, body } = await flwRequest("POST", "/v3/payments", {
     tx_ref: reference,
+    payment_options: paymentOptions || "card,banktransfer,ussd,mobilemoney,bankaccount",
     amount: Number(amountMajor),
     currency: currency || "NGN",
     redirect_url: callbackUrl,

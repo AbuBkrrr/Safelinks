@@ -19,7 +19,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [step, setStep] = useState("connect");
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", business: "" });
-  const [method, setMethod] = useState("Bank Transfer");
+  const [method, setMethod] = useState("Pay Online");
   const [reference, setReference] = useState("");
   const [receiptUrl, setReceiptUrl] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -263,7 +263,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           {step === "payment" && selectedPlan && (
             <>
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                {["Card", "Bank Transfer", "USSD"].map((m) => (
+                {["Pay Online", "Bank Transfer", "USSD"].map((m) => (
                   <div key={m} onClick={() => setMethod(m)} style={{
                     flex: 1, textAlign: "center", padding: "9px 6px", borderRadius: 8, cursor: "pointer",
                     border: `1.5px solid ${method === m ? (reseller.color || T.primary) : T.border}`,
@@ -272,12 +272,13 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   }}>{m === "Card" ? (t(lang, "cardPay") || "Card") : m}</div>
                 ))}
               </div>
-              {method === "Card" ? (
+              {method === "Pay Online" ? (
                 <>
                   <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{t(lang, "payDirectly", { company: reseller.companyName })}</div>
-                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>{t(lang, "cardNotice") || "Pay securely with your card via Flutterwave."}</div>
+                  <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>{t(lang, "onlineNotice") || "Choose from Card, Bank Transfer, USSD, Mobile Money, or Bank Account on the next screen."}</div>
+                  <div style={{ fontSize: 11, color: T.sub, marginBottom: 12, opacity: 0.8 }}>Visa · Mastercard · Verve · Bank Transfer · USSD · Mobile Money · Bank Account</div>
                   <Btn disabled={cardProcessing} onClick={submitCard} style={{ width: "100%", justifyContent: "center", padding: "11px 0" }}>
-                    {cardProcessing ? "…" : (t(lang, "payWithCard") || "Pay with Card")}
+                    {cardProcessing ? "…" : (t(lang, "continuePayment") || "Continue to Payment")}
                   </Btn>
                   {cardError && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{cardError}</div>}
                 </>
