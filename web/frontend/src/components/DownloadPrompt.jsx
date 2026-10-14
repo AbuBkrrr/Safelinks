@@ -47,7 +47,12 @@ const DownloadPrompt = () => {
       flexWrap: 'wrap',
       justifyContent: 'center'
     }}>
-      <span>📱 Download the SAFE_Links Installer for {osName}</span>
+      <div>
+        <span>📱 Download the SAFE_Links Installer for {osName}</span>
+        <div style={{ fontSize: 10.5, color: "#cbd5e1", marginTop: 3, opacity: 0.85 }}>
+          Windows may warn — click "More info" → "Run anyway"
+        </div>
+      </div>
       {os === 'windows' ? (
           <a
             href={downloadUrl}

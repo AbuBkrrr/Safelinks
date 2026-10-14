@@ -64,6 +64,7 @@ function PairingFlow({ onComplete, onBack }) {
   const [ssid, setSsid] = useState("SAFE_Links-WiFi");
   const [wifiPass, setWifiPass] = useState("");
   const [routerIp, setRouterIp] = useState("192.168.88.1");
+  const [showDownloadGuide, setShowDownloadGuide] = useState(false);
 
   useEffect(() => {
     generateCode();
@@ -116,6 +117,16 @@ function PairingFlow({ onComplete, onBack }) {
     if (!code) return;
     setConfiguringRouter(true);
     setShowFallback(false);
+    setShowDownloadGuide(false);
+
+    // Watch focus — if Windows pops the deep-link dialog OR launches the
+    // installer, we lose focus. If we still have focus after 1.2s, the
+    // installer definitely isn't installed on this PC.
+    let focusLost = false;
+    const onBlur = () => { focusLost = true; };
+    if (typeof window !== "undefined") {
+      window.addEventListener("blur", onBlur, { once: true });
+    }
     var rid = resolveResellerId();
     var params = new URLSearchParams({
       resellerId: rid,
@@ -131,7 +142,17 @@ function PairingFlow({ onComplete, onBack }) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    await new Promise(function(r) { setTimeout(r, 2000); });
+    await new Promise(function(r) { setTimeout(r, 1200); });
+    if (typeof window !== "undefined") {
+      window.removeEventListener("blur", onBlur);
+    }
+    if (!focusLost && !document.hasFocus()) focusLost = true;
+    if (!focusLost) {
+      // Installer never launched → not installed. Show guide instantly.
+      setConfiguringRouter(false);
+      setShowDownloadGuide(true);
+      return;
+    }
     var started = Date.now();
     var t = setInterval(async function() {
       try {
@@ -184,22 +205,53 @@ function PairingFlow({ onComplete, onBack }) {
             onClick={fireInstallerDeepLink}
             style={{ width: "100%", justifyContent: "center", padding: "12px 0", marginTop: 6 }}
           >
-            {configuringRouter ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Configuring…</> : "Configure router now"}
+            {configuringRouter ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Launching installer…</> : "Configure router now"}
           </Btn>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.sub, fontSize: 11.5, marginTop: 12 }}>
             <Clock size={11} /> Pairing code {code} · expires {minutesLeft} min
           </div>
 
-          {showFallback && (
-            <div style={{ marginTop: 14, padding: 12, background: T.bg, borderRadius: 10, fontSize: 12 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Installer not detected on this PC</div>
-              <div style={{ color: T.sub, marginBottom: 10 }}>
-                Download the desktop installer once — future configurations will run automatically.
+          <div style={{ textAlign: "center", marginTop: 12, fontSize: 11.5, color: T.sub }}>
+            First time on this PC?{" "}
+            <a onClick={() => setShowDownloadGuide(!showDownloadGuide)} style={{ color: T.primary, cursor: "pointer", textDecoration: "underline" }}>
+              {showDownloadGuide ? "Hide install guide" : "Download the installer"}
+            </a>
+          </div>
+
+          {(showFallback || showDownloadGuide) && (
+            <div style={{ marginTop: 14, padding: 14, background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 10 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, color: "#856404", fontSize: 13.5 }}>
+                ⚠ Install the desktop installer first
               </div>
-              <Btn onClick={() => { window.open("/downloads/safelinks-installer.exe", "_blank"); }} style={{ width: "100%", justifyContent: "center" }}>
-                Download installer
-              </Btn>
+              <div style={{ fontSize: 12, color: "#856404", marginBottom: 12, lineHeight: 1.5 }}>
+                {showFallback ? "Windows couldn't launch the installer — it isn't installed on this PC yet. Download it once, then click Configure router now again." : "Follow these steps:"}
+              </div>
+
+              <ol style={{ marginLeft: 18, marginBottom: 12, lineHeight: 1.85, fontSize: 12, color: "#664d03" }}>
+                <li>Click <b>Download installer</b> below</li>
+                <li>Open the downloaded <code style={{ background: "#fef3c7", padding: "1px 4px", borderRadius: 3 }}>SAFE_Links-Setup.exe</code> file</li>
+                <li style={{ color: "#9a3412", fontWeight: 600 }}>Windows will say <b>"Windows protected your PC"</b> — that's normal for new apps</li>
+                <li>Click <b>More info</b>, then click <b>Run anyway</b></li>
+                <li>Walk through the install wizard (defaults are fine)</li>
+                <li>Come back here and click <b>Configure router now</b></li>
+              </ol>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn onClick={() => { window.open("/downloads/safelinks-installer.exe", "_blank"); }} style={{ flex: 1, justifyContent: "center" }}>
+                  📥 Download installer
+                </Btn>
+                <Btn variant="ghost" onClick={() => { setShowFallback(false); setShowDownloadGuide(false); }} style={{ justifyContent: "center" }}>
+                  Close
+                </Btn>
+              </div>
+
+              <details style={{ marginTop: 12, fontSize: 11.5, color: "#664d03" }}>
+                <summary style={{ cursor: "pointer", fontWeight: 600 }}>Why does Windows warn me?</summary>
+                <div style={{ marginTop: 6, lineHeight: 1.6 }}>
+                  Windows SmartScreen warns about every newly-built app until it's been downloaded by enough people or has a paid code-signing certificate (~$200/yr). It's a false alarm for SAFE_Links — the app is open and you can inspect the source on GitHub.
+                </div>
+              </details>
             </div>
           )}
         </div>

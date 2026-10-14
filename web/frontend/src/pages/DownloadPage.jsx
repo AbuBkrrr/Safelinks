@@ -63,4 +63,37 @@ const DownloadPage = () => {
   );
 };
 
+
+// ─────────────────────────────────────────────────────────────
+// SmartScreen install guide (Windows-specific)
+// Shown below the download list so first-time users know exactly
+// what to expect when they run the .exe.
+// ─────────────────────────────────────────────────────────────
+const INSTALL_GUIDE_STEPS = [
+  "Click Download and save the file (usually to your Downloads folder)",
+  "Double-click SAFE_Links-Setup.exe to run it",
+  "Windows will show \"Windows protected your PC\" — that's normal for new apps",
+  "Click More info (small link under the warning text)",
+  "Click Run anyway at the bottom of the dialog",
+  "Finish the install wizard (defaults are fine — click Next → Install)",
+  "Open SAFE_Links from your Start menu and sign in",
+];
+
+export function SmartScreenGuide() {
+  return (
+    <div style={{ marginTop: 24, padding: 18, background: "#fff3cd", border: "1px solid #ffc107", borderRadius: 12, maxWidth: 640, marginLeft: "auto", marginRight: "auto", textAlign: "left" }}>
+      <div style={{ fontWeight: 700, fontSize: 14.5, color: "#856404", marginBottom: 10 }}>
+        📋 First time installing? Follow these steps:
+      </div>
+      <ol style={{ marginLeft: 20, lineHeight: 1.9, fontSize: 13, color: "#664d03" }}>
+        {INSTALL_GUIDE_STEPS.map((s, i) => <li key={i}>{s}</li>)}
+      </ol>
+      <div style={{ marginTop: 14, padding: 12, background: "#fef3c7", borderRadius: 8, fontSize: 12, color: "#664d03", lineHeight: 1.6 }}>
+        <b>Why does Windows warn?</b> SmartScreen flags any newly-built app until it's been downloaded many times or signed with a $200/yr certificate. It's a false alarm — the SAFE_Links installer is open source.
+      </div>
+      <SmartScreenGuide />
+    </div>
+  );
+}
+
 export default DownloadPage;
