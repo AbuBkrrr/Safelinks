@@ -908,6 +908,25 @@ async function _optBSaveSetupFile() {
         acLog('--- agent: ' + (agent.ok ? 'OK' : 'FAILED') + ' ---');
       } catch (err) { acLog('AGENT ERROR: ' + err); }
     }
+    acSub('Recording installation...');
+    try {
+      var apiBase = 'https://www.safelinks.name.ng';
+      var tok = localStorage.getItem('auth_token') || '';
+      var body = JSON.stringify({
+        resellerId: p.resellerId,
+        routerId: p.routerId || null,
+        ip: p.ip || '192.168.88.1',
+        model: p.model || null,
+        firmware: p.firmware || null,
+        ssid: p.ssid || null,
+      });
+      await fetch(apiBase + '/api/installer/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
+        body: body,
+      });
+      acLog('Installation recorded on backend.');
+    } catch (err) { acLog('record error: ' + err); }
     acSub('Done.');
     var doneBtn = document.getElementById('ac-done');
     if (doneBtn) {

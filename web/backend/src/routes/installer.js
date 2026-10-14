@@ -168,4 +168,26 @@ export function registerInstallerRoutes(router) {
       json(res, 400, { error: err.message || "Payment initiation failed" });
     }
   });
+  // POST /api/installer/complete
+  // Called by the desktop installer after successful SSH configuration.
+  // Records the installation row so Super Admin's Installation Log updates
+  // immediately — independent of the router's own agent registration.
+  router.post("/api/installer/complete", async (req, res, { body }) => {
+    const { resellerId, routerId, ip, model, firmware, ssid, location } = body || {};
+    if (!resellerId || !ip) return json(res, 400, { error: "resellerId and ip required" });
+    const now = Date.now();
+    const rowId = id("i");
+    try {
+      await db.prepare("INSERT INTO installations (id,reseller_id,router_id,ip,location,status,time) VALUES (?,?,?,?,?,?,?)")
+        .run(rowId, resellerId, routerId || null, ip, location || null, "completed", now);
+      // Notify Super Admin feed
+      await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
+        .run(id("n"), "super_admin", "installer", "Installer session completed",
+             "Configured router at " + ip + (model ? " (" + model + ")" : ""), now, 0, "installs");
+      return json(res, 200, { ok: true, installationId: rowId });
+    } catch (e) {
+      return json(res, 500, { error: e.message || "insert failed" });
+    }
+  });
+
 }

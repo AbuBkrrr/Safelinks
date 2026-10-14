@@ -28,3 +28,40 @@ export function useResource(fetcher, deps = [], select = (x) => x) {
 
   return { data, loading, error, refetch, setData };
 }
+
+
+// usePollingResource — same as useResource but refetches on an interval.
+// Used by dashboards that need live-ish updates (Routers, Sessions,
+// Installations, Monitoring) without manual reload.
+export function usePollingResource(fetcher, deps = [], pick = (r) => r, intervalMs = 10000) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const tid = setInterval(() => setTick((n) => n + 1), intervalMs);
+    return () => clearInterval(tid);
+  }, [intervalMs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetcher();
+        if (!cancelled) {
+          setData(pick(r));
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message || String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, ...deps]);
+
+  return { data, loading, error, refetch: () => setTick((n) => n + 1) };
+}
