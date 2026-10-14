@@ -48,21 +48,21 @@ const DownloadPrompt = () => {
       justifyContent: 'center'
     }}>
       <span>📱 Download the SAFE_Links Installer for {osName}</span>
-      <a 
-        href={downloadUrl} 
-        download
-        style={{
-          background: '#2b8c5e',
-          color: 'white',
-          padding: '8px 20px',
-          borderRadius: '8px',
-          textDecoration: 'none',
-          fontWeight: '600',
-          whiteSpace: 'nowrap'
-        }}
-      >
-        Download Now
-      </a>
+      {(isWindows || isAndroid) ? (
+          <a
+            href={downloadUrl}
+            download
+            style={{ display: "inline-block", background: "#22c55e", color: "#fff", padding: "10px 24px", borderRadius: 8, textDecoration: "none", fontWeight: 700, fontSize: 14 }}
+            onClick={() => { try { localStorage.setItem('downloadPromptDismissed', 'true'); } catch (_) {} }}
+          >
+            Download Now
+          </a>
+        ) : (
+          <div style={{ fontSize: 12.5, color: "#cbd5e1", marginTop: 6, padding: "10px 14px", background: "rgba(255,255,255,0.08)", borderRadius: 8, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Windows installer available now</div>
+            <div style={{ opacity: 0.85 }}>Mac, Linux, and iOS are coming soon. Use the Windows installer from a PC for now — the router configuration only needs to run once.</div>
+          </div>
+        )}
       <button 
         onClick={handleDismiss}
         style={{

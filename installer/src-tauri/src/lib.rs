@@ -39,8 +39,39 @@ pub fn run() {
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for url in event.urls() {
-                    // safelinks-installer://auth?token=...&role=...&email=...&companyName=...
                     let s = url.as_str();
+                    // safelinks-installer://configure?resellerId=...&ip=...&pairingCode=...&ssid=...&pass=...
+                    if s.starts_with("safelinks-installer://configure") {
+                        if let Some((_, q)) = s.split_once('?') {
+                            let mut reseller_id = String::new();
+                            let mut ip = String::new();
+                            let mut pairing_code = String::new();
+                            let mut ssid = String::new();
+                            let mut wifi_pass = String::new();
+                            for pair in q.split('&') {
+                                let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
+                                let v = urlencoding_decode(v);
+                                match k {
+                                    "resellerId" => reseller_id = v,
+                                    "ip" => ip = v,
+                                    "pairingCode" => pairing_code = v,
+                                    "ssid" => ssid = v,
+                                    "pass" => wifi_pass = v,
+                                    _ => {}
+                                }
+                            }
+                            let payload = serde_json::json!({
+                                "resellerId": reseller_id,
+                                "ip": ip,
+                                "pairingCode": pairing_code,
+                                "ssid": ssid,
+                                "wifiPass": wifi_pass,
+                            });
+                            let _ = handle.emit("deep-link-configure", payload);
+                        }
+                        continue;
+                    }
+                    // safelinks-installer://auth?token=...&role=...&email=...&companyName=...
                     if let Some(q) = s.split_once("?") {
                         let query = q.1;
                         let mut token = String::new();

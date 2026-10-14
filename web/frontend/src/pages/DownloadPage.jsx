@@ -1,6 +1,9 @@
 ﻿import React from 'react';
 
 const DownloadPage = () => {
+  const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
+  const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+  const platformBadge = isWindows ? "Windows" : isAndroid ? "Android" : "Your device";
   const downloads = [
     {
       platform: 'Android',
