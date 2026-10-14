@@ -196,6 +196,10 @@ add name="safelinks-checkin" source={
           /ip hotspot user disable [find name=$cmdUser]
         } else={ :if ($cmdType = "delete_user") do={
           /ip hotspot user remove [find name=$cmdUser]
+        } else={ :if ($cmdType = "set_ssid") do={
+          # $cmdUser carries the new SSID
+          :do { /interface wireless set [find] ssid=$cmdUser } on-error={}
+          :do { /interface wifi set [find] ssid=$cmdUser } on-error={}
         } else={ :if ($cmdType = "bind_mac") do={
           # Zero-click bypass: client MAC goes straight through the hotspot.
           # $cmdUser is the MAC address (same field name reused).
@@ -217,6 +221,25 @@ add name="safelinks-checkin" source={
         :log warning ("safelinks-checkin: could not ack command " . $cmdId . " — it will be re-sent next check-in if still pending")
       }
     }
+
+  # Report metrics + active sessions to backend
+  :local cpu [/system resource get cpu-load]
+  :local ramUsed [/system resource get free-memory]
+  :local ramTotal [/system resource get total-memory]
+  :local uptimeS [/system resource get uptime]
+  :local sessions ""
+  :foreach h in=[/ip hotspot active find] do={
+    :local m [/ip hotspot active get $h mac-address]
+    :local ip [/ip hotspot active get $h address]
+    :local u [/ip hotspot active get $h user]
+    :local bi [/ip hotspot active get $h bytes-in]
+    :local bo [/ip hotspot active get $h bytes-out]
+    :local ut [/ip hotspot active get $h uptime]
+    :set sessions ($sessions . "mac=" . $m . "&ip=" . $ip . "&user=" . $u . "&bin=" . $bi . "&bout=" . $bo . "&ut=" . $ut . ";")
+  }
+  :do {
+    /tool fetch url=($safelinksApiUrl . "/api/agent/report") http-method=post http-data=("router_id=" . $routerId . "&api_key=" . $apiKey . "&cpu=" . $cpu . "&ramUsed=" . ($ramTotal - $ramUsed) . "&ramTotal=" . $ramTotal . "&uptime=" . $uptimeS . "&sessions=" . $sessions) output=none
+  } on-error={}
   }
 }
 

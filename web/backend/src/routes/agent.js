@@ -150,4 +150,40 @@ export function registerAgentRoutes(router) {
     }
     ok(res, ["ACK OK"]);
   });
+  // POST /api/agent/report
+  // Router agent posts metrics + currently connected clients every 30s.
+  // Body: { router_id, api_key, metrics: {cpu, ramUsed, ramTotal, uptime}, sessions: [{mac, ip, username, bytesIn, bytesOut, startedAt}] }
+  router.post("/api/agent/report", async (req, res, { body }) => {
+    const { router_id, api_key, metrics, sessions } = body || {};
+    if (!router_id || !api_key) return err(res, 400, "router_id and api_key required");
+    const rt = await db.prepare("SELECT router_id, reseller_id, api_key_hash FROM routers WHERE router_id = ?").get(router_id);
+    if (!rt) return err(res, 404, "unknown router");
+    const crypto = await import("node:crypto");
+    const h = crypto.createHash("sha256").update(api_key).digest("hex");
+    if (h !== rt.api_key_hash) return err(res, 401, "bad api key");
+
+    const now = Date.now();
+    // Upsert router metrics
+    if (metrics) {
+      await db.prepare(`INSERT INTO router_metrics (router_id, reseller_id, cpu_load, ram_used, ram_total, uptime_seconds, active_user_count, updated_at)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT (router_id) DO UPDATE SET cpu_load=EXCLUDED.cpu_load, ram_used=EXCLUDED.ram_used, ram_total=EXCLUDED.ram_total, uptime_seconds=EXCLUDED.uptime_seconds, active_user_count=EXCLUDED.active_user_count, updated_at=EXCLUDED.updated_at`)
+        .run(router_id, rt.reseller_id, Number(metrics.cpu || 0), Number(metrics.ramUsed || 0), Number(metrics.ramTotal || 0), Number(metrics.uptime || 0), Array.isArray(sessions) ? sessions.length : 0, now);
+    }
+
+    // Refresh active sessions (delete then insert — simplest correct pattern)
+    await db.prepare("DELETE FROM active_sessions WHERE router_id = ?").run(router_id);
+    if (Array.isArray(sessions)) {
+      for (const s of sessions) {
+        if (!s.mac) continue;
+        await db.prepare(`INSERT INTO active_sessions (id, router_id, reseller_id, mac, ip, username, bytes_in, bytes_out, started_at, last_seen)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`)
+          .run(id("as"), router_id, rt.reseller_id, String(s.mac), s.ip || null, s.username || null,
+               Number(s.bytesIn || 0), Number(s.bytesOut || 0), Number(s.startedAt || now), now);
+      }
+    }
+
+    return ok(res, ["report accepted", "metrics=" + (metrics ? "yes" : "no"), "sessions=" + (Array.isArray(sessions) ? sessions.length : 0)]);
+  });
+
 }

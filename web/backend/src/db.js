@@ -501,6 +501,41 @@ export async function runAuthUpgradeMigration() {
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS router_id TEXT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_mac TEXT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
+
+CREATE TABLE IF NOT EXISTS router_metrics (
+  router_id TEXT PRIMARY KEY,
+  reseller_id TEXT NOT NULL,
+  cpu_load INTEGER,
+  ram_used BIGINT,
+  ram_total BIGINT,
+  uptime_seconds BIGINT,
+  active_user_count INTEGER DEFAULT 0,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS active_sessions (
+  id TEXT PRIMARY KEY,
+  router_id TEXT NOT NULL,
+  reseller_id TEXT NOT NULL,
+  mac TEXT NOT NULL,
+  ip TEXT,
+  username TEXT,
+  bytes_in BIGINT DEFAULT 0,
+  bytes_out BIGINT DEFAULT 0,
+  started_at BIGINT NOT NULL,
+  last_seen BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_router ON active_sessions(router_id, last_seen);
+CREATE INDEX IF NOT EXISTS idx_active_sessions_reseller ON active_sessions(reseller_id, last_seen);
+
+CREATE TABLE IF NOT EXISTS api_stats (
+  id TEXT PRIMARY KEY,
+  window_start BIGINT NOT NULL,
+  total_calls INTEGER DEFAULT 0,
+  error_calls INTEGER DEFAULT 0,
+  total_ms BIGINT DEFAULT 0,
+  max_ms INTEGER DEFAULT 0
+);
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS fulfillment_status TEXT DEFAULT 'pending';
 
     ALTER TABLE payments ALTER COLUMN user_id DROP NOT NULL;

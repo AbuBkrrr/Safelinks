@@ -472,4 +472,58 @@ export function registerSuperAdminRoutes(router) {
     await db.prepare("UPDATE notifications SET read = 1 WHERE id = ? AND scope = 'super_admin'").run(params.id);
     json(res, 200, { ok: true });
   });
+  // GET /api/admin/active-sessions
+  // Live view: each reseller with their connected routers, current user
+  // counts, last IP + location (if we've seen their requests recently),
+  // and the router hardware health.
+  router.get("/api/admin/active-sessions", async (req, res) => {
+    if (!requireSuperAdmin(req, res)) return;
+    const now = Date.now();
+    const ONLINE_MS = 90000;
+
+    const rows = await db.prepare(`
+      SELECT r.id AS reseller_id, r.company_name, r.email,
+             rt.router_id, rt.model, rt.firmware, rt.last_check_in,
+             rm.cpu_load, rm.ram_used, rm.ram_total, rm.uptime_seconds, rm.updated_at,
+             (SELECT COUNT(*) FROM active_sessions a WHERE a.reseller_id = r.id) AS user_count
+      FROM resellers r
+      LEFT JOIN routers rt ON rt.reseller_id = r.id
+      LEFT JOIN router_metrics rm ON rm.router_id = rt.router_id
+      WHERE rt.router_id IS NOT NULL
+      ORDER BY rm.updated_at DESC NULLS LAST
+    `).all();
+
+    const sessions = rows.map((row) => {
+      const online = row.last_check_in && (now - row.last_check_in) < ONLINE_MS;
+      const ramPct = row.ram_total ? Math.round(100 * Number(row.ram_used) / Number(row.ram_total)) : null;
+      const uptimeDays = row.uptime_seconds ? Math.floor(Number(row.uptime_seconds) / 86400) : null;
+      return {
+        resellerId: row.reseller_id,
+        resellerName: row.company_name || row.email,
+        routerId: row.router_id,
+        routerModel: row.model || "unknown",
+        routerFirmware: row.firmware || "",
+        online,
+        lastCheckIn: row.last_check_in,
+        cpuLoad: row.cpu_load,
+        ramPct,
+        uptimeDays,
+        activeUsers: Number(row.user_count || 0),
+      };
+    });
+
+    // Backend health from api_stats (last 5 min)
+    const win = await db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(total_calls),0) AS calls, COALESCE(SUM(error_calls),0) AS errs, COALESCE(MAX(max_ms),0) AS p99 FROM api_stats WHERE window_start > ?`).get(now - 5 * 60 * 1000);
+
+    return json(res, 200, {
+      sessions,
+      backend: {
+        calls: Number(win.calls || 0),
+        errors: Number(win.errs || 0),
+        errorRate: win.calls ? (Number(win.errs) / Number(win.calls)) : 0,
+        p99Ms: Number(win.p99 || 0),
+      },
+    });
+  });
+
 }

@@ -107,6 +107,7 @@ export const api = {
     installations: () => get("/api/admin/installations"),
     sessions: () => get("/api/admin/sessions"),
     monitoring: () => get("/api/admin/monitoring"),
+    activeSessions: () => get("/api/admin/active-sessions"),
     licensePayments: () => get("/api/admin/license-payments"),
     decideLicensePayment: (id, decision) => put(`/api/admin/license-payments/${id}`, { decision }),
 
@@ -163,6 +164,7 @@ export const api = {
     deleteVoucher: (id) => del(`/api/reseller/vouchers/${id}`),
 
     sessions: () => get("/api/reseller/sessions"),
+    activeSessions: () => get("/api/reseller/active-sessions"),
     disconnectSession: (id) => del(`/api/reseller/sessions/${id}`),
 
     routers: () => get("/api/reseller/routers"),

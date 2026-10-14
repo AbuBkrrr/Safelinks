@@ -269,6 +269,18 @@ export function registerResellerRoutes(router) {
         bank_account_number = COALESCE(?, bank_account_number), ussd_code = COALESCE(?, ussd_code)
       WHERE id = ?`)
       .run(ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode, resellerId);
+    // If SSID changed, queue a router command so the router actually renames
+    // its WiFi interface. Otherwise clients keep seeing the old SSID.
+    if (ssid && typeof ssid === 'string' && ssid.trim()) {
+      try {
+        const rs2 = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+        const ts = Date.now();
+        for (const r of rs2) {
+          await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
+            .run(id("cmd"), r.router_id, "set_ssid", JSON.stringify({ ssid }), "pending", ts);
+        }
+      } catch (_) {}
+    }
     json(res, 200, { ok: true });
   });
 
@@ -642,4 +654,21 @@ export function registerResellerRoutes(router) {
     await db.prepare("UPDATE notifications SET read = 1 WHERE id = ? AND scope = ?").run(params.id, `reseller:${resellerId}`);
     json(res, 200, { ok: true });
   });
+  // GET /api/reseller/active-sessions
+  // Live view: each currently connected end-user + their plan bandwidth.
+  router.get("/api/reseller/active-sessions", async (req, res) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const now = Date.now();
+    const sessions = await db.prepare(`
+      SELECT a.*, v.name AS voucher_name, v.plan_id,
+             p.bandwidth AS bandwidth_mbps, p.name AS plan_name
+      FROM active_sessions a
+      LEFT JOIN vouchers v ON v.username = a.username AND v.reseller_id = a.reseller_id
+      LEFT JOIN plans p ON p.id = v.plan_id
+      WHERE a.reseller_id = ? AND a.last_seen > ?
+      ORDER BY a.last_seen DESC
+    `).all(resellerId, now - 180000);
+    return json(res, 200, { sessions });
+  });
+
 }

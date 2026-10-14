@@ -12,7 +12,7 @@ import {
   statusColor, timeAgo, TransferPayBlock, formatMoney, CURRENCIES, AttachmentPicker,
 } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
-import { useResource } from "./hooks.js";
+import { useResource, usePollingResource } from "./hooks.js";
 import { useOfflineResource } from "./offline/useOfflineResource.js";
 import { SyncProvider, useSyncStatus, queueOfflineAction } from "./offline/syncContext.jsx";
 import { getPendingBlob, deletePendingBlob } from "./offline/offlineStore.js";
@@ -31,7 +31,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("vouchers");
 
   const vouchers = useResource(() => api.reseller.vouchers(), [], (r) => r.vouchers);
-  const sessions = useResource(() => api.reseller.sessions(), [], (r) => r.sessions);
+  const sessions = usePollingResource(() => api.reseller.activeSessions(), [], (r) => r.sessions, 10000);
   const routers = useResource(() => api.reseller.routers(), [], (r) => r.routers);
   const deliveryLogs = useResource(() => api.reseller.deliveryLogs(), [], (r) => r.deliveryLogs);
   const plans = useResource(() => api.reseller.plans(), [], (r) => r.plans);

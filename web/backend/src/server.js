@@ -118,6 +118,20 @@ async function main() {
 
   const PORT = process.env.PORT || 4000;
   const server = http.createServer((req, res) => {
+    /* __api_stats_injected */
+    const __t0 = Date.now();
+    res.on("finish", () => {
+      try {
+        const ms = Date.now() - __t0;
+        const bucket = Math.floor(Date.now() / 60000) * 60000;
+        const bucketId = "b" + bucket;
+        const isErr = res.statusCode >= 400 ? 1 : 0;
+        pool.query(
+          "INSERT INTO api_stats (id, window_start, total_calls, error_calls, total_ms, max_ms) VALUES ($1,$2,1,$3,$4,$4) ON CONFLICT (id) DO UPDATE SET total_calls = api_stats.total_calls + 1, error_calls = api_stats.error_calls + $3, total_ms = api_stats.total_ms + $4, max_ms = GREATEST(api_stats.max_ms, $4)",
+          [bucketId, bucket, isErr, ms]
+        ).catch(() => {});
+      } catch (_) {}
+    });
     const pathname = new URL(req.url, "http://localhost").pathname;
 
     // Static uploads bypass both the JSON router and the licence check.

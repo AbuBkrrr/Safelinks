@@ -14,7 +14,7 @@ import {
   statusColor, timeAgo, formatMoney, CURRENCIES, AttachmentPicker,
 } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
-import { useResource } from "./hooks.js";
+import { useResource, usePollingResource } from "./hooks.js";
 import { LANGUAGES } from "./i18n.js";
 import { dt } from "./dashboardI18n.js";
 
@@ -26,7 +26,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   const [planPriceRows, setPlanPriceRows] = useState({});  // { planId: [rows...] }
   const platformPlans = useResource(() => api.admin.platformPlans(), [], (r) => r.plans);
   const installations = useResource(() => api.admin.installations(), [], (r) => r.installations);
-  const sessions = useResource(() => api.admin.sessions(), [], (r) => r.sessions);
+  const sessions = usePollingResource(() => api.admin.activeSessions(), [], (r) => r.sessions, 10000);
   const monitoring = useResource(() => api.admin.monitoring(), []);
   const licensePayments = useResource(() => api.admin.licensePayments(), [], (r) => r.licensePayments);
   const support = useResource(() => api.admin.support(), [], (r) => r.tickets);
