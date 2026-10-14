@@ -506,18 +506,25 @@ export default function ResellerApp({ session, onExit, notify }) {
       )}
 
       {tab === "sessions" && (
-        <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessions.data || []).length} connected</Badge>}>
-          {sessions.loading ? <Loading /> : (sessions.data || []).map((s) => (
+        <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessions.data?.sessions || sessions.data || []).length} connected</Badge>}>
+          {sessions.loading ? <Loading /> : ((sessions.data?.sessions || sessions.data) || []).map((s) => (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}` }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{s.device_label} <span style={{ fontWeight: 400, color: T.sub, fontSize: 11.5 }}>· {s.username}</span></div>
-                <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>{s.mac} · {s.ip} · {s.bandwidth_mbps} Mbps</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>
+                  {s.voucher_name || s.username || "(unknown)"}{" "}
+                  <span style={{ fontWeight: 400, color: T.sub, fontSize: 11.5 }}>· {s.plan_name || "no plan"}</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>
+                  {s.mac} · {s.ip || "?"}{s.bandwidth_mbps ? " · " + s.bandwidth_mbps + " Mbps" : ""}
+                  {s.location ? " · " + (s.location.city ? s.location.city + ", " + s.location.country : s.location.country) : ""}
+                </div>
               </div>
-              <span style={{ fontSize: 11.5, color: T.sub }}>{timeAgo(s.connected_at)}</span>
-              <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => disconnectSession(s.id)}>Disconnect</Btn>
+              <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
+                {s.started_at ? timeAgo(s.started_at) : (s.last_seen ? timeAgo(s.last_seen) : "—")}
+              </span>
             </div>
           ))}
-          {!sessions.loading && (sessions.data || []).length === 0 && <EmptyRow text="No devices connected right now." />}
+          {!sessions.loading && ((sessions.data?.sessions || sessions.data) || []).length === 0 && <EmptyRow text="No devices connected right now." />}
         </Panel>
       )}
 

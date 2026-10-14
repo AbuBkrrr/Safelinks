@@ -528,6 +528,17 @@ CREATE TABLE IF NOT EXISTS active_sessions (
 CREATE INDEX IF NOT EXISTS idx_active_sessions_router ON active_sessions(router_id, last_seen);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_reseller ON active_sessions(reseller_id, last_seen);
 
+CREATE TABLE IF NOT EXISTS geo_cache (
+  ip TEXT PRIMARY KEY,
+  country TEXT,
+  region TEXT,
+  city TEXT,
+  isp TEXT,
+  ok BOOLEAN DEFAULT TRUE,
+  cached_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_geo_cache_time ON geo_cache(cached_at);
+
 CREATE TABLE IF NOT EXISTS api_stats (
   id TEXT PRIMARY KEY,
   window_start BIGINT NOT NULL,

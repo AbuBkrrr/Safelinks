@@ -25,7 +25,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
   const [viewCurrency, setViewCurrency] = useState(null);
   const [planPriceRows, setPlanPriceRows] = useState({});  // { planId: [rows...] }
   const platformPlans = useResource(() => api.admin.platformPlans(), [], (r) => r.plans);
-  const installations = useResource(() => api.admin.installations(), [], (r) => r.installations);
+  const installations = usePollingResource(() => api.admin.installations(), [], (r) => r.installations, 10000);
   const sessions = usePollingResource(() => api.admin.activeSessions(), [], (r) => r.sessions, 10000);
   const monitoring = useResource(() => api.admin.monitoring(), []);
   const licensePayments = useResource(() => api.admin.licensePayments(), [], (r) => r.licensePayments);
@@ -525,30 +525,48 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       )}
 
       {tab === "sessions" && (
-        <Panel title="Active sessions — platform-wide" action={<Badge tone={T.primary}>{(sessions.data || []).length} connected</Badge>}>
-          {sessions.loading ? <Loading /> : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ textAlign: "left", color: T.sub, fontSize: 11.5, textTransform: "uppercase" }}>
-                  <th style={{ padding: "6px 8px" }}>Device</th><th>Voucher</th><th>Reseller</th><th>IP</th><th>Bandwidth</th><th>Connected</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(sessions.data || []).map((s) => (
-                  <tr key={s.id} style={{ borderTop: `1px solid ${T.border}` }}>
-                    <td style={{ padding: "9px 8px", fontWeight: 600 }}>{s.device_label}</td>
-                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.username}</td>
-                    <td>{s.company_name}</td>
-                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.ip}</td>
-                    <td>{s.bandwidth_mbps} Mbps</td>
-                    <td style={{ color: T.sub }}>{timeAgo(s.connected_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {sessions.data?.backend && (
+            <div style={{ display: "flex", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+              <StatCard icon={Gauge} label="API p99 (5 min)" value={`${sessions.data.backend.p99Ms || 0}ms`} tone={T.primary} />
+              <StatCard icon={Cpu} label="API calls (5 min)" value={String(sessions.data.backend.calls || 0)} tone={T.success} />
+              <StatCard icon={Router} label="Error rate" value={`${((sessions.data.backend.errorRate || 0) * 100).toFixed(2)}%`} tone={(sessions.data.backend.errorRate || 0) > 0.05 ? T.warning : T.success} />
+            </div>
           )}
-          {!sessions.loading && (sessions.data || []).length === 0 && <EmptyRow text="No active sessions right now." />}
-        </Panel>
+          <Panel title="Active sessions — platform-wide" action={<Badge tone={T.primary}>{(sessions.data?.sessions || []).length} router(s)</Badge>}>
+            {sessions.loading ? <Loading /> : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: T.sub, fontSize: 11.5, textTransform: "uppercase" }}>
+                    <th style={{ padding: "6px 8px" }}>Reseller</th>
+                    <th>Router</th>
+                    <th>Users</th>
+                    <th>CPU</th>
+                    <th>RAM</th>
+                    <th>Uptime</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(sessions.data?.sessions || []).map((s) => (
+                    <tr key={s.resellerId + "|" + (s.routerId || "")} style={{ borderTop: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "9px 8px", fontWeight: 600 }}>{s.resellerName}</td>
+                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.routerModel || "—"}</td>
+                      <td>{s.activeUsers || 0}</td>
+                      <td>{s.cpuLoad != null ? s.cpuLoad + "%" : "—"}</td>
+                      <td>{s.ramPct != null ? s.ramPct + "%" : "—"}</td>
+                      <td style={{ color: T.sub }}>{s.uptimeDays != null ? s.uptimeDays + "d" : "—"}</td>
+                      <td style={{ color: T.sub, fontSize: 12 }}>{s.location ? (s.location.city ? s.location.city + ", " + s.location.country : s.location.country) : "—"}</td>
+                      <td><Badge tone={s.online ? T.success : T.danger}>{s.online ? "online" : "offline"}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {!sessions.loading && (sessions.data?.sessions || []).length === 0 && <EmptyRow text="No routers connected yet." />}
+          </Panel>
+        </>
       )}
 
       {tab === "monitoring" && (

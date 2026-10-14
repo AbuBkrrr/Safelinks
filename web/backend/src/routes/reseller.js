@@ -23,6 +23,40 @@ function requireReseller(req, res) {
 const CURRENCIES = new Set(["USD", "NGN", "KES", "UGX", "GHS", "ZAR", "TZS", "XOF", "EUR", "GBP"]);
 const LANGUAGES = new Set(["en", "fr", "sw", "ha", "yo", "pt"]);
 
+
+// ───────────────────────────────────────────────────────────────
+// IP geolocation (via free ip-api.com, backend-only — no HTTPS needed
+// because we call it server-side, not from the browser).
+// Caches every lookup in geo_cache for 24h to stay within the 45 req/min
+// rate limit even with busy routers.
+// ───────────────────────────────────────────────────────────────
+async function lookupGeoReseller(ip) {
+  if (!ip || typeof ip !== "string") return null;
+  // Skip private ranges — api would just fail anyway.
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.|::1$)/.test(ip)) {
+    return { country: "Local", region: null, city: null, isp: null };
+  }
+  const now = Date.now();
+  try {
+    const row = await db.prepare("SELECT country, region, city, isp, cached_at FROM geo_cache WHERE ip = ?").get(ip);
+    if (row && now - Number(row.cached_at) < 24 * 60 * 60 * 1000) {
+      return { country: row.country, region: row.region, city: row.city, isp: row.isp };
+    }
+  } catch (_) {}
+  try {
+    const r = await fetch("http://ip-api.com/line/" + encodeURIComponent(ip) + "?fields=status,country,regionName,city,isp");
+    const txt = await r.text();
+    const lines = txt.trim().split("\n");
+    if (lines[0] === "success" && lines.length >= 5) {
+      const geo = { country: lines[1], region: lines[2], city: lines[3], isp: lines[4] };
+      await db.prepare("INSERT INTO geo_cache (ip, country, region, city, isp, ok, cached_at) VALUES (?,?,?,?,?,TRUE,?) ON CONFLICT (ip) DO UPDATE SET country=EXCLUDED.country, region=EXCLUDED.region, city=EXCLUDED.city, isp=EXCLUDED.isp, ok=TRUE, cached_at=EXCLUDED.cached_at")
+        .run(ip, geo.country, geo.region, geo.city, geo.isp, now).catch(() => {});
+      return geo;
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function registerResellerRoutes(router) {
   // --- Vouchers ---
   router.get("/api/reseller/vouchers", async (req, res) => {
@@ -668,6 +702,10 @@ export function registerResellerRoutes(router) {
       WHERE a.reseller_id = ? AND a.last_seen > ?
       ORDER BY a.last_seen DESC
     `).all(resellerId, now - 180000);
+    // Enrich with geo (cached)
+    for (const s of sessions) {
+      s.location = await lookupGeoReseller(s.ip || null).catch(() => null);
+    }
     return json(res, 200, { sessions });
   });
 
