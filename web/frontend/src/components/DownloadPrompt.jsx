@@ -48,7 +48,7 @@ const DownloadPrompt = () => {
       justifyContent: 'center'
     }}>
       <span>📱 Download the SAFE_Links Installer for {osName}</span>
-      {(isWindows || isAndroid) ? (
+      {os === 'windows' ? (
           <a
             href={downloadUrl}
             download

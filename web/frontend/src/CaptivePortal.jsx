@@ -134,6 +134,29 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     return () => clearTimeout(t);
   }, [step, clientMac]);
 
+  // __autoRedirectEffect: after payment confirm + MAC bypass active,
+  // give user 3s to see credentials, then close/redirect.
+  useEffect(() => {
+    if (step !== "confirmed") return;
+    const params = new URLSearchParams(window.location.search);
+    const dst = params.get("dst") || "http://budgetpro.com.ng/";
+    const isTauri = typeof window !== "undefined" && (window.__TAURI__ || window.__TAURI_INTERNALS__);
+    const t = setTimeout(async () => {
+      if (isTauri) {
+        try {
+          const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow
+            ? window.__TAURI__.window.getCurrentWindow()
+            : null;
+          if (w) { await w.close(); return; }
+        } catch (_) {}
+        // Fallback: navigate to dst — user is already online via MAC bypass
+        try { window.location.href = dst; return; } catch (_) {}
+      }
+      window.location.href = dst;
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [step]);
+
   async function submitCard() {
     setCardProcessing(true);
     setCardError(null);
