@@ -371,16 +371,14 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 15 }}>{voucher.password}</div>
               </div>
               <Btn onClick={() => {
-                const gw = reseller.hotspotGateway || "192.168.88.1";
+                /* __directToDst — client is already online via MAC bypass;
+                   no need to hit router /login. Go straight to destination. */
                 const params = new URLSearchParams(window.location.search);
                 const dst = params.get("dst") || "https://budgetpro.com.ng/";
                 const source = params.get("source");
-                const qs = "username=" + encodeURIComponent(voucher.username)
-                         + "&password=" + encodeURIComponent(voucher.password)
-                         + (dst ? "&dst=" + encodeURIComponent(dst) : "");
-                const loginUrl = "http://" + gw + "/login?" + qs;
                 if (source === "installer") {
-                  const deeplink = "safelinks-installer://open?url=" + encodeURIComponent(loginUrl);
+                  // Open dst in the system browser via deep-link.
+                  const deeplink = "safelinks-installer://open?url=" + encodeURIComponent(dst);
                   const a = document.createElement("a");
                   a.href = deeplink;
                   a.style.display = "none";
@@ -388,9 +386,9 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   a.click();
                   document.body.removeChild(a);
                 } else {
-                  window.location.href = loginUrl;
+                  window.location.href = dst;
                 }
-              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
+              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
               <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>{t(lang, "redirecting") || "You will be redirected to the login page and connected automatically."}</div>
