@@ -28,6 +28,37 @@ pub fn run() {
                             }
                         }
                     }
+                } else if arg.starts_with("safelinks-installer://configure") {
+                    // Second-instance launch with //configure — parse + emit
+                    // the same event the on_open_url handler emits so the UI
+                    // auto-config screen kicks in.
+                    if let Some((_, q)) = arg.split_once('?') {
+                        let mut reseller_id = String::new();
+                        let mut ip = String::new();
+                        let mut pairing_code = String::new();
+                        let mut ssid = String::new();
+                        let mut wifi_pass = String::new();
+                        for pair in q.split('&') {
+                            let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
+                            let v = urlencoding_decode(v);
+                            match k {
+                                "resellerId" => reseller_id = v,
+                                "ip" => ip = v,
+                                "pairingCode" => pairing_code = v,
+                                "ssid" => ssid = v,
+                                "pass" => wifi_pass = v,
+                                _ => {}
+                            }
+                        }
+                        let payload = serde_json::json!({
+                            "resellerId": reseller_id,
+                            "ip": ip,
+                            "pairingCode": pairing_code,
+                            "ssid": ssid,
+                            "wifiPass": wifi_pass,
+                        });
+                        let _ = app.emit("deep-link-configure", payload);
+                    }
                 }
             }
             if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
