@@ -328,3 +328,21 @@ pub async fn open_forgot_password() -> Result<(), String> {
 pub async fn open_signup() -> Result<(), String> {
     open_url_external("https://www.safelinks.name.ng/signup?source=installer")
 }
+
+// ───────────── pending configure cache ─────────────
+// Populated by lib.rs when a safelinks-installer://configure URL arrives
+// (either via on_open_url on cold start, or via single-instance callback
+// when the app is already running). Pulled by the frontend on boot to
+// avoid the deep-link-listener-attaches-too-late race.
+static PENDING_CONFIGURE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+#[tauri::command]
+pub fn take_pending_configure() -> Option<String> {
+    PENDING_CONFIGURE.lock().ok().and_then(|mut g| g.take())
+}
+
+pub fn cache_pending_configure(url: String) {
+    if let Ok(mut g) = PENDING_CONFIGURE.lock() {
+        *g = Some(url);
+    }
+}

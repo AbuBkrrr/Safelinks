@@ -856,7 +856,11 @@ async function _optBSaveSetupFile() {
   ac.innerHTML = '<h1>Configuring router</h1>'
     + '<div class="sub" id="ac-sub">Connecting over SSH\u2026</div>'
     + '<div class="section"><div id="ac-log" style="font-family:ui-monospace,monospace;font-size:11.5px;background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;max-height:280px;overflow-y:auto;color:#94a3b8;">-</div></div>'
-    + '<div class="btn-row"><button id="ac-done" style="display:none;">Close</button></div>';
+    + '<div class="btn-row" id="ac-actions" style="display:none;">' +
+    '<button id="ac-open-portal">Open Portal</button>' +
+    '<button id="ac-open-dashboard" class="secondary">Open Dashboard</button>' +
+    '<button id="ac-sign-out" class="secondary">Sign Out</button>' +
+    '</div>';
   var wrapEl = document.querySelector('.wrap');
   if (wrapEl && !document.getElementById('s-autoconfig')) wrapEl.appendChild(ac);
 
@@ -872,8 +876,8 @@ async function _optBSaveSetupFile() {
     if (el) el.textContent = msg;
   }
 
-  listen('deep-link-configure', async function(e) {
-    var p = e.payload || {};
+  async function _handleAutoConfig(p) {
+    p = p || {};
     if (!p.resellerId) return;
     try { localStorage.setItem('reseller_id', String(p.resellerId)); } catch (_) {}
     try { show('autoconfig'); } catch (_) {}
@@ -927,14 +931,57 @@ async function _optBSaveSetupFile() {
       });
       acLog('Installation recorded on backend.');
     } catch (err) { acLog('record error: ' + err); }
-    acSub('Done.');
-    var doneBtn = document.getElementById('ac-done');
-    if (doneBtn) {
-      doneBtn.style.display = 'inline-block';
-      doneBtn.onclick = function() { try { window.close(); } catch (_) {} };
-    }
-  });
+    acSub('Router configured successfully.');
+    var actions = document.getElementById('ac-actions');
+    if (actions) actions.style.display = 'flex';
+    var rid = p.resellerId || '';
+    var portalBtn = document.getElementById('ac-open-portal');
+    if (portalBtn) portalBtn.onclick = function() {
+      var u = 'https://www.safelinks.name.ng/portal/' + encodeURIComponent(rid);
+      var d = 'safelinks-installer://open?url=' + encodeURIComponent(u);
+      var a = document.createElement('a'); a.href = d; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    };
+    var dashBtn = document.getElementById('ac-open-dashboard');
+    if (dashBtn) dashBtn.onclick = function() {
+      var tok = localStorage.getItem('auth_token') || '';
+      try { invoke('open_dashboard', { token: tok }); } catch (_) {}
+    };
+    var signoutBtn = document.getElementById('ac-sign-out');
+    if (signoutBtn) signoutBtn.onclick = function() {
+      try { localStorage.removeItem('auth_token'); localStorage.removeItem('reseller_id'); localStorage.removeItem('user_email'); } catch (_) {}
+      try { invoke('clear_credentials'); } catch (_) {}
+      try { window.close(); } catch (_) {}
+    };
+  }
+
+  listen('deep-link-configure', function(e) { _handleAutoConfig(e.payload || {}); });
+  window.addEventListener('__force_autoconfig', function(e) { _handleAutoConfig(e.detail || {}); });
+  // Cold-start race: deep-link may fire before JS listener attaches.
+  setTimeout(function() {
+    (async function() {
+      try {
+        var pending = await invoke('take_pending_configure');
+        if (!pending) return;
+        var payload = {};
+        var qm = pending.indexOf('?');
+        if (qm >= 0) {
+          var qs = pending.substring(qm + 1);
+          qs.split('&').forEach(function(pair) {
+            var kv = pair.split('=');
+            if (kv.length === 2) {
+              var k = decodeURIComponent(kv[0]);
+              var v = decodeURIComponent(kv[1].replace(/\+/g, ' '));
+              if (k === 'resellerId') payload.resellerId = v;
+              else if (k === 'ip') payload.ip = v;
+              else if (k === 'pairingCode') payload.pairingCode = v;
+              else if (k === 'ssid') payload.ssid = v;
+              else if (k === 'pass') payload.wifiPass = v;
+            }
+          });
+        }
+        if (payload.resellerId) _handleAutoConfig(payload);
+      } catch (_) {}
+    })();
+  }, 400);
 })();
-</script>
-</body>
-</html>

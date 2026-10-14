@@ -57,7 +57,8 @@ pub fn run() {
                             "ssid": ssid,
                             "wifiPass": wifi_pass,
                         });
-                        let _ = app.emit("deep-link-configure", payload);
+                        crate::auth::cache_pending_configure(arg.clone());
+                                                let _ = app.emit("deep-link-configure", payload);
                     }
                 }
             }
@@ -98,7 +99,8 @@ pub fn run() {
                                 "ssid": ssid,
                                 "wifiPass": wifi_pass,
                             });
-                            let _ = handle.emit("deep-link-configure", payload);
+                            crate::auth::cache_pending_configure(s.to_string());
+                                                        let _ = handle.emit("deep-link-configure", payload);
                         }
                         continue;
                     }
@@ -156,6 +158,7 @@ pub fn run() {
             auth::open_google_signin,
             auth::open_forgot_password,
             auth::open_signup,
+            auth::take_pending_configure,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAFE_Links installer");
