@@ -845,6 +845,77 @@ async function _optBSaveSetupFile() {
 // Runs after the original script block has attached its handler.
 // (cfg-apply uses the auto-apply handler defined above.)
 // ============ end Option B override ============
+
+// ============================================================
+// Web-dashboard auto-configure: safelinks-installer://configure
+// ============================================================
+(function() {
+  var ac = document.createElement('div');
+  ac.id = 's-autoconfig';
+  ac.className = 'screen';
+  ac.innerHTML = '<h1>Configuring router</h1>'
+    + '<div class="sub" id="ac-sub">Connecting over SSH\u2026</div>'
+    + '<div class="section"><div id="ac-log" style="font-family:ui-monospace,monospace;font-size:11.5px;background:#020617;border:1px solid #1e293b;border-radius:8px;padding:12px;max-height:280px;overflow-y:auto;color:#94a3b8;">-</div></div>'
+    + '<div class="btn-row"><button id="ac-done" style="display:none;">Close</button></div>';
+  var wrapEl = document.querySelector('.wrap');
+  if (wrapEl && !document.getElementById('s-autoconfig')) wrapEl.appendChild(ac);
+
+  function acLog(line) {
+    var el = document.getElementById('ac-log');
+    if (!el) return;
+    if (el.textContent === '-') el.textContent = '';
+    el.textContent += line + '\n';
+    el.scrollTop = el.scrollHeight;
+  }
+  function acSub(msg) {
+    var el = document.getElementById('ac-sub');
+    if (el) el.textContent = msg;
+  }
+
+  listen('deep-link-configure', async function(e) {
+    var p = e.payload || {};
+    if (!p.resellerId) return;
+    try { localStorage.setItem('reseller_id', String(p.resellerId)); } catch (_) {}
+    try { show('autoconfig'); } catch (_) {}
+    acSub('Connected. Pushing configuration to ' + (p.ip || 'router') + '\u2026');
+    acLog('SSH target: ' + (p.ip || ''));
+    acLog('SSID: ' + (p.ssid || '(default)'));
+    var applyOk = false;
+    try {
+      var apply = await invoke('installer_router_apply_config', {
+        ip: p.ip || '192.168.88.1',
+        user: 'admin', password: '',
+        ssid: p.ssid || 'SAFE_Links-WiFi',
+        wifiPassword: p.wifiPass || 'ChangeMe123',
+        resellerId: p.resellerId,
+        adminMac: '',
+      });
+      (apply.log || []).forEach(function(l) { acLog(l); });
+      acLog('--- hotspot: ' + (apply.ok ? 'OK' : 'PARTIAL') + ' ---');
+      applyOk = !!apply.ok;
+    } catch (err) { acLog('HOTSPOT ERROR: ' + err); }
+
+    if (p.pairingCode && applyOk) {
+      acSub('Installing router agent\u2026');
+      try {
+        var agent = await invoke('installer_router_install_agent', {
+          ip: p.ip || '192.168.88.1',
+          user: 'admin', password: '',
+          pairingCode: p.pairingCode,
+          apiBase: 'https://www.safelinks.name.ng',
+        });
+        (agent.log || []).forEach(function(l) { acLog(l); });
+        acLog('--- agent: ' + (agent.ok ? 'OK' : 'FAILED') + ' ---');
+      } catch (err) { acLog('AGENT ERROR: ' + err); }
+    }
+    acSub('Done.');
+    var doneBtn = document.getElementById('ac-done');
+    if (doneBtn) {
+      doneBtn.style.display = 'inline-block';
+      doneBtn.onclick = function() { try { window.close(); } catch (_) {} };
+    }
+  });
+})();
 </script>
 </body>
 </html>

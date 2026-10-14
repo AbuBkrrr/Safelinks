@@ -59,6 +59,11 @@ function PairingFlow({ onComplete, onBack }) {
   const [router, setRouter] = useState(null);
   const [error, setError] = useState(null);
   const pollRef = useRef(null);
+  const [configuringRouter, setConfiguringRouter] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
+  const [ssid, setSsid] = useState("SAFE_Links-WiFi");
+  const [wifiPass, setWifiPass] = useState("");
+  const [routerIp, setRouterIp] = useState("192.168.88.1");
 
   useEffect(() => {
     generateCode();
@@ -95,6 +100,61 @@ function PairingFlow({ onComplete, onBack }) {
     } catch { /* transient poll failure — next tick retries */ }
   }
 
+  function resolveResellerId() {
+    try {
+      var raw = localStorage.getItem("SAFELINKS_user") || localStorage.getItem("SAFELinks_user");
+      if (raw) {
+        var u = JSON.parse(raw);
+        if (u.id) return u.id;
+        if (u.resellerId) return u.resellerId;
+      }
+    } catch (_) {}
+    return localStorage.getItem("reseller_id") || "";
+  }
+
+  async function fireInstallerDeepLink() {
+    if (!code) return;
+    setConfiguringRouter(true);
+    setShowFallback(false);
+    var rid = resolveResellerId();
+    var params = new URLSearchParams({
+      resellerId: rid,
+      ip: routerIp || "192.168.88.1",
+      pairingCode: code,
+      ssid: ssid,
+      pass: wifiPass,
+    });
+    var deeplink = "safelinks-installer://configure?" + params.toString();
+    var a = document.createElement("a");
+    a.href = deeplink;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    await new Promise(function(r) { setTimeout(r, 2000); });
+    var started = Date.now();
+    var t = setInterval(async function() {
+      try {
+        var list = await api.reseller.routers();
+        var arr = (list && (list.routers || list)) || [];
+        var fresh = arr.find(function(r) { return Date.now() - (r.last_check_in || 0) < 180000; });
+        if (fresh) {
+          clearInterval(t);
+          setConfiguringRouter(false);
+          setStatus("used");
+          setRouter(fresh);
+          return;
+        }
+      } catch (_) {}
+      if (Date.now() - started > 60000) {
+        clearInterval(t);
+        setConfiguringRouter(false);
+        setShowFallback(true);
+      }
+    }, 3000);
+    if (pollRef) { clearInterval(pollRef.current); pollRef.current = t; }
+  }
+
   const minutesLeft = expiresAt ? Math.max(0, Math.round((expiresAt - Date.now()) / 60000)) : null;
 
   return (
@@ -104,14 +164,44 @@ function PairingFlow({ onComplete, onBack }) {
       {status === "loading" && <div style={{ textAlign: "center", padding: "30px 0", color: T.sub, fontSize: 13 }}><Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /></div>}
 
       {status === "pending" && (
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14 }}>On the router, run the SAFE_Links agent script and enter this code when it asks:</div>
-          <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: 6, color: T.primary, background: T.bg, borderRadius: 12, padding: "18px 0", marginBottom: 10, fontFamily: "monospace" }}>{code}</div>
-          <div style={{ fontSize: 11.5, color: T.sub, marginBottom: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Clock size={12} /> Expires in {minutesLeft} min</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: T.sub, fontSize: 12.5 }}>
-            <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Waiting for the router to check in…
+        <div>
+          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12, textAlign: "center" }}>
+            Fill in the WiFi details, then click <b>Configure router now</b>. The desktop installer runs the SSH config automatically.
           </div>
-          <LanAutoPair code={code} onPaired={() => checkStatus(code)} />
+
+          <Field label="WiFi network name (SSID)">
+            <input style={inputStyle} value={ssid} onChange={(e) => setSsid(e.target.value)} />
+          </Field>
+          <Field label="WiFi password (min 8 characters)">
+            <input style={inputStyle} type="text" value={wifiPass} onChange={(e) => setWifiPass(e.target.value)} placeholder="e.g. MyShop2026" />
+          </Field>
+          <Field label="Router IP">
+            <input style={inputStyle} value={routerIp} onChange={(e) => setRouterIp(e.target.value)} />
+          </Field>
+
+          <Btn
+            disabled={configuringRouter || !ssid || wifiPass.length < 8}
+            onClick={fireInstallerDeepLink}
+            style={{ width: "100%", justifyContent: "center", padding: "12px 0", marginTop: 6 }}
+          >
+            {configuringRouter ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Configuring…</> : "Configure router now"}
+          </Btn>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.sub, fontSize: 11.5, marginTop: 12 }}>
+            <Clock size={11} /> Pairing code {code} · expires {minutesLeft} min
+          </div>
+
+          {showFallback && (
+            <div style={{ marginTop: 14, padding: 12, background: T.bg, borderRadius: 10, fontSize: 12 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Installer not detected on this PC</div>
+              <div style={{ color: T.sub, marginBottom: 10 }}>
+                Download the desktop installer once — future configurations will run automatically.
+              </div>
+              <Btn onClick={() => { window.open("/downloads/safelinks-installer.exe", "_blank"); }} style={{ width: "100%", justifyContent: "center" }}>
+                Download installer
+              </Btn>
+            </div>
+          )}
         </div>
       )}
 
