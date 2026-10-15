@@ -57,7 +57,7 @@ pub async fn check_prerequisites() -> Result<PreflightReport, String> {
         name: "Internet connection".into(),
         ok: internet_ok,
         detail: if internet_ok { "Online".into() } else { "Offline — connect to internet to continue".into() },
-        required: true,
+        required: false,
     });
 
     let all_required_ok = items.iter().filter(|i| i.required).all(|i| i.ok);
@@ -123,15 +123,15 @@ fn check_network() -> bool {
 
 async fn check_internet() -> bool {
     let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(4))
+        .timeout(std::time::Duration::from_secs(3))
         .build()
     {
         Ok(c) => c,
         Err(_) => return false,
     };
-    client
-        .head("https://backend-services-production-78d8.up.railway.app/")
-        .send()
-        .await
-        .is_ok()
+    let fut = client.head("https://www.safelinks.name.ng/").send();
+    match tokio::time::timeout(std::time::Duration::from_secs(5), fut).await {
+        Ok(Ok(_)) => true,
+        _ => false,
+    }
 }

@@ -13,98 +13,13 @@ use tauri_plugin_deep_link::DeepLinkExt;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // When the app is launched a second time via a deep-link URL,
-            // route "safelinks-installer://open?url=..." to the system browser.
-            for arg in &argv {
-                if arg.starts_with("safelinks-installer://open") {
-                    if let Some((_, q)) = arg.split_once('?') {
-                        for pair in q.split('&') {
-                            if let Some((k, v)) = pair.split_once('=') {
-                                if k == "url" {
-                                    let decoded = urlencoding_decode(v);
-                                    let _ = crate::auth::open_url_external(&decoded);
-                                }
-                            }
-                        }
-                    }
-                } else if arg.starts_with("safelinks-installer://configure") {
-                    // Second-instance launch with //configure — parse + emit
-                    // the same event the on_open_url handler emits so the UI
-                    // auto-config screen kicks in.
-                    if let Some((_, q)) = arg.split_once('?') {
-                        let mut reseller_id = String::new();
-                        let mut ip = String::new();
-                        let mut pairing_code = String::new();
-                        let mut ssid = String::new();
-                        let mut wifi_pass = String::new();
-                        for pair in q.split('&') {
-                            let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
-                            let v = urlencoding_decode(v);
-                            match k {
-                                "resellerId" => reseller_id = v,
-                                "ip" => ip = v,
-                                "pairingCode" => pairing_code = v,
-                                "ssid" => ssid = v,
-                                "pass" => wifi_pass = v,
-                                _ => {}
-                            }
-                        }
-                        let payload = serde_json::json!({
-                            "resellerId": reseller_id,
-                            "ip": ip,
-                            "pairingCode": pairing_code,
-                            "ssid": ssid,
-                            "wifiPass": wifi_pass,
-                        });
-                        crate::auth::cache_pending_configure(arg.clone());
-                                                let _ = app.emit("deep-link-configure", payload);
-                    }
-                }
-            }
-            if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
-                let _ = w.set_focus();
-            }
-        }))
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for url in event.urls() {
-                    let s = url.as_str();
-                    // safelinks-installer://configure?resellerId=...&ip=...&pairingCode=...&ssid=...&pass=...
-                    if s.starts_with("safelinks-installer://configure") {
-                        if let Some((_, q)) = s.split_once('?') {
-                            let mut reseller_id = String::new();
-                            let mut ip = String::new();
-                            let mut pairing_code = String::new();
-                            let mut ssid = String::new();
-                            let mut wifi_pass = String::new();
-                            for pair in q.split('&') {
-                                let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
-                                let v = urlencoding_decode(v);
-                                match k {
-                                    "resellerId" => reseller_id = v,
-                                    "ip" => ip = v,
-                                    "pairingCode" => pairing_code = v,
-                                    "ssid" => ssid = v,
-                                    "pass" => wifi_pass = v,
-                                    _ => {}
-                                }
-                            }
-                            let payload = serde_json::json!({
-                                "resellerId": reseller_id,
-                                "ip": ip,
-                                "pairingCode": pairing_code,
-                                "ssid": ssid,
-                                "wifiPass": wifi_pass,
-                            });
-                            crate::auth::cache_pending_configure(s.to_string());
-                                                        let _ = handle.emit("deep-link-configure", payload);
-                        }
-                        continue;
-                    }
                     // safelinks-installer://auth?token=...&role=...&email=...&companyName=...
+                    let s = url.as_str();
                     if let Some(q) = s.split_once("?") {
                         let query = q.1;
                         let mut token = String::new();
@@ -141,7 +56,6 @@ pub fn run() {
             commands::probe_router,
             preflight::check_prerequisites,
             router::installer_save_rsc,
-            router::installer_router_install_agent,
             router::installer_router_test_ssh,
             router::installer_router_apply_config,
             router::installer_router_check_status,
@@ -153,12 +67,9 @@ pub fn run() {
             auth::login_and_store,
             auth::try_auto_login,
             auth::open_dashboard,
-            auth::open_portal,
-            auth::open_in_system_browser,
             auth::open_google_signin,
             auth::open_forgot_password,
             auth::open_signup,
-            auth::take_pending_configure,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAFE_Links installer");

@@ -32,7 +32,7 @@ services:
       - "5432"
 
   backend:
-    build: ./SAFELINKS-backend
+    build: ./backend
     restart: unless-stopped
     depends_on:
       postgres:

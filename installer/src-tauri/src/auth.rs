@@ -1,4 +1,3 @@
-use tauri::{Emitter, Manager};
 use serde::{Deserialize, Serialize};
 
 const KEYRING_SERVICE: &str = "safelinks-installer";
@@ -172,11 +171,6 @@ pub async fn try_auto_login() -> Result<Option<LoginResult>, String> {
 
 // ---------- External browser helper ----------
 
-#[tauri::command]
-pub async fn open_in_system_browser(url: String) -> Result<(), String> {
-    open_url_external(&url)
-}
-
 pub fn open_url_external(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -193,32 +187,6 @@ pub fn open_url_external(url: &str) -> Result<(), String> {
     {
         std::process::Command::new("xdg-open").arg(url).spawn().map_err(|e| e.to_string())?;
     }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn open_portal(app: tauri::AppHandle, reseller_id: String) -> Result<(), String> {
-    if reseller_id.is_empty() {
-        return Err("reseller_id is required".to_string());
-    }
-    let url = format!("https://www.safelinks.name.ng/portal/{}", reseller_id);
-
-    if let Some(w) = tauri::Manager::get_webview_window(&app, "portal") {
-        let _ = w.set_focus();
-        return Ok(());
-    }
-
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "portal",
-        tauri::WebviewUrl::External(url.parse().map_err(|e| format!("bad url: {}", e))?),
-    )
-    .title("SAFE_Links Captive Portal")
-    .inner_size(900.0, 800.0)
-    .min_inner_size(500.0, 600.0)
-    .build()
-    .map_err(|e| format!("could not open portal window: {}", e))?;
-
     Ok(())
 }
 
@@ -253,70 +221,10 @@ pub async fn open_dashboard(app: tauri::AppHandle, token: Option<String>) -> Res
 }
 
 #[tauri::command]
-pub async fn open_google_signin(app: tauri::AppHandle) -> Result<(), String> {
-    let url = "https://www.safelinks.name.ng/agent-login?source=installer";
-    if let Some(w) = app.get_webview_window("google-auth") { let _ = w.set_focus(); return Ok(()); }
-    let handle = app.clone();
-    tauri::WebviewWindowBuilder::new(&app, "google-auth",
-        tauri::WebviewUrl::External(url.parse().map_err(|e| format!("bad url: {}", e))?))
-        .title("Sign in with Google")
-        .inner_size(520.0, 720.0)
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .on_navigation(move |nav| {
-            let s = nav.as_str();
-            if s.starts_with("safelinks-installer://") {
-                if let Some((_, q)) = s.split_once('?') {
-                    let mut token = String::new();
-                    let mut role = String::new();
-                    let mut email = String::new();
-                    let mut company = String::new();
-                    for pair in q.split('&') {
-                        let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
-                        let v = url_decode(v);
-                        match k {
-                            "token" => token = v,
-                            "role" => role = v,
-                            "email" => email = v,
-                            "companyName" => company = v,
-                            _ => {}
-                        }
-                    }
-                    let payload = serde_json::json!({ "token": token, "role": role, "email": email, "companyName": company });
-                    let _ = handle.emit("deep-link-auth", payload);
-                }
-                if let Some(w) = handle.get_webview_window("google-auth") { let _ = w.close(); }
-                return false;
-            }
-            true
-        })
-        .build()
-        .map_err(|e| format!("could not open google auth window: {}", e))?;
-    Ok(())
-}
-
-fn url_decode(s: &str) -> String {
-    let s = s.replace('+', " ");
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let (Some(h), Some(l)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2])) {
-                out.push(h * 16 + l); i += 3; continue;
-            }
-        }
-        out.push(bytes[i]); i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
-    }
+pub async fn open_google_signin() -> Result<(), String> {
+    // The web app should, after successful Google sign-in, redirect to:
+    //   safelinks-installer://auth?token=<JWT>&role=reseller&email=<email>&companyName=<name>
+    open_url_external("https://www.safelinks.name.ng/agent-login?source=installer")
 }
 
 #[tauri::command]
@@ -327,22 +235,4 @@ pub async fn open_forgot_password() -> Result<(), String> {
 #[tauri::command]
 pub async fn open_signup() -> Result<(), String> {
     open_url_external("https://www.safelinks.name.ng/signup?source=installer")
-}
-
-// ───────────── pending configure cache ─────────────
-// Populated by lib.rs when a safelinks-installer://configure URL arrives
-// (either via on_open_url on cold start, or via single-instance callback
-// when the app is already running). Pulled by the frontend on boot to
-// avoid the deep-link-listener-attaches-too-late race.
-static PENDING_CONFIGURE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-
-#[tauri::command]
-pub fn take_pending_configure() -> Option<String> {
-    PENDING_CONFIGURE.lock().ok().and_then(|mut g| g.take())
-}
-
-pub fn cache_pending_configure(url: String) {
-    if let Ok(mut g) = PENDING_CONFIGURE.lock() {
-        *g = Some(url);
-    }
 }

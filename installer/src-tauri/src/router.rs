@@ -22,7 +22,21 @@ impl client::Handler for AcceptAllKeys {
 
 async fn connect(ip: &str, user: &str, password: &str) -> Result<Handle<AcceptAllKeys>, String> {
     let addr = format!("{}:22", ip);
-    let cfg = Arc::new(client::Config::default());
+    let mut preferred = russh::Preferred::default();
+    preferred.kex = std::borrow::Cow::Borrowed(&[
+        russh::kex::DH_G1_SHA1,
+        russh::kex::DH_G14_SHA1,
+        russh::kex::DH_G14_SHA256,
+        russh::kex::DH_G16_SHA512,
+        russh::kex::ECDH_SHA2_NISTP256,
+        russh::kex::ECDH_SHA2_NISTP384,
+        russh::kex::ECDH_SHA2_NISTP521,
+        russh::kex::CURVE25519,
+        russh::kex::CURVE25519_PRE_RFC_8731,
+    ]);
+    let mut cfg_inner = client::Config::default();
+    cfg_inner.preferred = preferred;
+    let cfg = Arc::new(cfg_inner);
 
     let mut session = tokio::time::timeout(
         Duration::from_secs(15),
@@ -212,12 +226,7 @@ fn compress_rsc_to_statements(rsc: &str) -> Vec<String> {
             }
         }
 
-        if !pending.is_empty() {
-            // RouterOS needs ';' between statements on one line.
-            // But never before '{' (opens block) or after '}' (closes block).
-            let need_sep = !pending.ends_with('{') && !t.starts_with('}');
-            if need_sep { pending.push_str("; "); } else { pending.push(' '); }
-        }
+        if !pending.is_empty() { pending.push(' '); }
         pending.push_str(t);
 
         if depth <= 0 {
@@ -307,8 +316,8 @@ pub async fn installer_router_apply_config(
     password: String,
     ssid: String,
     wifi_password: String,
-    reseller_id: String,
-    admin_mac: String,
+    reseller_id: Option<String>,
+    admin_mac: Option<String>,
 ) -> Result<ApplyResult, String> {
     if ssid.is_empty() || ssid.len() > 32 {
         return Err("SSID must be 1..32 characters".into());
@@ -328,97 +337,58 @@ pub async fn installer_router_apply_config(
     file_contents.push_str(&format!(":global slWifiPass \"{}\"\n", escape_ros(&wifi_password)));
     file_contents.push_str(":global slWanMode \"dhcp\"\n");
     file_contents.push_str(":global slLanIp \"192.168.88.1\"\n");
-    file_contents.push_str(&format!(":global slResellerId \"{}\"\n", escape_ros(&reseller_id)));
-    file_contents.push_str(&format!(":global slAdminMac \"{}\"\n", escape_ros(&admin_mac)));
+    let rid = reseller_id.unwrap_or_default();
+    if rid.is_empty() {
+        failed = 1;
+        log.push("ERROR: reseller_id is empty. Sign out and sign in again, then retry.".to_string());
+        let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
+        return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
+    }
+    file_contents.push_str(&format!(":global slResellerId \"{}\"\n", escape_ros(&rid)));
+    let mac = admin_mac.unwrap_or_default();
+    if !mac.is_empty() {
+        file_contents.push_str(&format!(":global slAdminMac \"{}\"\n", escape_ros(&mac)));
+    }
     file_contents.push_str(CONFIGURE_RSC);
 
-    // Compress to one-line statements then exec each separately. Shell mode
-    // cannot handle multi-line :if/:do blocks - it treats each newline as a
-    // command terminator, so multi-line blocks silently drop. Exec mode runs
-    // one full statement intact, so blocks execute correctly.
-    let statements = compress_rsc_to_statements(&file_contents);
-    log.push(format!("Pushing {} statements to router...", statements.len()));
+    // Transport: SFTP the script to the router, then /import file=... Exec
+    // mode is single-line only; shell mode collapses newlines. Per project
+    // brief: multi-line scripts must run via /import file= on the filesystem.
+    const REMOTE_PATH: &str = "safelinks-configure.rsc";
+    match upload_via_sftp(&mut session, REMOTE_PATH, file_contents.as_bytes()).await {
+        Ok(_) => log.push(format!("Uploaded {} bytes to router via SFTP.", file_contents.len())),
+        Err(e) => {
+            failed = 1;
+            log.push(format!("SFTP upload failed: {}", e));
+            let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
+            return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
+        }
+    }
 
-    let mut all_output = String::new();
-    let mut consecutive_failures: u32 = 0;
-    for (idx, stmt) in statements.iter().enumerate() {
-        if stmt.trim().is_empty() { continue; }
-        let preview: String = stmt.chars().take(60).collect();
-        log.push(format!("-> [{}] {}", idx, preview));
-
-        match exec_raw(&mut session, stmt).await {
-            Ok(out) => {
-                consecutive_failures = 0;
-                let o = out.trim();
-                if !o.is_empty() {
-                    let pv: String = o.chars().take(80).collect();
-                    log.push(format!("<- [{}] {}", idx, pv));
-                    all_output.push_str(&out);
-                    if !out.ends_with('\n') { all_output.push('\n'); }
-                }
+    let import_cmd = format!("/import file={}", REMOTE_PATH);
+    match exec_raw(&mut session, &import_cmd).await {
+        Ok(out) => {
+            let errors = count_ros_errors(&out);
+            if out.contains("STATUS OK") && errors == 0 {
+                applied = 1;
+                log.push("SUCCESS: router is configured and serving the portal.".to_string());
+            } else if errors > 0 {
+                failed = errors;
+                log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
+            } else {
+                failed = 1;
+                log.push("Import ran but STATUS OK marker was not returned.".to_string());
             }
-            Err(e) => {
-                consecutive_failures += 1;
-                let emsg = format!("{}", e);
-                log.push(format!("X  [{}] {}", idx, emsg));
-
-                if emsg.contains("channel") || emsg.contains("connection") || emsg.contains("reset") {
-                    log.push(format!("Reconnecting after stmt {}...", idx));
-                    match connect(&ip, &user, &password).await {
-                        Ok(new_session) => {
-                            session = new_session;
-                            log.push("Reconnected.".to_string());
-                            match exec_raw(&mut session, stmt).await {
-                                Ok(out) => {
-                                    log.push(format!("OK [{}] retry", idx));
-                                    if !out.trim().is_empty() { all_output.push_str(&out); }
-                                    consecutive_failures = 0;
-                                }
-                                Err(e2) => {
-                                    log.push(format!("X  [{}] retry: {}", idx, e2));
-                                }
-                            }
-                        }
-                        Err(e2) => {
-                            log.push(format!("Reconnect failed: {}. Stopping.", e2));
-                            break;
-                        }
-                    }
-                }
-
-                if consecutive_failures >= 5 {
-                    log.push("5 consecutive failures - aborting rest of script.".to_string());
-                    break;
-                }
+            let tail: Vec<&str> = out.lines().rev().take(30).collect();
+            for line in tail.iter().rev() {
+                let t = line.trim();
+                if !t.is_empty() { log.push(t.to_string()); }
             }
         }
-        tokio::time::sleep(Duration::from_millis(120)).await;
-    }
-
-    // Brief settle then analyze.
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    let errors = count_ros_errors(&all_output);
-    let has_ok = all_output.contains("STATUS OK");
-    let has_failed = all_output.contains("STATUS FAILED");
-
-    if has_failed {
-        failed = 1;
-        log.push("Script reported STATUS FAILED - some sections did not apply.".to_string());
-    } else if has_ok && errors == 0 {
-        applied = 1;
-        log.push("SUCCESS: router is configured and serving the portal.".to_string());
-    } else if errors > 0 {
-        failed = errors;
-        log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
-    } else {
-        failed = 1;
-        log.push("Script ran but STATUS OK / FAILED marker was not seen.".to_string());
-    }
-    let tail: Vec<&str> = all_output.lines().rev().take(30).collect();
-    for line in tail.iter().rev() {
-        let t = line.trim();
-        if !t.is_empty() { log.push(t.to_string()); }
+        Err(e) => {
+            failed = 1;
+            log.push(format!("Import execution failed: {}", e));
+        }
     }
 
     let _ = session
@@ -537,72 +507,6 @@ pub async fn installer_router_check_status(
 // Option B: save the .rsc to disk for manual Winbox import.
 // No SSH, no exec mode, no shell channel. Just writes a file.
 // ========================================================================
-#[derive(Serialize)]
-pub struct AgentInstallResult {
-    pub ok: bool,
-    pub log: Vec<String>,
-}
-
-#[tauri::command]
-pub async fn installer_router_install_agent(
-    ip: String,
-    user: String,
-    password: String,
-    pairing_code: String,
-    api_base: String,
-) -> Result<AgentInstallResult, String> {
-    let mut session = connect(&ip, &user, &password).await?;
-    let mut log: Vec<String> = Vec::new();
-    let base = api_base.trim_end_matches('/').to_string();
-    let url = format!("{}/api/agent/install/{}", base, pairing_code);
-
-    // Clean previous agent install (idempotent re-run)
-    let _ = exec_raw(&mut session, "/file remove [find name=\"SAFELINKS-agent.rsc\"]").await;
-    let _ = exec_raw(&mut session, "/system script remove [find name=\"safelinks-register\"]").await;
-    let _ = exec_raw(&mut session, "/system script remove [find name=\"safelinks-checkin\"]").await;
-    let _ = exec_raw(&mut session, "/system scheduler remove [find name=\"safelinks-checkin\"]").await;
-
-    // Router pulls the RSC over HTTP from our own backend (uses its own WAN)
-    let fetch_cmd = format!(
-        "/tool fetch url=\"{}\" dst-path=\"SAFELINKS-agent.rsc\" mode=https check-certificate=no",
-        url
-    );
-    let fetch_out = exec_raw(&mut session, &fetch_cmd).await.unwrap_or_default();
-    log.push(format!("fetch: {}", fetch_out.trim()));
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    let file_check = exec_raw(&mut session, "/file print where name=\"SAFELINKS-agent.rsc\"")
-        .await.unwrap_or_default();
-    if !file_check.contains("SAFELINKS-agent.rsc") {
-        log.push("file not downloaded".to_string());
-        let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
-        return Ok(AgentInstallResult { ok: false, log });
-    }
-    log.push("file downloaded".to_string());
-
-    let import_out = exec_raw(&mut session, "/import file=SAFELINKS-agent.rsc")
-        .await.unwrap_or_default();
-    log.push(format!("import: {}", import_out.trim()));
-    tokio::time::sleep(Duration::from_millis(600)).await;
-
-    let run_out = exec_raw(&mut session, "/system script run safelinks-register")
-        .await.unwrap_or_default();
-    log.push(format!("register: {}", run_out.trim()));
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    let cred = exec_raw(&mut session, "/file print where name=\"SAFELINKS-credentials.txt\"")
-        .await.unwrap_or_default();
-    let paired = cred.contains("SAFELINKS-credentials.txt");
-
-    let sched = exec_raw(&mut session, "/system scheduler print detail where name=\"safelinks-checkin\"")
-        .await.unwrap_or_default();
-    let sched_ok = sched.contains("safelinks-checkin") && !sched.contains("disabled=yes");
-    log.push(format!("paired={} sched_ok={}", paired, sched_ok));
-
-    let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
-    Ok(AgentInstallResult { ok: paired && sched_ok, log })
-}
-
 #[tauri::command]
 pub async fn installer_save_rsc(
     ssid: String,
@@ -636,4 +540,33 @@ pub async fn installer_save_rsc(
     std::fs::write(&path, body.as_bytes()).map_err(|e| format!("write failed: {}", e))?;
 
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Upload bytes to the router filesystem via SFTP.
+async fn upload_via_sftp(
+    session: &mut Handle<AcceptAllKeys>,
+    remote_path: &str,
+    contents: &[u8],
+) -> Result<(), String> {
+    use russh_sftp::client::SftpSession;
+
+    let channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| format!("sftp channel open failed: {}", e))?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .map_err(|e| format!("sftp subsystem request failed: {}", e))?;
+
+    let sftp = SftpSession::new(channel.into_stream())
+        .await
+        .map_err(|e| format!("sftp session init failed: {}", e))?;
+
+    sftp.write(remote_path, contents)
+        .await
+        .map_err(|e| format!("sftp write failed: {}", e))?;
+
+    let _ = sftp.close().await;
+    Ok(())
 }
