@@ -142,32 +142,32 @@
 
 # Step 8a. HTTP host-based entries (browser hits these pre-HSTS)
 :do { /ip hotspot walled-garden remove [/ip hotspot walled-garden find comment="SafeLinks portal"] } on-error={ :log info "sl-wg: no entries" }
-/ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
-/ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
+:do { /ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal" } on-error={}
 
 # Step 8b. Address-list with hostnames (RouterOS auto-resolves these to IPs
 # and keeps the list current). This is what makes HTTPS work.
 :do { /ip firewall address-list remove [/ip firewall address-list find list="safelinks-portal"] } on-error={ :log info "sl-al: no entries" }
-/ip firewall address-list add list="safelinks-portal" address="safelinks.name.ng" comment="SafeLinks portal host"
-/ip firewall address-list add list="safelinks-portal" address="www.safelinks.name.ng" comment="SafeLinks portal host"
-/ip firewall address-list add list="safelinks-portal" address="backend-services-production-78d8.up.railway.app" comment="SafeLinks backend"
-/ip firewall address-list add list="safelinks-portal" address="accounts.google.com" comment="SafeLinks OAuth"
-/ip firewall address-list add list="safelinks-portal" address="checkout.flutterwave.com" comment="SafeLinks payments"
+:do { /ip firewall address-list add list="safelinks-portal" address="safelinks.name.ng" comment="SafeLinks portal host" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="www.safelinks.name.ng" comment="SafeLinks portal host" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="backend-services-production-78d8.up.railway.app" comment="SafeLinks backend" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="accounts.google.com" comment="SafeLinks OAuth" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="checkout.flutterwave.com" comment="SafeLinks payments" } on-error={}
 
 # Step 8c. IP walled-garden: allow the whole portal address-list through HTTPS
 :do { /ip hotspot walled-garden ip remove [/ip hotspot walled-garden ip find comment~"SafeLinks"] } on-error={ :log info "sl-wgip: no entries" }
-/ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" comment="SafeLinks portal IPs"
-/ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS"
-/ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS"
-/ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS"
-/ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin winbox"
-/ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin ssh"
+:do { /ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" comment="SafeLinks portal IPs" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin winbox" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin ssh" } on-error={}
 
 # Step 8d. Also allow QUIC (UDP 443) so browsers don't stall before fallback
-/ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic"
+:do { /ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic" } on-error={}
 
 # --- 10. Enable hotspot ASYNCHRONOUSLY ---
 # Enabling the hotspot drops all traffic on the bridge for ~5-10 seconds

@@ -382,16 +382,17 @@ pub async fn installer_router_apply_config(
             if out.contains("STATUS OK") && errors == 0 {
                 applied = 1;
                 log.push("SUCCESS: router is configured and serving the portal.".to_string());
-            // Non-fatal: try to install the automation agent
-            if let Err(e) = install_agent(&mut session, &auth, &mut log).await {
-                log.push(format!("WARN: agent install failed: {}", e));
-            }
             } else if errors > 0 {
                 failed = errors;
                 log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
             } else {
                 failed = 1;
                 log.push("Import ran but STATUS OK marker was not returned.".to_string());
+            }
+
+            // Non-fatal: install the automation agent regardless of configure result
+            if let Err(e) = install_agent(&mut session, &auth, &mut log).await {
+                log.push(format!("WARN: agent install failed: {}", e));
             }
             let tail: Vec<&str> = out.lines().rev().take(30).collect();
             for line in tail.iter().rev() {
