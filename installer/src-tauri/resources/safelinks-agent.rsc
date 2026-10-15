@@ -49,9 +49,8 @@
 # ---------------------------------------------------------------------------
 # safelinks-register — run this ONE TIME by hand
 # ---------------------------------------------------------------------------
-/system script
-:if ([:len [/system script find name="safelinks-register"]] > 0) do={ remove [find name="safelinks-register"] }
-add name="safelinks-register" source={
+:if ([:len [/system script find name="safelinks-register"]] > 0) do={ /system script remove [find name="safelinks-register"] }
+/system script add name="safelinks-register" source={
   :global safelinksApiUrl
   :global safelinksCredFile
 
@@ -256,8 +255,7 @@ add name="safelinks-checkin" source={
 # ---------------------------------------------------------------------------
 # Scheduler — starts disabled; safelinks-register enables it on success
 # ---------------------------------------------------------------------------
-/system scheduler
-:if ([:len [/system scheduler find name="safelinks-checkin"]] > 0) do={ remove [find name="safelinks-checkin"] }
-add name="safelinks-checkin" interval=30s on-event="/system script run safelinks-checkin" disabled=yes
+:if ([:len [/system scheduler find name="safelinks-checkin"]] > 0) do={ /system scheduler remove [find name="safelinks-checkin"] }
+/system scheduler add name="safelinks-checkin" interval=30s on-event="/system script run safelinks-checkin" disabled=yes
 
 :put "SAFELINKS agent scripts installed. Now edit safelinks-register (set your pairing code) and run: /system script run safelinks-register"
