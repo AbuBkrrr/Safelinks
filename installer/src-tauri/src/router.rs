@@ -354,7 +354,7 @@ pub async fn installer_router_apply_config(
     // Transport: SFTP the script to the router, then /import file=... Exec
     // mode is single-line only; shell mode collapses newlines. Per project
     // brief: multi-line scripts must run via /import file= on the filesystem.
-    const REMOTE_PATH: &str = "safelinks-configure.rsc";
+    const REMOTE_PATH: &str = "/safelinks-configure.rsc";
     match upload_via_sftp(&mut session, REMOTE_PATH, file_contents.as_bytes()).await {
         Ok(_) => log.push(format!("Uploaded {} bytes to router via SFTP.", file_contents.len())),
         Err(e) => {
@@ -562,6 +562,9 @@ async fn upload_via_sftp(
     let sftp = SftpSession::new(channel.into_stream())
         .await
         .map_err(|e| format!("sftp session init failed: {}", e))?;
+
+    // Delete old file first so no stale content survives
+    let _ = sftp.remove_file(remote_path).await;
 
     sftp.write(remote_path, contents)
         .await
