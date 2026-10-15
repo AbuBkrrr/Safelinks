@@ -1,5 +1,6 @@
 import { db, id } from "../db.js";
 import { json } from "../http.js";
+import { randomBytes } from "node:crypto";
 import { authenticate } from "../auth.js";
 import {
   initiatePayment as initiateProviderPayment,
@@ -172,7 +173,66 @@ export function registerInstallerRoutes(router) {
   // Called by the desktop installer after successful SSH configuration.
   // Records the installation row so Super Admin's Installation Log updates
   // immediately — independent of the router's own agent registration.
-  router.post("/api/installer/complete", async (req, res, { body }) => {
+  // ─── RSC delivery via short-lived tokens ───────────────────────────
+// Installer publishes the .rsc here; router runs /tool fetch to pull it.
+// Avoids SFTP, which is unreliable on several RouterOS builds.
+const RSC_TTL_MS = 10 * 60 * 1000;
+const RSC_CACHE = new Map();
+
+function pruneRscCache() {
+  const now = Date.now();
+  for (const [k, v] of RSC_CACHE) {
+    if (v.expiresAt < now) RSC_CACHE.delete(k);
+  }
+}
+
+// POST /api/installer/rsc-publish  { content }
+// → { url, token, expiresInSec }
+router.post("/api/installer/rsc-publish", async (req, res, { body }) => {
+  const auth = await authenticate(req);
+  if (!auth.ok) return json(res, auth.status, { error: auth.error });
+  const resellerId = auth.resellerId;
+  if (!resellerId) return json(res, 401, { error: "Token missing reseller id" });
+
+  const content = body && body.content;
+  if (!content || typeof content !== "string") {
+    return json(res, 400, { error: "content (string) required" });
+  }
+  if (content.length > 200000) {
+    return json(res, 413, { error: "content too large" });
+  }
+
+  pruneRscCache();
+  const token = randomBytes(24).toString("hex");
+  RSC_CACHE.set(token, { content, expiresAt: Date.now() + RSC_TTL_MS });
+
+  const base = process.env.APP_URL || "https://www.safelinks.name.ng";
+  const url = base + "/api/installer/rsc-download/" + token;
+  return json(res, 200, { url, token, expiresInSec: RSC_TTL_MS / 1000 });
+});
+
+// GET /api/installer/rsc-download/:token
+// → text/plain RSC. Single-use. No auth — the random token is the secret.
+router.get("/api/installer/rsc-download/:token", async (req, res, { params }) => {
+  const token = params.token;
+  const entry = RSC_CACHE.get(token);
+  if (!entry || entry.expiresAt < Date.now()) {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    return res.end("not found or expired");
+  }
+  // single-use — remove before responding so retries can't reuse
+  RSC_CACHE.delete(token);
+
+  const buf = Buffer.from(entry.content, "utf8");
+  res.writeHead(200, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Content-Length": buf.length,
+    "Cache-Control": "no-store",
+  });
+  return res.end(buf);
+});
+
+router.post("/api/installer/complete", async (req, res, { body }) => {
     const { resellerId, routerId, ip, model, firmware, ssid, location } = body || {};
     if (!resellerId || !ip) return json(res, 400, { error: "resellerId and ip required" });
     const now = Date.now();

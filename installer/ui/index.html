@@ -633,7 +633,8 @@ document.getElementById('cfg-apply').onclick = async function() {
     var r = await invoke('installer_router_apply_config', {
       ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword,
       resellerId: __rid,
-      adminMac: await invoke('get_local_mac').catch(function() { return ''; })
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; }),
+      authToken: localStorage.getItem('auth_token') || ''
     });
     var tail = r.log.slice(-12).join('\n');
     cfgSetStatus(

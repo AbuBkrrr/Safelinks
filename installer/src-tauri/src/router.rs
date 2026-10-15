@@ -10,6 +10,8 @@ use serde::Serialize;
 
 use crate::ssh::CONFIGURE_RSC;
 
+const SL_BACKEND: &str = "https://backend-services-production-78d8.up.railway.app";
+
 struct AcceptAllKeys;
 
 #[async_trait::async_trait]
@@ -318,6 +320,7 @@ pub async fn installer_router_apply_config(
     wifi_password: String,
     reseller_id: Option<String>,
     admin_mac: Option<String>,
+    auth_token: Option<String>,
 ) -> Result<ApplyResult, String> {
     if ssid.is_empty() || ssid.len() > 32 {
         return Err("SSID must be 1..32 characters".into());
@@ -354,14 +357,19 @@ pub async fn installer_router_apply_config(
     // Transport: SFTP the script to the router, then /import file=... Exec
     // mode is single-line only; shell mode collapses newlines. Per project
     // brief: multi-line scripts must run via /import file= on the filesystem.
-    let uploaded_path = match upload_via_sftp(&mut session, file_contents.as_bytes()).await {
-        Ok(p) => {
-            log.push(format!("Uploaded {} bytes via SFTP to {}", file_contents.len(), p));
-            p
-        }
+    let auth = auth_token.unwrap_or_default();
+    if auth.is_empty() {
+        failed = 1;
+        log.push("ERROR: auth_token is empty. Sign out and sign in again.".to_string());
+        let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
+        return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
+    }
+
+    let uploaded_path = match publish_and_fetch_rsc(&mut session, &auth, &file_contents, &mut log).await {
+        Ok(p) => p,
         Err(e) => {
             failed = 1;
-            log.push(format!("SFTP upload failed: {}", e));
+            log.push(format!("RSC delivery failed: {}", e));
             let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
             return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
         }
@@ -544,53 +552,70 @@ pub async fn installer_save_rsc(
     Ok(path.to_string_lossy().to_string())
 }
 
-/// Upload bytes to the router filesystem via SFTP.
-async fn upload_via_sftp(
+/// Publish the RSC to our backend, then tell the router to pull it via
+/// /tool fetch. Avoids RouterOS SFTP (unreliable on several firmware builds).
+/// Returns the local path where the router saved the file, ready for /import.
+async fn publish_and_fetch_rsc(
     session: &mut Handle<AcceptAllKeys>,
-    contents: &[u8],
+    auth_token: &str,
+    rsc_text: &str,
+    log: &mut Vec<String>,
 ) -> Result<String, String> {
-    use russh_sftp::client::SftpSession;
+    const REMOTE_FILE: &str = "safelinks-configure.rsc";
 
-    let channel = session
-        .channel_open_session()
+    // Step 1 — POST the RSC to our backend, get a short-lived download URL.
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("reqwest build: {}", e))?;
+
+    let payload = serde_json::json!({ "content": rsc_text });
+    let resp = client
+        .post(format!("{}/api/installer/rsc-publish", SL_BACKEND))
+        .bearer_auth(auth_token)
+        .json(&payload)
+        .send()
         .await
-        .map_err(|e| format!("sftp channel open failed: {}", e))?;
-    channel
-        .request_subsystem(true, "sftp")
-        .await
-        .map_err(|e| format!("sftp subsystem request failed: {}", e))?;
+        .map_err(|e| format!("publish POST failed: {}", e))?;
 
-    let sftp = SftpSession::new(channel.into_stream())
-        .await
-        .map_err(|e| format!("sftp session init failed: {}", e))?;
-
-    // RouterOS SFTP root differs from /import search dir on some firmware.
-    // Try candidates in order; first accepted path is returned and used
-    // verbatim by /import so write dir == import dir, always.
-    let candidates = [
-        "safelinks-configure.rsc",
-        "/safelinks-configure.rsc",
-        "flash/safelinks-configure.rsc",
-        "/flash/safelinks-configure.rsc",
-        "disk1/safelinks-configure.rsc",
-        "/disk1/safelinks-configure.rsc",
-        "flash/rw/safelinks-configure.rsc",
-    ];
-
-    let mut last_err = String::from("no candidates tried");
-    let mut winner: Option<String> = None;
-
-    for path in candidates.iter() {
-        match sftp.write(*path, contents).await {
-            Ok(_) => { winner = Some((*path).to_string()); break; }
-            Err(e) => { last_err = format!("{}: {}", path, e); }
-        }
+    let status = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("publish HTTP {}: {}", status.as_u16(), body_text.trim()));
     }
+    let body: serde_json::Value = serde_json::from_str(&body_text)
+        .map_err(|e| format!("publish response not JSON: {} — body={}", e, body_text.trim()))?;
+    let url = body.get("url").and_then(|v| v.as_str())
+        .ok_or_else(|| format!("publish response missing 'url': {}", body_text.trim()))?
+        .to_string();
+    log.push(format!("RSC published ({} bytes) → {}", rsc_text.len(), url));
 
-    let _ = sftp.close().await;
-
-    match winner {
-        Some(p) => Ok(p),
-        None => Err(format!("all {} SFTP paths failed — last: {}", candidates.len(), last_err)),
+    // Step 2 — tell the router to pull the file itself.
+    let fetch_cmd = format!(
+        "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
+        url, REMOTE_FILE
+    );
+    let fetch_out = exec_raw(session, &fetch_cmd).await
+        .map_err(|e| format!("router fetch exec failed: {}", e))?;
+    let fetch_trim = fetch_out.trim();
+    if fetch_trim.contains("failure:") || fetch_trim.contains("status: failed") {
+        return Err(format!("router fetch failed: {}", fetch_trim));
     }
-}
+    log.push(format!("Router fetched {}", REMOTE_FILE));
+
+    // Step 3 — confirm the file exists on the router.
+    let check_cmd = format!("/file print where name=\"{}\"", REMOTE_FILE);
+    let check_out = exec_raw(session, &check_cmd).await.unwrap_or_default();
+    if !check_out.contains(REMOTE_FILE) {
+        return Err(format!(
+            "file '{}' not found after fetch — file print returned: {}",
+            REMOTE_FILE, check_out.trim()
+        ));
+    }
+    let size_line = check_out.lines()
+        .find(|l| l.contains(REMOTE_FILE))
+        .unwrap_or("")
+        .trim().to_string();
+    log.push(format!("Verified on router: {}", size_line));
+
+    Ok(REMOTE_FILE.to_string())
