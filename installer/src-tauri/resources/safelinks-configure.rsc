@@ -141,10 +141,7 @@
 #      Railway IP is always allowed even if it changes.
 
 # Step 8a. HTTP host-based entries (browser hits these pre-HSTS)
-:local __slwg [/ip hotspot walled-garden find comment="SafeLinks portal"]
-:if ([:len $__slwg] > 0) do={
-    /ip hotspot walled-garden remove $__slwg
-}
+:foreach x in=[/ip hotspot walled-garden find comment="SafeLinks portal"] do={ /ip hotspot walled-garden remove $x }
 /ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
@@ -153,10 +150,7 @@
 
 # Step 8b. Address-list with hostnames (RouterOS auto-resolves these to IPs
 # and keeps the list current). This is what makes HTTPS work.
-:local __slal [/ip firewall address-list find list="safelinks-portal"]
-:if ([:len $__slal] > 0) do={
-    /ip firewall address-list remove $__slal
-}
+:foreach x in=[/ip firewall address-list find list="safelinks-portal"] do={ /ip firewall address-list remove $x }
 /ip firewall address-list add list="safelinks-portal" address="safelinks.name.ng" comment="SafeLinks portal host"
 /ip firewall address-list add list="safelinks-portal" address="www.safelinks.name.ng" comment="SafeLinks portal host"
 /ip firewall address-list add list="safelinks-portal" address="backend-services-production-78d8.up.railway.app" comment="SafeLinks backend"
@@ -164,10 +158,7 @@
 /ip firewall address-list add list="safelinks-portal" address="checkout.flutterwave.com" comment="SafeLinks payments"
 
 # Step 8c. IP walled-garden: allow the whole portal address-list through HTTPS
-:local __slwgip [/ip hotspot walled-garden ip find comment~"SafeLinks"]
-:if ([:len $__slwgip] > 0) do={
-    /ip hotspot walled-garden ip remove $__slwgip
-}
+:foreach x in=[/ip hotspot walled-garden ip find comment~"SafeLinks"] do={ /ip hotspot walled-garden ip remove $x }
 /ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" comment="SafeLinks portal IPs"
 /ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS"
 /ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS"
