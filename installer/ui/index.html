@@ -629,7 +629,9 @@ document.getElementById('cfg-apply').onclick = async function() {
   cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
   try {
     var r = await invoke('installer_router_apply_config', {
-      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword
+      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword,
+      resellerId: __rid,
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; })
     });
     var tail = r.log.slice(-12).join('\n');
     cfgSetStatus(

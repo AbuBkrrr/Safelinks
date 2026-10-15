@@ -92,6 +92,10 @@ export default function App() {
   // and jump straight into the reseller dashboard (skip login screen).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Installer source → always open the reseller login form first.
+    if (params.get('source') === 'installer' && !session) {
+      setStage('login_reseller');
+    }
     const urlToken = params.get('token');
     if (!urlToken) return;
     try {
@@ -114,6 +118,24 @@ export default function App() {
     }
   }, []);
 
+  // When the installer opened this page with ?source=installer, after a
+  // successful login/signup we must hand the token back to the installer via
+  // the safelinks-installer:// deep-link, then stop in-browser navigation.
+  function __installerDeepLink(res) {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('source') !== 'installer') return false;
+      const qs = new URLSearchParams({
+        token: res.token || '',
+        role: res.role || 'reseller',
+        email: (res.user && res.user.email) || '',
+        companyName: (res.user && res.user.companyName) || '',
+      }).toString();
+      window.location.href = 'safelinks-installer://auth?' + qs;
+      return true;
+    } catch (_) { return false; }
+  }
+
   if (route.name === "portal") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><CaptivePortal resellerId={route.resellerId} notify={notify} onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "install") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><StandaloneInstaller onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "verify-email") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><VerifyEmail onDone={() => { window.location.href = "/"; }} /></div>);
@@ -126,8 +148,8 @@ export default function App() {
         <Toast toast={toast} />
         {stage === "landing" && (<Landing onCreateAccount={() => setStage("signup_reseller")} onLogin={() => setStage("login_reseller")} onPickSuperAdmin={() => setStage("login_super_admin")} />)}
         {stage === "login_super_admin" && (<Login tone={T.secondary} roleLabel="Super Admin" expectedRole="super_admin" onBack={() => setStage("landing")} onSuccess={(res) => { setSessionState({ token: res.token, role: res.role, user: res.user }); setStage("super_admin"); }} />)}
-        {stage === "login_reseller" && (<Login tone={T.primary} roleLabel="Reseller Admin" expectedRole="reseller" onBack={() => setStage("landing")} onSuccess={(res) => { setSessionState({ token: res.token, role: res.role, user: res.user }); setStage("reseller"); }} onSignup={() => setStage("signup_reseller")} onForgotPassword={() => setStage("forgot_password_reseller")} />)}
-        {stage === "signup_reseller" && (<Signup onBack={() => setStage("login_reseller")} onSuccess={(res) => { setSessionState({ token: res.token, role: res.role, user: res.user }); setStage("reseller"); }} />)}
+        {stage === "login_reseller" && (<Login tone={T.primary} roleLabel="Reseller Admin" expectedRole="reseller" onBack={() => setStage("landing")} onSuccess={(res) => { if (__installerDeepLink(res)) return; setSessionState({ token: res.token, role: res.role, user: res.user }); setStage("reseller"); }} onSignup={() => setStage("signup_reseller")} onForgotPassword={() => setStage("forgot_password_reseller")} />)}
+        {stage === "signup_reseller" && (<Signup onBack={() => setStage("login_reseller")} onSuccess={(res) => { if (__installerDeepLink(res)) return; setSessionState({ token: res.token, role: res.role, user: res.user }); setStage("reseller"); }} />)}
         {stage === "forgot_password_reseller" && (<ForgotPassword onBack={() => setStage("login_reseller")} />)}
         {stage === "super_admin" && <SuperAdminApp session={session} onExit={handleExit} notify={notify} />}
         {stage === "reseller" && <ResellerApp session={session} onExit={handleExit} notify={notify} />}
