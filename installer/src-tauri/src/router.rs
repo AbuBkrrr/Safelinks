@@ -619,3 +619,4 @@ async fn publish_and_fetch_rsc(
     log.push(format!("Verified on router: {}", size_line));
 
     Ok(REMOTE_FILE.to_string())
+}
