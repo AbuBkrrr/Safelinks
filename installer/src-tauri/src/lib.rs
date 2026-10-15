@@ -14,6 +14,38 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            use tauri::Manager;
+            for arg in &argv {
+                if arg.starts_with("safelinks-installer://auth") {
+                    if let Some((_, query)) = arg.split_once('?') {
+                        let mut token = String::new();
+                        let mut role = String::new();
+                        let mut email = String::new();
+                        let mut company = String::new();
+                        for pair in query.split('&') {
+                            let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
+                            let v = urlencoding_decode(v);
+                            match k {
+                                "token" => token = v,
+                                "role" => role = v,
+                                "email" => email = v,
+                                "companyName" => company = v,
+                                _ => {}
+                            }
+                        }
+                        let payload = serde_json::json!({
+                            "token": token, "role": role, "email": email, "companyName": company,
+                        });
+                        crate::auth::cache_pending_auth(payload.clone());
+                        let _ = app.emit("deep-link-auth", payload);
+                    }
+                }
+            }
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.set_focus();
+            }
+        }))
         .setup(|app| {
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -43,6 +75,7 @@ pub fn run() {
                             "email": email,
                             "companyName": company,
                         });
+                        crate::auth::cache_pending_auth(payload.clone());
                         let _ = handle.emit("deep-link-auth", payload);
                     }
                 }
@@ -70,6 +103,7 @@ pub fn run() {
             auth::open_google_signin,
             auth::open_forgot_password,
             auth::open_signup,
+            auth::take_pending_auth,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SAFE_Links installer");

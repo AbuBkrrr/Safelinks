@@ -238,3 +238,21 @@ pub async fn open_forgot_password() -> Result<(), String> {
 pub async fn open_signup() -> Result<(), String> {
     open_url_external("https://www.safelinks.name.ng/signup?source=installer")
 }
+
+// ───────────── pending auth cache ─────────────
+// Populated by lib.rs when a safelinks-installer://auth URL arrives — either
+// via single-instance (already running) or on_open_url (cold start). Pulled
+// by the frontend on boot so a deep-link that fires before the webview
+// listener attaches isn't lost.
+static PENDING_AUTH: std::sync::Mutex<Option<serde_json::Value>> = std::sync::Mutex::new(None);
+
+#[tauri::command]
+pub fn take_pending_auth() -> Option<serde_json::Value> {
+    PENDING_AUTH.lock().ok().and_then(|mut g| g.take())
+}
+
+pub fn cache_pending_auth(payload: serde_json::Value) {
+    if let Ok(mut g) = PENDING_AUTH.lock() {
+        *g = Some(payload);
+    }
+}
