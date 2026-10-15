@@ -79,6 +79,18 @@ async function fulfillVoucherPayment(paymentRow, verified) {
       "pending",
       now
     );
+    // Zero-click MAC bypass with expiry, if we know the client's MAC
+    const clientMac = paymentRow.client_mac || pending?.client_mac;
+    if (clientMac) {
+      const isoExpiry = new Date(expiresAt).toISOString().slice(0, 19);
+      await db.prepare(
+        "INSERT INTO router_commands (id,router_id,type,payload,status,created_at) VALUES (?,?,?,?,?,?)"
+      ).run(
+        id("cmd"), r.router_id, "bind_mac",
+        JSON.stringify({ username: clientMac, password: isoExpiry }),
+        "pending", now
+      );
+    }
   }
 
   // Notify the reseller

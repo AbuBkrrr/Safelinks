@@ -183,7 +183,11 @@ add name="safelinks-checkin" source={
       :local execStatus "executed"
       :local execDetail ""
       :do {
-        :if ($cmdType = "create_user") do={
+        :if ($cmdType = "unbind_mac") do={
+        /ip hotspot ip-binding remove [find mac-address=$cmdUser]
+        :do { /system scheduler remove [find name=("safelinks-exp-" . $cmdUser)] } on-error={}
+      }
+      :if ($cmdType = "create_user") do={
           :local rateLimit ($cmdBandwidth . "M/" . $cmdBandwidth . "M")
           :if ([:len [/ip hotspot user find name=$cmdUser]] > 0) do={
             /ip hotspot user set [find name=$cmdUser] password=$cmdPass rate-limit=$rateLimit
@@ -204,7 +208,13 @@ add name="safelinks-checkin" source={
           # Zero-click bypass: client MAC goes straight through the hotspot.
           # $cmdUser is the MAC address (same field name reused).
           /ip hotspot ip-binding remove [find mac-address=$cmdUser]
-          /ip hotspot ip-binding add mac-address=$cmdUser type=bypassed comment="SAFELinks auto"
+          /ip hotspot ip-binding add mac-address=$cmdUser type=bypassed comment=("SAFELinks exp:" . $cmdPass)
+          :do { /system scheduler remove [find name=("safelinks-exp-" . $cmdUser)] } on-error={}
+          :if ([:len $cmdPass] >= 19) do={
+            :local expDate [:pick $cmdPass 0 10]
+            :local expTime [:pick $cmdPass 11 19]
+            :do { /system scheduler add name=("safelinks-exp-" . $cmdUser) start-date=$expDate start-time=$expTime interval=0s on-event=("/ip hotspot ip-binding remove [find mac-address=" . $cmdUser . "]") } on-error={ :log warning ("safelinks: schedule failed for " . $cmdUser) }
+          }
         } else={
           :set execStatus "failed"
           :set execDetail ("unknown command type: " . $cmdType)

@@ -382,6 +382,10 @@ pub async fn installer_router_apply_config(
             if out.contains("STATUS OK") && errors == 0 {
                 applied = 1;
                 log.push("SUCCESS: router is configured and serving the portal.".to_string());
+            // Non-fatal: try to install the automation agent
+            if let Err(e) = install_agent(&mut session, &auth, &mut log).await {
+                log.push(format!("WARN: agent install failed: {}", e));
+            }
             } else if errors > 0 {
                 failed = errors;
                 log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
@@ -619,4 +623,108 @@ async fn publish_and_fetch_rsc(
     log.push(format!("Verified on router: {}", size_line));
 
     Ok(REMOTE_FILE.to_string())
+}
+
+/// Install the SAFELINKS zero-touch agent on the router and pair it.
+/// Runs after configure RSC succeeds. Non-fatal — the router still serves
+/// the portal if this fails, just without the automation agent.
+async fn install_agent(
+    session: &mut Handle<AcceptAllKeys>,
+    auth_token: &str,
+    log: &mut Vec<String>,
+) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("reqwest build: {}", e))?;
+
+    // 1. Get pairing code
+    let pc_resp = client
+        .post(format!("{}/api/reseller/pairing-codes", SL_BACKEND))
+        .bearer_auth(auth_token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .map_err(|e| format!("pairing-code POST: {}", e))?;
+    if !pc_resp.status().is_success() {
+        return Err(format!("pairing-code HTTP {}", pc_resp.status().as_u16()));
+    }
+    let pc_body: serde_json::Value = pc_resp
+        .json()
+        .await
+        .map_err(|e| format!("pairing-code JSON: {}", e))?;
+    let code = pc_body
+        .get("code")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "pairing-code response missing code".to_string())?
+        .to_string();
+    log.push(format!("Generated pairing code: {}", code));
+
+    // 2. Fetch agent RSC — code is substituted server-side
+    let agent_resp = client
+        .get(format!("{}/api/agent/install/{}", SL_BACKEND, code))
+        .send()
+        .await
+        .map_err(|e| format!("agent fetch: {}", e))?;
+    if !agent_resp.status().is_success() {
+        return Err(format!("agent fetch HTTP {}", agent_resp.status().as_u16()));
+    }
+    let agent_body = agent_resp
+        .text()
+        .await
+        .map_err(|e| format!("agent body: {}", e))?;
+    log.push(format!("Fetched agent RSC ({} bytes)", agent_body.len()));
+
+    // 3. Publish to short-lived URL
+    let pub_resp = client
+        .post(format!("{}/api/installer/rsc-publish", SL_BACKEND))
+        .bearer_auth(auth_token)
+        .json(&serde_json::json!({ "content": agent_body }))
+        .send()
+        .await
+        .map_err(|e| format!("agent publish: {}", e))?;
+    if !pub_resp.status().is_success() {
+        return Err(format!("agent publish HTTP {}", pub_resp.status().as_u16()));
+    }
+    let pub_body: serde_json::Value = pub_resp
+        .json()
+        .await
+        .map_err(|e| format!("agent publish JSON: {}", e))?;
+    let agent_url = pub_body
+        .get("url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "agent publish missing url".to_string())?;
+
+    // 4. Router fetches it
+    let fetch_cmd = format!(
+        "/tool fetch url=\"{}\" dst-path=\"safelinks-agent.rsc\" check-certificate=no",
+        agent_url
+    );
+    let fetch_out = exec_raw(session, &fetch_cmd)
+        .await
+        .map_err(|e| format!("agent fetch exec: {}", e))?;
+    if fetch_out.contains("failure:") || fetch_out.contains("status: failed") {
+        return Err(format!("agent fetch on router failed: {}", fetch_out.trim()));
+    }
+    log.push("Router fetched safelinks-agent.rsc".to_string());
+
+    // 5. Import
+    let import_out = exec_raw(session, "/import file=safelinks-agent.rsc")
+        .await
+        .map_err(|e| format!("agent import exec: {}", e))?;
+    if import_out.contains("failure:") && !import_out.contains("loaded and executed") {
+        return Err(format!("agent import failed: {}", import_out.trim()));
+    }
+    log.push("Agent scripts imported".to_string());
+
+    // 6. Register (pairs + enables checkin scheduler)
+    let reg_out = exec_raw(session, "/system script run safelinks-register")
+        .await
+        .map_err(|e| format!("register exec: {}", e))?;
+    if !reg_out.contains("Paired") {
+        return Err(format!("register did not confirm pairing: {}", reg_out.trim()));
+    }
+    log.push("Agent paired with backend".to_string());
+
+    Ok(())
 }

@@ -345,18 +345,24 @@ export function registerResellerRoutes(router) {
       const username = `${pending.name.split(" ")[0].toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const password = genCode(8);
       const voucherId = id("v");
+      const voucherDurationDays = plan?.duration_days || 30;
+      const voucherExpiresAt = now + voucherDurationDays * 86400000;
       await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, now + 7 * 86400000);
+        .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, voucherExpiresAt);
       await db.prepare("INSERT INTO delivery_logs (id,voucher_id,channel,status,time) VALUES (?,?,?,?,?)").run(id("dl"), voucherId, "email", "delivered", now);
       await db.prepare("INSERT INTO delivery_logs (id,voucher_id,channel,status,time) VALUES (?,?,?,?,?)").run(id("dl"), voucherId, "whatsapp", "delivered", now);
       await db.prepare("INSERT INTO payments (id,user_type,user_id,amount,method,status,time,note) VALUES (?,?,?,?,?,?,?,?)")
         .run(id("pay"), "voucher", voucherId, pending.amount, pending.method, "completed", now, "Voucher purchase");
       // Always create the hotspot user (fallback for clients without MAC)
       await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth });
-      // If we captured the client's MAC, ALSO bypass it directly — zero-click internet
+      // Zero-click bypass — payload uses username key + ISO expiry in password slot
       if (pending.client_mac) {
-        await enqueueCommandForReseller(resellerId, "bind_mac", { mac: pending.client_mac });
+        const isoExpiry = new Date(voucherExpiresAt).toISOString().slice(0, 19);
+        await enqueueCommandForReseller(resellerId, "bind_mac", {
+          username: pending.client_mac,
+          password: isoExpiry
+        });
       }
       return json(res, 200, { ok: true, voucher: { username, password } });
     }
