@@ -452,6 +452,7 @@ function openCfgModal(device) {
   var checksEl = document.getElementById('cfg-checks');
   if (checksEl) checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
   setTimeout(function() { runCheckStatus(); }, 400);
+  setTimeout(function() { runTestSsh(); }, 250);
 }
 
 function closeCfgModal() {
@@ -587,7 +588,7 @@ document.getElementById('cfg-repair').onclick = function() {
   if (applyBtn) applyBtn.click();
 };
 // ---------- end readiness panel ----------
-document.getElementById('cfg-test').onclick = async function() {
+async function runTestSsh() {
   var ip = document.getElementById('cfg-ip').textContent;
   var user = document.getElementById('cfg-user').value || 'admin';
   var pass = document.getElementById('cfg-pass').value;
@@ -599,7 +600,8 @@ document.getElementById('cfg-test').onclick = async function() {
   } catch (e) {
     cfgSetStatus('FAILED: ' + e, '#fc8181');
   }
-};
+}
+document.getElementById('cfg-test').onclick = runTestSsh;
 
 document.getElementById('cfg-apply').onclick = async function() {
   var ip = document.getElementById('cfg-ip').textContent;
