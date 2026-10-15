@@ -189,9 +189,9 @@ function pruneRscCache() {
 // POST /api/installer/rsc-publish  { content }
 // → { url, token, expiresInSec }
 router.post("/api/installer/rsc-publish", async (req, res, { body }) => {
-  const auth = await authenticate(req);
+  const auth = authenticate(req, "reseller");
   if (!auth.ok) return json(res, auth.status, { error: auth.error });
-  const resellerId = auth.resellerId;
+  const resellerId = auth.user.id || auth.user.sub;
   if (!resellerId) return json(res, 401, { error: "Token missing reseller id" });
 
   const content = body && body.content;
