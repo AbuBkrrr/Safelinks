@@ -356,6 +356,35 @@ export function registerAuthRoutes(router) {
   // We verify it with Google, then find-or-create a reseller and issue our JWT.
   router.post("/api/auth/google", async (req, res, { body }) => {
     if (await rateLimitByIp(req, res, "google-login", { max: 20, windowMs: 15 * 60000 })) return;
+  // Installer OAuth code exchange — accepts { code, redirectUri } instead of { idToken }
+  if (!body.idToken && body.code && body.redirectUri) {
+    const cid = process.env.GOOGLE_CLIENT_ID || "";
+    const csec = process.env.GOOGLE_CLIENT_SECRET || "";
+    if (!cid || !csec) return json(res, 500, { error: "GOOGLE_CLIENT_SECRET not set on backend" });
+    try {
+      const params = new URLSearchParams({
+        code: body.code,
+        client_id: cid,
+        client_secret: csec,
+        redirect_uri: body.redirectUri,
+        grant_type: "authorization_code",
+      });
+      const tr = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+      const tj = await tr.json();
+      if (!tr.ok || !tj.id_token) {
+        console.error("google code exchange failed:", tj);
+        return json(res, 401, { error: tj.error_description || "Google code exchange failed" });
+      }
+      body.idToken = tj.id_token;
+    } catch (err) {
+      console.error("google code fetch error:", err.message);
+      return json(res, 502, { error: "Could not reach Google" });
+    }
+  }
     const { idToken } = body || {};
     if (!idToken) return json(res, 400, { error: "idToken is required" });
 

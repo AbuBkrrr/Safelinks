@@ -222,9 +222,11 @@ pub async fn open_dashboard(app: tauri::AppHandle, token: Option<String>) -> Res
 
 #[tauri::command]
 pub async fn open_google_signin() -> Result<(), String> {
-    // The web app should, after successful Google sign-in, redirect to:
+    // Direct Google OAuth: /agent-login-auto bounces straight to Google.
+    // Google returns to /agent-login-callback where the web app exchanges the
+    // authorization code for our JWT and redirects to:
     //   safelinks-installer://auth?token=<JWT>&role=reseller&email=<email>&companyName=<name>
-    open_url_external("https://www.safelinks.name.ng/agent-login?source=installer")
+    open_url_external("https://www.safelinks.name.ng/agent-login-auto?source=installer")
 }
 
 #[tauri::command]

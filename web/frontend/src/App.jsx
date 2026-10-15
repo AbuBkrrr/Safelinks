@@ -26,6 +26,9 @@ function detectBrowserLang() {
 }
 
 function parseRoute() {
+  const __p = window.location.pathname;
+  if (__p === '/agent-login-auto') return { name: 'agent-login-auto' };
+  if (__p === '/agent-login-callback') return { name: 'agent-login-callback' };
   const path = window.location.pathname;
   const portalMatch = path.match(/^\/portal\/([^/]+)\/?$/);
   if (portalMatch) return { name: "portal", resellerId: portalMatch[1] };
@@ -75,6 +78,81 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
         A I Brains Ventures · +234 803 254 0215 · aibrainsventures@gmail.com
       </div>
       <VoiceAssistant commands={voiceCommands} lang={lang} greeting={dt(lang, "voiceLandingGreeting")} />
+    </div>
+  );
+}
+
+function AgentLoginAuto() {
+  const [msg, setMsg] = React.useState('Redirecting to Google...');
+  React.useEffect(() => {
+    try {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+      if (!clientId) { setMsg('Google sign-in not configured (VITE_GOOGLE_CLIENT_ID missing).'); return; }
+      const state = Math.random().toString(36).slice(2);
+      sessionStorage.setItem('agent_oauth_state', state);
+      const redirectUri = window.location.origin + '/agent-login-callback';
+      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('scope', 'openid email profile');
+      url.searchParams.set('access_type', 'online');
+      url.searchParams.set('prompt', 'select_account');
+      url.searchParams.set('state', state);
+      window.location.href = url.toString();
+    } catch (e) { setMsg('Error: ' + e.message); }
+  }, []);
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+      <div>
+        <div style={{ fontSize: 26, marginBottom: 8 }}>{String.fromCodePoint(0x1F510)}</div>
+        <div style={{ fontSize: 15, color: '#444' }}>{msg}</div>
+      </div>
+    </div>
+  );
+}
+
+function AgentLoginCallback() {
+  const [msg, setMsg] = React.useState('Verifying with Google...');
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        if (!code) throw new Error(params.get('error_description') || params.get('error') || 'No code in URL');
+        const savedState = sessionStorage.getItem('agent_oauth_state');
+        if (savedState && state !== savedState) throw new Error('OAuth state mismatch — try again');
+        sessionStorage.removeItem('agent_oauth_state');
+        const redirectUri = window.location.origin + '/agent-login-callback';
+        setMsg('Exchanging code with backend...');
+        const resp = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, redirectUri }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Sign-in failed');
+        setMsg('Handing session back to installer...');
+        const qs = new URLSearchParams({
+          token: data.token || '',
+          role: data.role || 'reseller',
+          email: (data.user && data.user.email) || '',
+          companyName: (data.user && data.user.companyName) || '',
+        }).toString();
+        window.location.href = 'safelinks-installer://auth?' + qs;
+        setTimeout(() => setMsg('If the installer did not open, close this tab and sign in manually.'), 1500);
+      } catch (err) {
+        setMsg('Error: ' + err.message);
+      }
+    })();
+  }, []);
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center', fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
+      <div>
+        <div style={{ fontSize: 26, marginBottom: 8 }}>{String.fromCodePoint(0x1F510)}</div>
+        <div style={{ fontSize: 15, color: '#444' }}>{msg}</div>
+      </div>
     </div>
   );
 }
@@ -135,6 +213,9 @@ export default function App() {
       return true;
     } catch (_) { return false; }
   }
+
+  if (route.name === "agent-login-auto") return <AgentLoginAuto />;
+  if (route.name === "agent-login-callback") return <AgentLoginCallback />;
 
   if (route.name === "portal") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><CaptivePortal resellerId={route.resellerId} notify={notify} onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "install") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><StandaloneInstaller onExit={() => { window.location.href = "/"; }} /></div>);
