@@ -354,18 +354,20 @@ pub async fn installer_router_apply_config(
     // Transport: SFTP the script to the router, then /import file=... Exec
     // mode is single-line only; shell mode collapses newlines. Per project
     // brief: multi-line scripts must run via /import file= on the filesystem.
-    const REMOTE_PATH: &str = "safelinks-configure.rsc";
-    match upload_via_sftp(&mut session, REMOTE_PATH, file_contents.as_bytes()).await {
-        Ok(_) => log.push(format!("Uploaded {} bytes to router via SFTP.", file_contents.len())),
+    let uploaded_path = match upload_via_sftp(&mut session, file_contents.as_bytes()).await {
+        Ok(p) => {
+            log.push(format!("Uploaded {} bytes via SFTP to {}", file_contents.len(), p));
+            p
+        }
         Err(e) => {
             failed = 1;
             log.push(format!("SFTP upload failed: {}", e));
             let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
             return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
         }
-    }
+    };
 
-    let import_cmd = format!("/import file={}", REMOTE_PATH);
+    let import_cmd = format!("/import file={}", uploaded_path);
     match exec_raw(&mut session, &import_cmd).await {
         Ok(out) => {
             let errors = count_ros_errors(&out);
@@ -545,9 +547,8 @@ pub async fn installer_save_rsc(
 /// Upload bytes to the router filesystem via SFTP.
 async fn upload_via_sftp(
     session: &mut Handle<AcceptAllKeys>,
-    remote_path: &str,
     contents: &[u8],
-) -> Result<(), String> {
+) -> Result<String, String> {
     use russh_sftp::client::SftpSession;
 
     let channel = session
@@ -563,10 +564,33 @@ async fn upload_via_sftp(
         .await
         .map_err(|e| format!("sftp session init failed: {}", e))?;
 
-    sftp.write(remote_path, contents)
-        .await
-        .map_err(|e| format!("sftp write failed: {}", e))?;
+    // RouterOS SFTP root differs from /import search dir on some firmware.
+    // Try candidates in order; first accepted path is returned and used
+    // verbatim by /import so write dir == import dir, always.
+    let candidates = [
+        "safelinks-configure.rsc",
+        "/safelinks-configure.rsc",
+        "flash/safelinks-configure.rsc",
+        "/flash/safelinks-configure.rsc",
+        "disk1/safelinks-configure.rsc",
+        "/disk1/safelinks-configure.rsc",
+        "flash/rw/safelinks-configure.rsc",
+    ];
+
+    let mut last_err = String::from("no candidates tried");
+    let mut winner: Option<String> = None;
+
+    for path in candidates.iter() {
+        match sftp.write(*path, contents).await {
+            Ok(_) => { winner = Some((*path).to_string()); break; }
+            Err(e) => { last_err = format!("{}: {}", path, e); }
+        }
+    }
 
     let _ = sftp.close().await;
-    Ok(())
+
+    match winner {
+        Some(p) => Ok(p),
+        None => Err(format!("all {} SFTP paths failed — last: {}", candidates.len(), last_err)),
+    }
 }
