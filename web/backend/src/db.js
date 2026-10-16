@@ -207,10 +207,10 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_routers_reseller ON routers(reseller_id);
     CREATE INDEX IF NOT EXISTS idx_routers_last_check_in ON routers(last_check_in);
 
-    // Codevertex-style plaintext api_key column — see routes/agent.js
-    // register + report. Comparing plaintext on both sides avoids any
-    // algorithm mismatch (previous code hashed with bcrypt, compared
-    // with sha256, always failed).
+    -- Codevertex-style plaintext api_key column — see routes/agent.js
+    -- register + report. Comparing plaintext on both sides avoids any
+    -- algorithm mismatch (previous code hashed with bcrypt, compared
+    -- with sha256, always failed).
     ALTER TABLE routers ADD COLUMN IF NOT EXISTS api_key TEXT;
 
     CREATE TABLE IF NOT EXISTS router_commands (
