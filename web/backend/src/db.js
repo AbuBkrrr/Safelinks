@@ -254,6 +254,7 @@ export async function migrate() {
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS support_phone TEXT;
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS terms_url TEXT;
     ALTER TABLE resellers ADD COLUMN IF NOT EXISTS privacy_url TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS background_image_url TEXT;
 
     CREATE TABLE IF NOT EXISTS router_commands (
       id TEXT PRIMARY KEY, router_id TEXT NOT NULL, type TEXT NOT NULL,

@@ -314,6 +314,7 @@ export default function ResellerApp({ session, onExit, notify }) {
         supportPhone: portal.supportPhone ?? portal.support_phone ?? "",
         termsUrl: portal.termsUrl ?? portal.terms_url ?? "",
         privacyUrl: portal.privacyUrl ?? portal.privacy_url ?? "",
+        backgroundImageUrl: portal.backgroundImageUrl ?? portal.background_image_url ?? "",
       });
       notify("Captive portal settings saved.");
       // Wait for the refetch to actually land before dropping the local
@@ -934,6 +935,24 @@ export default function ResellerApp({ session, onExit, notify }) {
 
                 <Field label="Privacy Policy URL (optional)">
                   <input style={inputStyle} value={portal.privacyUrl ?? portal.privacy_url ?? ""} onChange={(e) => setPortalForm({ ...portal, privacyUrl: e.target.value })} placeholder="https://yoursite.com/privacy" />
+                </Field>
+
+                <Field label="Background image (upload, optional)">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {(portal.backgroundImageUrl || portal.background_image_url) && (
+                      <img src={portal.backgroundImageUrl || portal.background_image_url} alt="bg" style={{ height: 40, maxWidth: 80, objectFit: "cover", border: `1px solid ${T.border}`, borderRadius: 6 }} />
+                    )}
+                    <input type="file" accept="image/*" onChange={async (e) => {
+                      const f = e.target.files && e.target.files[0];
+                      if (!f) return;
+                      if (f.size > 400 * 1024) { notify("Background must be under 400 KB."); return; }
+                      const url = await readFileAsDataURL(f);
+                      setPortalForm({ ...portal, backgroundImageUrl: url });
+                    }} />
+                    {(portal.backgroundImageUrl || portal.background_image_url) && (
+                      <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => setPortalForm({ ...portal, backgroundImageUrl: "" })}>Remove</Btn>
+                    )}
+                  </div>
                 </Field>
                 <Field label={dt(dashboardLang, "fieldPortalTitle")}><input style={inputStyle} value={portal.portalTitle ?? portal.portal_title ?? ""} onChange={(e) => setPortalForm({ ...portal, portalTitle: e.target.value })} /></Field>
                 <Field label={dt(dashboardLang, "fieldBrandColor")}>

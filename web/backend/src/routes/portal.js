@@ -14,7 +14,8 @@ export function registerPortalRoutes(router) {
   router.get("/api/portal/:resellerId/info", async (req, res, { params }) => {
     const r = await db.prepare(`
       SELECT company_name, ssid, portal_title, color, currency, language, bank_name, bank_account_name, bank_account_number, ussd_code,
-             contact_email, contact_whatsapp
+             contact_email, contact_whatsapp,
+             logo_url, favicon_url, welcome_message, support_phone, terms_url, privacy_url, background_image_url
       FROM resellers WHERE id = ?
     `).get(params.resellerId);
     if (!r) return json(res, 404, { error: "Reseller not found" });
@@ -24,6 +25,13 @@ export function registerPortalRoutes(router) {
       bankAccount: { bankName: r.bank_name, accountName: r.bank_account_name, accountNumber: r.bank_account_number },
       ussdCode: r.ussd_code,
       contactEmail: r.contact_email, contactWhatsapp: r.contact_whatsapp,
+      logo_url: r.logo_url, logoUrl: r.logo_url,
+      favicon_url: r.favicon_url, faviconUrl: r.favicon_url,
+      welcome_message: r.welcome_message, welcomeMessage: r.welcome_message,
+      support_phone: r.support_phone, supportPhone: r.support_phone,
+      terms_url: r.terms_url, termsUrl: r.terms_url,
+      privacy_url: r.privacy_url, privacyUrl: r.privacy_url,
+      background_image_url: r.background_image_url, backgroundImageUrl: r.background_image_url,
     });
   });
 

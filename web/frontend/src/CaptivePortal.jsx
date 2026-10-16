@@ -35,6 +35,19 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     try { return new URLSearchParams(window.location.search).get("ip") || null; } catch (_) { return null; }
   });
 
+  // Inject reseller favicon into document head
+  useEffect(() => {
+    const url = (info && info.data && (info.data.favicon_url || info.data.faviconUrl)) || null;
+    if (!url) return;
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }, [info && info.data && (info.data.favicon_url || info.data.faviconUrl)]);
+
   // __suspended_view — shown when the voucher is suspended/expired
   const __suspended = (() => {
     try { return new URLSearchParams(window.location.search).get("suspended") === "1"; }
@@ -256,7 +269,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
         </div>
       )}
       <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 420, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
-        <div style={{ background: `linear-gradient(135deg, ${reseller.color || T.primary}, ${T.secondary})`, padding: "28px 22px", textAlign: "center", color: "#fff" }}>
+        <div style={{ background: (reseller.background_image_url || reseller.backgroundImageUrl) ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(${reseller.background_image_url || reseller.backgroundImageUrl}) center/cover no-repeat` : `linear-gradient(135deg, ${reseller.color || T.primary}, ${T.secondary})`, padding: "28px 22px", textAlign: "center", color: "#fff" }}>
           {(reseller.logo_url || reseller.logoUrl) ? (
             <img src={reseller.logo_url || reseller.logoUrl} alt="" style={{ height: 44, maxWidth: 140, objectFit: "contain", marginBottom: 8 }} />
           ) : (
