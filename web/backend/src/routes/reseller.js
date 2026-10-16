@@ -485,13 +485,13 @@ export function registerResellerRoutes(router) {
     // which surfaces these same four fields to the Captive Portal).
     // Not to be confused with platform-bank-info above, which is the
     // Super Admin's account for the reseller's own license fee.
-    const r = await db.prepare("SELECT ssid, portal_title, color, currency, language, dashboard_language, contact_email, contact_whatsapp, bank_name, bank_account_name, bank_account_number, ussd_code FROM resellers WHERE id = ?").get(resellerId);
+    const r = await db.prepare("SELECT ssid, portal_title, color, currency, language, dashboard_language, contact_email, contact_whatsapp, bank_name, bank_account_name, bank_account_number, ussd_code, logo_url, favicon_url, welcome_message, support_phone, terms_url, privacy_url FROM resellers WHERE id = ?").get(resellerId);
     json(res, 200, r);
   });
 
   router.put("/api/reseller/portal-settings", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode } = body;
+    const { ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode, logoUrl, faviconUrl, welcomeMessage, supportPhone, termsUrl, privacyUrl } = body;
     if (currency !== undefined && !CURRENCIES.has(currency)) {
       return json(res, 400, { error: `currency must be one of: ${[...CURRENCIES].join(", ")}` });
     }
@@ -506,7 +506,10 @@ export function registerResellerRoutes(router) {
         currency = COALESCE(?, currency), language = COALESCE(?, language), dashboard_language = COALESCE(?, dashboard_language),
         contact_email = COALESCE(?, contact_email), contact_whatsapp = COALESCE(?, contact_whatsapp),
         bank_name = COALESCE(?, bank_name), bank_account_name = COALESCE(?, bank_account_name),
-        bank_account_number = COALESCE(?, bank_account_number), ussd_code = COALESCE(?, ussd_code)
+        bank_account_number = COALESCE(?, bank_account_number), ussd_code = COALESCE(?, ussd_code),
+        logo_url = COALESCE(?, logo_url), favicon_url = COALESCE(?, favicon_url),
+        welcome_message = COALESCE(?, welcome_message), support_phone = COALESCE(?, support_phone),
+        terms_url = COALESCE(?, terms_url), privacy_url = COALESCE(?, privacy_url)
       WHERE id = ?`)
       .run(ssid, portalTitle, color, currency, language, dashboardLanguage, contactEmail, contactWhatsapp, bankName, bankAccountName, bankAccountNumber, ussdCode, resellerId);
     // If SSID changed, queue a router command so the router actually renames

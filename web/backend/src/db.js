@@ -245,6 +245,16 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_client_devices_reseller ON client_devices(reseller_id, status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_client_devices_mac ON client_devices(reseller_id, mac);
 
+    -- Captive portal branding — logo, favicon, welcome, contact links.
+    -- logo_url / favicon_url store data URLs (base64) directly; no file
+    -- storage needed. Fallback to the emoji icon when empty.
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS logo_url TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS favicon_url TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS welcome_message TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS support_phone TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS terms_url TEXT;
+    ALTER TABLE resellers ADD COLUMN IF NOT EXISTS privacy_url TEXT;
+
     CREATE TABLE IF NOT EXISTS router_commands (
       id TEXT PRIMARY KEY, router_id TEXT NOT NULL, type TEXT NOT NULL,
       payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',

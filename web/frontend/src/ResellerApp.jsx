@@ -46,6 +46,15 @@ function formatPlanDuration(p) {
   return legacy ? legacy.label.toLowerCase() : (p?.duration || "");
 }
 
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
 function LiveRouters({ url }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
@@ -299,6 +308,12 @@ export default function ResellerApp({ session, onExit, notify }) {
         bankAccountName: portal.bankAccountName ?? portal.bank_account_name,
         bankAccountNumber: portal.bankAccountNumber ?? portal.bank_account_number,
         ussdCode: portal.ussdCode ?? portal.ussd_code,
+        logoUrl: portal.logoUrl ?? portal.logo_url ?? "",
+        faviconUrl: portal.faviconUrl ?? portal.favicon_url ?? "",
+        welcomeMessage: portal.welcomeMessage ?? portal.welcome_message ?? "",
+        supportPhone: portal.supportPhone ?? portal.support_phone ?? "",
+        termsUrl: portal.termsUrl ?? portal.terms_url ?? "",
+        privacyUrl: portal.privacyUrl ?? portal.privacy_url ?? "",
       });
       notify("Captive portal settings saved.");
       // Wait for the refetch to actually land before dropping the local
@@ -869,6 +884,57 @@ export default function ResellerApp({ session, onExit, notify }) {
             <div style={{ opacity: licenseExpired ? 0.45 : 1, pointerEvents: licenseExpired ? "none" : "auto", display: "flex", gap: 24, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 260 }}>
                 <Field label={dt(dashboardLang, "fieldSsid")}><input style={inputStyle} value={portal.ssid || ""} onChange={(e) => setPortalForm({ ...portal, ssid: e.target.value })} /></Field>
+
+                <Field label="Logo (upload)">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {portal.logoUrl || portal.logo_url ? (
+                      <img src={portal.logoUrl || portal.logo_url} alt="logo" style={{ height: 40, maxWidth: 120, objectFit: "contain", border: `1px solid ${T.border}`, borderRadius: 6, padding: 4 }} />
+                    ) : (
+                      <div style={{ width: 40, height: 40, borderRadius: 6, background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📶</div>
+                    )}
+                    <input type="file" accept="image/*" onChange={async (e) => {
+                      const f = e.target.files && e.target.files[0];
+                      if (!f) return;
+                      if (f.size > 200 * 1024) { notify("Logo must be under 200 KB."); return; }
+                      const url = await readFileAsDataURL(f);
+                      setPortalForm({ ...portal, logoUrl: url });
+                    }} />
+                    {(portal.logoUrl || portal.logo_url) && (
+                      <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => setPortalForm({ ...portal, logoUrl: "" })}>Remove</Btn>
+                    )}
+                  </div>
+                </Field>
+
+                <Field label="Welcome message (optional)">
+                  <textarea style={{ ...inputStyle, minHeight: 60, fontFamily: "inherit" }} value={portal.welcomeMessage ?? portal.welcome_message ?? ""} onChange={(e) => setPortalForm({ ...portal, welcomeMessage: e.target.value })} placeholder="Connect to our high-speed internet — pick a plan to get online." />
+                </Field>
+
+                <Field label="Support phone (shown as click-to-call)">
+                  <input style={inputStyle} type="tel" value={portal.supportPhone ?? portal.support_phone ?? ""} onChange={(e) => setPortalForm({ ...portal, supportPhone: e.target.value })} placeholder="+234 800 000 0000" />
+                </Field>
+
+                <Field label="Favicon (upload, optional)">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {(portal.faviconUrl || portal.favicon_url) && (
+                      <img src={portal.faviconUrl || portal.favicon_url} alt="favicon" style={{ width: 20, height: 20, border: `1px solid ${T.border}`, borderRadius: 4 }} />
+                    )}
+                    <input type="file" accept="image/x-icon,image/png" onChange={async (e) => {
+                      const f = e.target.files && e.target.files[0];
+                      if (!f) return;
+                      if (f.size > 100 * 1024) { notify("Favicon must be under 100 KB."); return; }
+                      const url = await readFileAsDataURL(f);
+                      setPortalForm({ ...portal, faviconUrl: url });
+                    }} />
+                  </div>
+                </Field>
+
+                <Field label="Terms of Service URL (optional)">
+                  <input style={inputStyle} value={portal.termsUrl ?? portal.terms_url ?? ""} onChange={(e) => setPortalForm({ ...portal, termsUrl: e.target.value })} placeholder="https://yoursite.com/terms" />
+                </Field>
+
+                <Field label="Privacy Policy URL (optional)">
+                  <input style={inputStyle} value={portal.privacyUrl ?? portal.privacy_url ?? ""} onChange={(e) => setPortalForm({ ...portal, privacyUrl: e.target.value })} placeholder="https://yoursite.com/privacy" />
+                </Field>
                 <Field label={dt(dashboardLang, "fieldPortalTitle")}><input style={inputStyle} value={portal.portalTitle ?? portal.portal_title ?? ""} onChange={(e) => setPortalForm({ ...portal, portalTitle: e.target.value })} /></Field>
                 <Field label={dt(dashboardLang, "fieldBrandColor")}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
