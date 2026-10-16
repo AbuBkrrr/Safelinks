@@ -1001,11 +1001,28 @@ export default function ResellerApp({ session, onExit, notify }) {
               <div style={{ flex: 1, minWidth: 260 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 8 }}>{dt(dashboardLang, "livePreview")}</div>
                 <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-                  <div style={{ background: `linear-gradient(135deg, ${portal.color || T.primary}, ${T.secondary})`, padding: "26px 20px", color: "#fff", textAlign: "center" }}>
-                    <Wifi size={26} style={{ marginBottom: 8 }} />
+                  <div style={{ background: (portal.backgroundImageUrl || portal.background_image_url) ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(${portal.backgroundImageUrl || portal.background_image_url}) center/cover no-repeat` : `linear-gradient(135deg, ${portal.color || T.primary}, ${T.secondary})`, padding: "26px 20px", color: "#fff", textAlign: "center" }}>
+                    {(portal.logoUrl || portal.logo_url) ? (
+                      <img src={portal.logoUrl || portal.logo_url} alt="" style={{ height: 34, maxWidth: 110, objectFit: "contain", marginBottom: 6 }} />
+                    ) : (
+                      <Wifi size={26} style={{ marginBottom: 8 }} />
+                    )}
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{(portal.portalTitle ?? portal.portal_title) || dt(dashboardLang, "portalTitlePlaceholder")}</div>
-                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{portal.ssid}</div>
+                    {(portal.welcomeMessage ?? portal.welcome_message) && (
+                      <div style={{ fontSize: 11.5, opacity: 0.9, marginTop: 4, lineHeight: 1.35 }}>{portal.welcomeMessage ?? portal.welcome_message}</div>
+                    )}
+                    <div style={{ fontSize: 12, opacity: 0.85, marginTop: 6 }}>📡 {portal.ssid}</div>
+                    {(portal.supportPhone ?? portal.support_phone) && (
+                      <div style={{ fontSize: 11.5, opacity: 0.9, marginTop: 6 }}>📞 {portal.supportPhone ?? portal.support_phone}</div>
+                    )}
                   </div>
+                  {((portal.termsUrl ?? portal.terms_url) || (portal.privacyUrl ?? portal.privacy_url)) && (
+                    <div style={{ padding: "8px 12px", textAlign: "center", fontSize: 10.5, color: T.sub, background: "#fafafa", borderTop: `1px solid ${T.border}` }}>
+                      {(portal.termsUrl ?? portal.terms_url) && <span style={{ textDecoration: "underline" }}>Terms</span>}
+                      {(portal.termsUrl ?? portal.terms_url) && (portal.privacyUrl ?? portal.privacy_url) && <span style={{ margin: "0 6px" }}>·</span>}
+                      {(portal.privacyUrl ?? portal.privacy_url) && <span style={{ textDecoration: "underline" }}>Privacy</span>}
+                    </div>
+                  )}
                   <div style={{ padding: 16, fontSize: 12.5, color: T.sub, textAlign: "center" }}>
                     {t(portal.language || "en", "choosePlan")} — {t(portal.language || "en", "continueToPayment")}, e.g. {formatMoney(10, portal.currency || "USD")}/mo
                   </div>
