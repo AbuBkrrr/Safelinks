@@ -49,10 +49,21 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   }, [info && info.data && (info.data.favicon_url || info.data.faviconUrl)]);
 
   // __suspended_view — shown when the voucher is suspended/expired
-  const __suspended = (() => {
+  const [__suspended, setSuspended] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("suspended") === "1"; }
     catch (_) { return false; }
-  })();
+  });
+  useEffect(() => {
+    if (__suspended) return;
+    if (!clientMac || !resellerId) return;
+    let alive = true;
+    api.portalStatus(resellerId, clientMac)
+      .then((r) => {
+        if (alive && r && (r.status === "suspended" || r.status === "expired")) setSuspended(true);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [clientMac, resellerId, __suspended]);
   if (__suspended) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg, padding: 20 }}>

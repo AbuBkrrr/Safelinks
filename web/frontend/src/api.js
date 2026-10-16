@@ -90,6 +90,7 @@ export const api = {
 
   // --- Public captive portal ---
   portalInfo: (resellerId) => get(`/api/portal/${resellerId}/info`, { auth: false }),
+  portalStatus: (resellerId, mac) => get(`/api/portal/${resellerId}/status?mac=${encodeURIComponent(mac)}`, { auth: false }),
   portalPlans: (resellerId) => get(`/api/portal/${resellerId}/plans`, { auth: false }),
   portalSignup: (resellerId, body) => post(`/api/portal/${resellerId}/signup`, body, { auth: false }),
   portalSupport: (resellerId, body) => post(`/api/portal/${resellerId}/support`, body, { auth: false }),

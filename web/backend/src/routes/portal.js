@@ -35,7 +35,40 @@ export function registerPortalRoutes(router) {
     });
   });
 
-  // GET /api/portal/:resellerId/plans
+  // GET /api/portal/:resellerId/status?mac=<MAC>
+// Returns the voucher status for the given client MAC so the portal can
+// auto-show the "access paused" card without needing ?suspended=1 in URL.
+//   active | suspended | expired | none
+router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
+  const url = new URL(req.url, "http://x");
+  const mac = String(url.searchParams.get("mac") || "").trim();
+  if (!mac) return json(res, 400, { error: "mac required" });
+  const rid = params.resellerId;
+  let status = "none";
+  try {
+    const sess = await db.prepare(
+      "SELECT username FROM active_sessions WHERE mac = ? AND reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
+    ).get(mac, rid);
+    if (sess && sess.username) {
+      const v = await db.prepare(
+        "SELECT status, expires_at FROM vouchers WHERE username = ? AND reseller_id = ?"
+      ).get(sess.username, rid);
+      if (v) {
+        const now = Date.now();
+        const expired = v.expires_at && Number(v.expires_at) < now;
+        if (v.status === "suspended") status = "suspended";
+        else if (expired) status = "expired";
+        else if (v.status === "active") status = "active";
+      }
+    }
+  } catch (e) {
+    console.log("[portal/status] error rid=" + rid + " mac=" + mac + ": " + (e && e.message));
+  }
+  console.log("[portal/status] rid=" + rid + " mac=" + mac + " -> " + status);
+  return json(res, 200, { status });
+});
+
+// GET /api/portal/:resellerId/plans
   router.get("/api/portal/:resellerId/plans", async (req, res, { params }) => {
     const plans = await db.prepare("SELECT * FROM plans WHERE reseller_id = ? ORDER BY price ASC").all(params.resellerId);
     json(res, 200, { plans });
