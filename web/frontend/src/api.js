@@ -99,6 +99,7 @@ export const api = {
   // --- Super Admin ---
   admin: {
     resellers: () => get("/api/admin/resellers"),
+    routersLive: () => get("/api/admin/routers/live"),
     setResellerStatus: (id, status) => put(`/api/admin/resellers/${id}/status`, { status }),
     platformPlans: () => get("/api/admin/platform-plans"),
     updatePlatformPlan: (id, body) => put(`/api/admin/platform-plans/${id}`, body),
@@ -168,6 +169,7 @@ export const api = {
     disconnectSession: (id) => del(`/api/reseller/sessions/${id}`),
 
     routers: () => get("/api/reseller/routers"),
+      routersLive: () => get("/api/reseller/routers/live"),
     registerRouter: (body) => post("/api/reseller/routers", body),
     createPairingCode: () => post("/api/reseller/pairing-codes", {}),
     pairingCodeStatus: (code) => get(`/api/reseller/pairing-codes/${code}`),

@@ -57,6 +57,26 @@ async function lookupGeoReseller(ip) {
   return null;
 }
 
+// Called when a voucher is suspended/expired — pulls the MAC from the
+// most recent session so the router can unbind it, and (for RADIUS-capable
+// vendors) marks the RADIUS user as suspended so it routes to the pay page.
+async function queueUnbindForVoucher(voucherId, resellerId) {
+  try {
+    const sess = await db.prepare(
+      "SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
+    ).get(resellerId);
+    const mac = sess && sess.mac ? sess.mac : null;
+    if (!mac) return;
+    const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+    const now = Date.now();
+    for (const r of routers) {
+      await db.prepare(
+        "INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)"
+      ).run(id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: mac }), "pending", now);
+    }
+  } catch (_) {}
+}
+
 export function registerResellerRoutes(router) {
   // --- Vouchers ---
   router.get("/api/reseller/vouchers", async (req, res) => {
@@ -76,6 +96,9 @@ export function registerResellerRoutes(router) {
     const voucher = await db.prepare("SELECT username FROM vouchers WHERE id = ? AND reseller_id = ?").get(params.id, resellerId);
     if (!voucher) return json(res, 404, { error: "Voucher not found" });
     await db.prepare("UPDATE vouchers SET status = ? WHERE id = ? AND reseller_id = ?").run(body.status, params.id, resellerId);
+    if (body.status === "suspended" || body.status === "inactive") {
+      await queueUnbindForVoucher(params.id, resellerId);
+    }
     await enqueueCommandForReseller(resellerId, body.status === "active" ? "enable_user" : "disable_user", { username: voucher.username });
     json(res, 200, { ok: true });
   });
@@ -110,6 +133,36 @@ export function registerResellerRoutes(router) {
   });
 
   // --- Routers ---
+  // GET /api/reseller/routers/live — this reseller's routers with live metrics
+  router.get("/api/reseller/routers/live", async (req, res) => {
+    const auth = authenticate(req, "reseller");
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const resellerId = auth.user.id || auth.user.sub;
+    const rows = await db.prepare(`
+      SELECT r.router_id, r.model, r.firmware, r.last_check_in, r.status,
+             m.cpu_load, m.ram_used, m.ram_total, m.uptime_seconds, m.active_user_count, m.updated_at
+      FROM routers r
+      LEFT JOIN router_metrics m ON m.router_id = r.router_id
+      WHERE r.reseller_id = ?
+      ORDER BY r.last_check_in DESC NULLS LAST
+      LIMIT 100
+    `).all(resellerId);
+    const now = Date.now();
+    return json(res, 200, rows.map(row => ({
+      routerId: row.router_id,
+      model: row.model || null,
+      firmware: row.firmware || null,
+      online: row.last_check_in && (now - Number(row.last_check_in) < 90000),
+      lastCheckIn: row.last_check_in ? Number(row.last_check_in) : null,
+      cpuLoad: Number(row.cpu_load || 0),
+      ramUsed: Number(row.ram_used || 0),
+      ramTotal: Number(row.ram_total || 0),
+      uptimeSeconds: Number(row.uptime_seconds || 0),
+      activeUsers: Number(row.active_user_count || 0),
+      metricsAt: row.updated_at ? Number(row.updated_at) : null,
+    })));
+  });
+
   router.get("/api/reseller/routers", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const rows = await db.prepare("SELECT * FROM routers WHERE reseller_id = ? ORDER BY last_check_in DESC").all(resellerId);

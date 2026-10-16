@@ -50,6 +50,36 @@ async function lookupGeo(ip) {
 }
 
 export function registerSuperAdminRoutes(router) {
+  // GET /api/admin/routers/live — per-router metrics + connection status
+  router.get("/api/admin/routers/live", async (req, res) => {
+    const rows = await db.prepare(`
+      SELECT r.router_id, r.reseller_id, r.model, r.firmware, r.last_check_in, r.status,
+             m.cpu_load, m.ram_used, m.ram_total, m.uptime_seconds, m.active_user_count, m.updated_at,
+             rs.company_name AS reseller_name
+      FROM routers r
+      LEFT JOIN router_metrics m ON m.router_id = r.router_id
+      LEFT JOIN resellers rs ON rs.id = r.reseller_id
+      ORDER BY r.last_check_in DESC NULLS LAST
+      LIMIT 200
+    `).all();
+    const now = Date.now();
+    return json(res, 200, rows.map(row => ({
+      routerId: row.router_id,
+      resellerId: row.reseller_id,
+      resellerName: row.reseller_name || null,
+      model: row.model || null,
+      firmware: row.firmware || null,
+      online: row.last_check_in && (now - Number(row.last_check_in) < 90000),
+      lastCheckIn: row.last_check_in ? Number(row.last_check_in) : null,
+      cpuLoad: Number(row.cpu_load || 0),
+      ramUsed: Number(row.ram_used || 0),
+      ramTotal: Number(row.ram_total || 0),
+      uptimeSeconds: Number(row.uptime_seconds || 0),
+      activeUsers: Number(row.active_user_count || 0),
+      metricsAt: row.updated_at ? Number(row.updated_at) : null,
+    })));
+  });
+
   router.get("/api/admin/resellers", async (req, res) => {
     if (!requireSuperAdmin(req, res)) return;
     const rows = await db.prepare("SELECT * FROM resellers").all();
