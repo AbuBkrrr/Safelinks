@@ -76,6 +76,7 @@ function LiveRouters({ url }) {
               <tr style={{ textAlign: "left", color: T.sub, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
                 <th style={{ padding: "6px 8px" }}>Status</th>
                 <th>Router</th>
+                <th>Model</th>
                 <th>Reseller</th>
                 <th>CPU</th>
                 <th>RAM</th>
@@ -95,6 +96,7 @@ function LiveRouters({ url }) {
                     {r.online ? "online" : "offline"}
                   </td>
                   <td style={{ fontFamily: "monospace" }}>{r.routerId}</td>
+                  <td>{r.model || "-"}<div style={{ fontSize: 10.5, color: T.sub, marginTop: 2 }}>{r.firmware || ""}</div></td>
                   <td>{r.resellerName || r.resellerId || "-"}</td>
                   <td>{(r.cpuLoad || 0) + "%"}</td>
                   <td>{fmtRam(r.ramUsed, r.ramTotal)}</td>
