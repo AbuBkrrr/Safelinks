@@ -164,7 +164,7 @@ add name="safelinks-checkin" source={
     :if ([:pick $line 0 4] = "CMD ") do={
       :local rest2 [:pick $line 4 [:len $line]]
       # Split rest2 on spaces into up to 6 fields.
-      :local fields {}
+      :local fields [:toarray ""]
       :local fpos 0
       :while ($fpos <= [:len $rest2]) do={
         :local sp [:find $rest2 " " $fpos]
