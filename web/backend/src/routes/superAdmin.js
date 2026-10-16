@@ -50,6 +50,81 @@ async function lookupGeo(ip) {
 }
 
 export function registerSuperAdminRoutes(router) {
+  // ── License plans CRUD — Super Admin manages tier features + limits ──
+  router.get("/api/admin/plans", async (req, res) => {
+    const rows = await db.prepare("SELECT * FROM platform_plans ORDER BY sort_order ASC NULLS LAST, name ASC").all();
+    return json(res, 200, rows.map(r => ({
+      id: r.id, name: r.name, description: r.description || "",
+      monthlyPriceNgn: r.monthly_price_ngn, yearlyPriceNgn: r.yearly_price_ngn,
+      maxDevices: r.max_devices, maxClients: r.max_clients, maxRouters: r.max_routers,
+      maxVouchers: r.max_vouchers, bandwidthCapMbps: r.bandwidth_cap_mbps,
+      features: r.features || {},
+    })));
+  });
+
+  router.put("/api/admin/plans/:id", async (req, res, { params, body }) => {
+    const b = body || {};
+    await db.prepare(`UPDATE platform_plans SET
+      name = COALESCE(?, name),
+      description = COALESCE(?, description),
+      monthly_price_ngn = COALESCE(?, monthly_price_ngn),
+      yearly_price_ngn = COALESCE(?, yearly_price_ngn),
+      max_devices = COALESCE(?, max_devices),
+      max_clients = COALESCE(?, max_clients),
+      max_routers = COALESCE(?, max_routers),
+      max_vouchers = COALESCE(?, max_vouchers),
+      bandwidth_cap_mbps = COALESCE(?, bandwidth_cap_mbps),
+      features = COALESCE(?, features)
+      WHERE id = ?`).run(
+      b.name || null, b.description || null,
+      b.monthlyPriceNgn == null ? null : Number(b.monthlyPriceNgn),
+      b.yearlyPriceNgn == null ? null : Number(b.yearlyPriceNgn),
+      b.maxDevices == null ? null : Number(b.maxDevices),
+      b.maxClients == null ? null : Number(b.maxClients),
+      b.maxRouters == null ? null : Number(b.maxRouters),
+      b.maxVouchers == null ? null : Number(b.maxVouchers),
+      b.bandwidthCapMbps == null ? null : Number(b.bandwidthCapMbps),
+      b.features ? JSON.stringify(b.features) : null,
+      params.id);
+    return json(res, 200, { ok: true });
+  });
+
+  router.post("/api/admin/plans", async (req, res, { body }) => {
+    const b = body || {};
+    if (!b.id || !b.name) return json(res, 400, { error: "id and name required" });
+    await db.prepare(`INSERT INTO platform_plans (id, name, description, monthly_price_ngn, yearly_price_ngn, max_devices, max_clients, max_routers, max_vouchers, bandwidth_cap_mbps, features)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+      b.id, b.name, b.description || "",
+      Number(b.monthlyPriceNgn || 0), Number(b.yearlyPriceNgn || 0),
+      Number(b.maxDevices || 5), Number(b.maxClients || 100), Number(b.maxRouters || 1),
+      Number(b.maxVouchers || 200), Number(b.bandwidthCapMbps || 50),
+      JSON.stringify(b.features || {}));
+    return json(res, 201, { ok: true, id: b.id });
+  });
+
+  // Reseller license usage vs their plan limits
+  router.get("/api/reseller/license-usage", async (req, res) => {
+    const auth = authenticate(req, "reseller");
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const rid = auth.user.id || auth.user.sub;
+    const r = await db.prepare("SELECT subscription_plan FROM resellers WHERE id = ?").get(rid);
+    if (!r) return json(res, 404, { error: "reseller not found" });
+    const plan = await db.prepare("SELECT * FROM platform_plans WHERE id = ?").get(r.subscription_plan);
+    const used = {};
+    used.vouchers = (await db.prepare("SELECT COUNT(*) AS c FROM vouchers WHERE reseller_id = ?").get(rid)).c;
+    used.routers = (await db.prepare("SELECT COUNT(*) AS c FROM routers WHERE reseller_id = ?").get(rid)).c;
+    used.clients = (await db.prepare("SELECT COUNT(*) AS c FROM active_sessions WHERE reseller_id = ?").get(rid)).c;
+    return json(res, 200, {
+      plan: plan ? {
+        id: plan.id, name: plan.name, description: plan.description || "",
+        maxDevices: plan.max_devices, maxClients: plan.max_clients, maxRouters: plan.max_routers,
+        maxVouchers: plan.max_vouchers, bandwidthCapMbps: plan.bandwidth_cap_mbps,
+        features: plan.features || {},
+      } : null,
+      used,
+    });
+  });
+
   // GET /api/admin/routers/live — per-router metrics + connection status
   router.get("/api/admin/routers/live", async (req, res) => {
     const rows = await db.prepare(`

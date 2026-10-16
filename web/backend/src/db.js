@@ -213,6 +213,19 @@ export async function migrate() {
     -- with sha256, always failed).
     ALTER TABLE routers ADD COLUMN IF NOT EXISTS api_key TEXT;
 
+    -- License tier system — Super Admin sells plans to Resellers with
+    -- feature flags + metered limits, not just client/device caps.
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS max_devices INTEGER DEFAULT 5;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS max_clients INTEGER DEFAULT 100;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS max_routers INTEGER DEFAULT 1;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS max_vouchers INTEGER DEFAULT 200;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS bandwidth_cap_mbps INTEGER DEFAULT 50;
+    ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '{}'::jsonb;
+    -- End-user plan duration — allow hours/minutes, not just days.
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS duration_unit TEXT DEFAULT 'day';
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS duration_value INTEGER;
+
     CREATE TABLE IF NOT EXISTS router_commands (
       id TEXT PRIMARY KEY, router_id TEXT NOT NULL, type TEXT NOT NULL,
       payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
