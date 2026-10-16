@@ -48,10 +48,13 @@
 /file add name="safelinks-credentials.txt" contents=$slCreds
 
 :local slCkUrl ($safelinksApiBase . "/api/agent/heartbeat.rsc?rid=" . $slRid . "&key=" . $slKey)
-:local slCkEvent ("/tool fetch url=" . $slCkUrl . " dst-path=safelinks-cmd.rsc check-certificate=no; /import file=safelinks-cmd.rsc")
+:local slHbBody ("/tool fetch url=\"" . $slCkUrl . "\" dst-path=safelinks-cmd.rsc check-certificate=no\n/import file=safelinks-cmd.rsc\n")
+
+/file remove [find name="safelinks-heartbeat.rsc"]
+/file add name="safelinks-heartbeat.rsc" contents=$slHbBody
 
 /system scheduler remove [find name="safelinks-checkin"]
-/system scheduler add name="safelinks-checkin" interval=30s on-event=$slCkEvent
+/system scheduler add name="safelinks-checkin" interval=30s on-event="/import file=safelinks-heartbeat.rsc"
 
 :put ("safelinks-bootstrap: OK rid=" . $slRid)
 :log info ("safelinks-bootstrap: paired as " . $slRid)
