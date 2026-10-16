@@ -14,15 +14,22 @@ function num(v) {
 
 function rosUptimeToSeconds(v) {
   if (v == null) return 0;
-  const direct = Number(v);
+  const s = String(v).trim();
+  if (!s) return 0;
+  const direct = Number(s);
   if (Number.isFinite(direct)) return direct;
-  const m = String(v).match(/(\d+)([wdhms])/g);
-  if (!m) return 0;
-  const mult = { w: 604800, d: 86400, h: 3600, m: 60, s: 1 };
   let total = 0;
-  for (const part of m) {
-    const mm = part.match(/(\d+)([wdhms])/);
-    if (mm) total += Number(mm[1]) * mult[mm[2]];
+  const re = /([0-9]+)([wdhms])/g;
+  let mm;
+  while ((mm = re.exec(s)) !== null) {
+    const n = Number(mm[1]);
+    const unit = mm[2];
+    const mult = unit === "w" ? 604800
+               : unit === "d" ? 86400
+               : unit === "h" ? 3600
+               : unit === "m" ? 60
+               : 1;
+    total += n * mult;
   }
   return total;
 }
@@ -338,6 +345,7 @@ export function registerAgentRoutes(router) {
     }
     // Upsert router metrics
     if (metrics && (metrics.cpu !== undefined || metrics.ramUsed !== undefined)) {
+      console.log("[agent/report] uptime_raw=" + JSON.stringify(metrics.uptime) + " parsed=" + rosUptimeToSeconds(metrics.uptime));
       await db.prepare(`INSERT INTO router_metrics (router_id, reseller_id, cpu_load, ram_used, ram_total, uptime_seconds, active_user_count, updated_at)
         VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT (router_id) DO UPDATE SET cpu_load=EXCLUDED.cpu_load, ram_used=EXCLUDED.ram_used, ram_total=EXCLUDED.ram_total, uptime_seconds=EXCLUDED.uptime_seconds, active_user_count=EXCLUDED.active_user_count, updated_at=EXCLUDED.updated_at`)
