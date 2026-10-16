@@ -98,7 +98,9 @@ export function registerAgentRoutes(router) {
       lines.push(":local slRamF [/system resource get free-memory]");
       lines.push(":local slRamT [/system resource get total-memory]");
       lines.push(":local slUp [/system resource get uptime]");
-      lines.push(':do { /tool fetch url="' + base + '/api/agent/report" http-method=post http-data="rid=' + rid + '&key=' + key + '&cpu=$slCpu&ramUsed=$slRamF&ramTotal=$slRamT&uptime=$slUp" output=none } on-error={}');
+      lines.push(":local slSessions \"\"");
+      lines.push(":foreach h in=[/ip hotspot active find] do={ :local m [/ip hotspot active get $h mac-address]; :local ip [/ip hotspot active get $h address]; :local u [/ip hotspot active get $h user]; :local bi [/ip hotspot active get $h bytes-in]; :local bo [/ip hotspot active get $h bytes-out]; :set slSessions ($slSessions . $m . \",\" . $ip . \",\" . $u . \",\" . $bi . \",\" . $bo . \";\") }");
+      lines.push(':do { /tool fetch url="' + base + '/api/agent/report" http-method=post http-data="rid=' + rid + '&key=' + key + '&cpu=$slCpu&ramUsed=$slRamF&ramTotal=$slRamT&uptime=$slUp&sessions=$slSessions" output=none } on-error={}');
       lines.push("");
       for (const c of cmds) {
         let p = {};
@@ -255,8 +257,14 @@ export function registerAgentRoutes(router) {
   // Router agent posts metrics + currently connected clients every 30s.
   // Body: { router_id, api_key, metrics: {cpu, ramUsed, ramTotal, uptime}, sessions: [{mac, ip, username, bytesIn, bytesOut, startedAt}] }
   router.post("/api/agent/report", async (req, res, { body }) => {
-    const { router_id, api_key, metrics, sessions } = body || {};
-    if (!router_id || !api_key) return err(res, 400, "router_id and api_key required");
+    // FIX: accept flat form encoding — heartbeat.rsc sends rid/key/cpu/...
+    // Form-encoded bodies arrive as { rid, key, cpu, ramUsed, ramTotal, uptime, sessions? }
+    // JSON bodies arrive as { router_id, api_key, metrics: {...}, sessions: [...] }
+    // Normalize both into the same shape the rest of this handler expects.
+    const b = body || {};
+    const router_id = b.router_id || b.rid;
+    const api_key = b.api_key || b.key;
+    if (!router_id || !api_key) return err(res, 400, "router_id/rid and api_key/key required");
     const rt = await db.prepare("SELECT router_id, reseller_id, api_key_hash FROM routers WHERE router_id = ?").get(router_id);
     if (!rt) return err(res, 404, "unknown router");
     const crypto = await import("node:crypto");
@@ -264,8 +272,31 @@ export function registerAgentRoutes(router) {
     if (h !== rt.api_key_hash) return err(res, 401, "bad api key");
 
     const now = Date.now();
+    // Normalize metrics + sessions into the shape this handler expects
+    const metricsFromFlat = {
+      cpu: b.cpu,
+      ramUsed: b.ramUsed,
+      ramTotal: b.ramTotal,
+      uptime: b.uptime,
+    };
+    const metrics = b.metrics || metricsFromFlat;
+    let sessions = b.sessions;
+    if (typeof sessions === "string" && sessions.length > 0) {
+      sessions = sessions.split(";").filter(s => s.trim()).map(row => {
+        const parts = row.split(",");
+        return {
+          mac: parts[0] || "",
+          ip: parts[1] || null,
+          username: parts[2] || null,
+          bytesIn: Number(parts[3] || 0),
+          bytesOut: Number(parts[4] || 0),
+        };
+      });
+    } else if (!Array.isArray(sessions)) {
+      sessions = [];
+    }
     // Upsert router metrics
-    if (metrics) {
+    if (metrics && (metrics.cpu !== undefined || metrics.ramUsed !== undefined)) {
       await db.prepare(`INSERT INTO router_metrics (router_id, reseller_id, cpu_load, ram_used, ram_total, uptime_seconds, active_user_count, updated_at)
         VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT (router_id) DO UPDATE SET cpu_load=EXCLUDED.cpu_load, ram_used=EXCLUDED.ram_used, ram_total=EXCLUDED.ram_total, uptime_seconds=EXCLUDED.uptime_seconds, active_user_count=EXCLUDED.active_user_count, updated_at=EXCLUDED.updated_at`)
