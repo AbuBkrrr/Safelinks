@@ -218,6 +218,45 @@ export default function ResellerApp({ session, onExit, notify }) {
 
   // --- Plans ---
   const [planForm, setPlanForm] = useState(null);
+
+  // ── Client devices (persistent record + management) ──
+  const clients = useResource(() => api.reseller.clients(), []);
+  const [clientForm, setClientForm] = useState(null);
+  async function saveClient() {
+    if (!clientForm) return;
+    if (!clientForm.mac) { notify("MAC address is required."); return; }
+    try {
+      if (clientForm.isNew) {
+        await api.reseller.addClient({
+          mac: clientForm.mac,
+          label: clientForm.label || "",
+          deviceType: clientForm.deviceType || "unknown",
+          priority: clientForm.priority || "medium",
+          voucherId: clientForm.voucherId || null,
+        });
+        notify("Device added.");
+      } else {
+        await api.reseller.updateClient(clientForm.mac, {
+          label: clientForm.label || "",
+          deviceType: clientForm.deviceType || "unknown",
+          priority: clientForm.priority || "medium",
+        });
+        notify("Device updated.");
+      }
+      setClientForm(null);
+      clients.refetch();
+    } catch (e) {
+      notify(e.message || "Could not save device.");
+    }
+  }
+  async function unbindClient(mac) {
+    if (!window.confirm("Unbind this device? The client will lose internet.")) return;
+    try {
+      await api.reseller.unbindClient(mac);
+      notify("Device unbound.");
+      clients.refetch();
+    } catch (e) { notify(e.message || "Could not unbind."); }
+  }
   async function savePlan() {
     if (!planForm.name || !planForm.price) return;
     try {
@@ -610,6 +649,91 @@ export default function ResellerApp({ session, onExit, notify }) {
             </table>
           )}
           {!vouchers.loading && (vouchers.data || []).length === 0 && <EmptyRow text="No vouchers issued yet — they're created once you confirm a Pending payment." />}
+        </Panel>
+      )}
+
+      {tab === "clients" && (
+        <Panel title="Client devices" action={<Btn size="sm" onClick={() => setClientForm({ isNew: true, mac: "", label: "", deviceType: "laptop", priority: "medium", voucherId: "" })}><Plus size={14} /> Add device</Btn>}>
+          {clients.loading ? <Loading /> : (clients.data || []).length === 0 ? <EmptyRow text="No client devices yet. Add one by entering its MAC address." /> : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: T.sub, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                    <th style={{ padding: "6px 8px" }}>Status</th>
+                    <th>Label</th>
+                    <th>MAC</th>
+                    <th>Voucher</th>
+                    <th>Priority</th>
+                    <th>Last seen</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(clients.data || []).map((c) => (
+                    <tr key={c.id} style={{ borderTop: "1px solid " + T.border }}>
+                      <td style={{ padding: "10px 8px" }}>
+                        <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 50, background: c.online ? "#38a169" : "#e53e3e", marginRight: 6, verticalAlign: "middle" }} />
+                        {c.online ? "online" : "offline"}
+                      </td>
+                      <td><strong>{c.label || "(unnamed)"}</strong><div style={{ fontSize: 11, color: T.sub }}>{c.deviceType}</div></td>
+                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>{c.mac}</td>
+                      <td>{c.voucherUsername ? <span style={{ fontFamily: "monospace", fontSize: 12 }}>{c.voucherUsername}</span> : <span style={{ color: T.sub }}>—</span>}</td>
+                      <td><Badge tone={c.priority === "high" ? T.danger : c.priority === "low" ? T.success : T.warning}>{c.priority}</Badge></td>
+                      <td style={{ color: T.sub, fontSize: 12 }}>{c.lastSeen ? timeAgo(c.lastSeen) : "never"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <Btn size="sm" variant="outline" onClick={() => setClientForm({ ...c, isNew: false })}>Edit</Btn>
+                        <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => unbindClient(c.mac)}>Unbind</Btn>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {clientForm && (
+            <div style={{ marginTop: 18, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>{clientForm.isNew ? "Add device" : "Edit device"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Field label="MAC address">
+                  <input style={{ ...inputStyle, fontFamily: "monospace" }} value={clientForm.mac} disabled={!clientForm.isNew}
+                    onChange={(e) => setClientForm({ ...clientForm, mac: e.target.value.toUpperCase() })}
+                    placeholder="AA:BB:CC:DD:EE:FF" />
+                </Field>
+                <Field label="Label"><input style={inputStyle} value={clientForm.label} onChange={(e) => setClientForm({ ...clientForm, label: e.target.value })} placeholder="e.g. CEO Laptop" /></Field>
+                <Field label="Device type">
+                  <select style={inputStyle} value={clientForm.deviceType} onChange={(e) => setClientForm({ ...clientForm, deviceType: e.target.value })}>
+                    <option value="laptop">Laptop</option>
+                    <option value="phone">Phone</option>
+                    <option value="tablet">Tablet</option>
+                    <option value="tv">Smart TV</option>
+                    <option value="desktop">Desktop</option>
+                    <option value="unknown">Other</option>
+                  </select>
+                </Field>
+                <Field label="Priority">
+                  <select style={inputStyle} value={clientForm.priority} onChange={(e) => setClientForm({ ...clientForm, priority: e.target.value })}>
+                    <option value="high">High (2× bandwidth)</option>
+                    <option value="medium">Medium (plan bandwidth)</option>
+                    <option value="low">Low (0.5× bandwidth)</option>
+                  </select>
+                </Field>
+              </div>
+              {clientForm.isNew && (
+                <Field label="Link voucher (optional — activates immediately)">
+                  <select style={inputStyle} value={clientForm.voucherId || ""} onChange={(e) => setClientForm({ ...clientForm, voucherId: e.target.value })}>
+                    <option value="">— no voucher —</option>
+                    {(vouchers.data || []).filter((v) => v.status === "active").map((v) => (
+                      <option key={v.id} value={v.id}>{v.username} ({v.plan_id})</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <Btn onClick={saveClient}><Save size={14} /> {clientForm.isNew ? "Add device" : "Save"}</Btn>
+                <Btn variant="ghost" onClick={() => setClientForm(null)}>Cancel</Btn>
+              </div>
+            </div>
+          )}
         </Panel>
       )}
 

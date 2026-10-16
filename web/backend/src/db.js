@@ -226,6 +226,25 @@ export async function migrate() {
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS duration_unit TEXT DEFAULT 'day';
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS duration_value INTEGER;
 
+    -- Persistent device records for reseller client management.
+    -- active_sessions is transient (per heartbeat); this table stores the
+    -- user-facing label + priority + voucher binding across reconnects.
+    CREATE TABLE IF NOT EXISTS client_devices (
+      id TEXT PRIMARY KEY,
+      reseller_id TEXT NOT NULL,
+      mac TEXT NOT NULL,
+      label TEXT,
+      device_type TEXT DEFAULT 'unknown',
+      priority TEXT DEFAULT 'medium',
+      bandwidth_mbps INTEGER,
+      voucher_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      added_at BIGINT NOT NULL,
+      last_seen BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_devices_reseller ON client_devices(reseller_id, status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_client_devices_mac ON client_devices(reseller_id, mac);
+
     CREATE TABLE IF NOT EXISTS router_commands (
       id TEXT PRIMARY KEY, router_id TEXT NOT NULL, type TEXT NOT NULL,
       payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',

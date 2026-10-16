@@ -323,6 +323,156 @@ export function registerResellerRoutes(router) {
     json(res, 200, { ok: true });
   });
 
+  // ── Client devices — reseller manages their end-users' devices ──
+  // A client device is a MAC address with a human label + priority that
+  // the router treats specially: high = 2× plan bw, medium = plan bw,
+  // low = 0.5× plan bw. Priority changes queue a fresh bind_mac.
+  function priorityToMbps(priority, planBandwidth) {
+    const bw = Number(planBandwidth) || 20;
+    if (priority === "high") return Math.round(bw * 2);
+    if (priority === "low") return Math.max(2, Math.round(bw * 0.5));
+    return bw;
+  }
+
+  router.get("/api/reseller/clients", async (req, res) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const devices = await db.prepare(
+      "SELECT * FROM client_devices WHERE reseller_id = ? AND status = 'active' ORDER BY added_at DESC"
+    ).all(resellerId);
+    const now = Date.now();
+    const enriched = [];
+    for (const d of devices) {
+      const live = await db.prepare(
+        "SELECT last_seen, ip, bytes_in, bytes_out FROM active_sessions WHERE reseller_id = ? AND mac = ? ORDER BY last_seen DESC LIMIT 1"
+      ).get(resellerId, d.mac);
+      const v = d.voucher_id
+        ? await db.prepare("SELECT username, expires_at, plan_id FROM vouchers WHERE id = ?").get(d.voucher_id)
+        : null;
+      enriched.push({
+        id: d.id,
+        mac: d.mac,
+        label: d.label || "",
+        deviceType: d.device_type,
+        priority: d.priority,
+        bandwidthMbps: d.bandwidth_mbps,
+        voucherId: d.voucher_id,
+        voucherUsername: v ? v.username : null,
+        voucherExpiresAt: v ? Number(v.expires_at) : null,
+        addedAt: Number(d.added_at),
+        lastSeen: live ? Number(live.last_seen) : null,
+        ip: live ? live.ip : null,
+        bytesIn: live ? Number(live.bytes_in || 0) : 0,
+        bytesOut: live ? Number(live.bytes_out || 0) : 0,
+        online: live && (now - Number(live.last_seen)) < 90000,
+      });
+    }
+    return json(res, 200, enriched);
+  });
+
+  router.post("/api/reseller/clients", async (req, res, { body }) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const b = body || {};
+    const mac = String(b.mac || "").trim().toUpperCase();
+    if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) return json(res, 400, { error: "mac must be like AA:BB:CC:DD:EE:FF" });
+    const label = String(b.label || "").trim();
+    const priority = ["high", "medium", "low"].includes(b.priority) ? b.priority : "medium";
+    const deviceType = String(b.deviceType || "unknown").slice(0, 32);
+    const voucherId = b.voucherId ? String(b.voucherId) : null;
+
+    // Verify voucher belongs to this reseller if provided
+    let voucher = null;
+    if (voucherId) {
+      voucher = await db.prepare("SELECT id, reseller_id, expires_at FROM vouchers WHERE id = ? AND reseller_id = ?").get(voucherId, resellerId);
+      if (!voucher) return json(res, 404, { error: "voucher not found for this reseller" });
+    }
+
+    const now = Date.now();
+    const deviceId = id("cd");
+    let bandwidth = null;
+    if (voucher) {
+      const plan = await db.prepare("SELECT bandwidth FROM plans WHERE id = (SELECT plan_id FROM vouchers WHERE id = ?)").get(voucherId);
+      bandwidth = priorityToMbps(priority, plan && plan.bandwidth);
+    }
+
+    try {
+      await db.prepare(
+        "INSERT INTO client_devices (id, reseller_id, mac, label, device_type, priority, bandwidth_mbps, voucher_id, status, added_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+      ).run(deviceId, resellerId, mac, label, deviceType, priority, bandwidth, voucherId, "active", now);
+    } catch (e) {
+      if (String(e.message || "").includes("duplicate") || String(e.message || "").includes("UNIQUE")) {
+        return json(res, 409, { error: "this MAC is already registered for your account" });
+      }
+      return json(res, 500, { error: String(e.message || e) });
+    }
+
+    // Queue bind_mac if we have a voucher (activates immediately)
+    if (voucher) {
+      const isoExpiry = new Date(Number(voucher.expires_at)).toISOString().slice(0, 19);
+      const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+      for (const r of routers) {
+        await db.prepare(
+          "INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)"
+        ).run(id("cmd"), r.router_id, "bind_mac", JSON.stringify({ username: mac, password: isoExpiry, bandwidthMbps: bandwidth }), "pending", now);
+      }
+    }
+    return json(res, 201, { id: deviceId, mac, label, priority, deviceType, voucherId, bandwidthMbps: bandwidth });
+  });
+
+  router.put("/api/reseller/clients/:mac", async (req, res, { params, body }) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const mac = String(params.mac || "").trim().toUpperCase();
+    const b = body || {};
+    const label = b.label != null ? String(b.label).trim() : null;
+    const priority = ["high", "medium", "low"].includes(b.priority) ? b.priority : null;
+    const deviceType = b.deviceType != null ? String(b.deviceType).slice(0, 32) : null;
+
+    const existing = await db.prepare("SELECT * FROM client_devices WHERE reseller_id = ? AND mac = ? AND status = 'active'").get(resellerId, mac);
+    if (!existing) return json(res, 404, { error: "device not found" });
+
+    let bandwidth = existing.bandwidth_mbps;
+    if (priority && priority !== existing.priority && existing.voucher_id) {
+      const plan = await db.prepare("SELECT bandwidth FROM plans WHERE id = (SELECT plan_id FROM vouchers WHERE id = ?)").get(existing.voucher_id);
+      bandwidth = priorityToMbps(priority, plan && plan.bandwidth);
+    }
+
+    await db.prepare(
+      "UPDATE client_devices SET label = COALESCE(?, label), priority = COALESCE(?, priority), device_type = COALESCE(?, device_type), bandwidth_mbps = ? WHERE id = ?"
+    ).run(label, priority, deviceType, bandwidth, existing.id);
+
+    // If priority changed, queue a fresh bind_mac with the new bandwidth
+    if (priority && priority !== existing.priority && existing.voucher_id) {
+      const v = await db.prepare("SELECT expires_at FROM vouchers WHERE id = ?").get(existing.voucher_id);
+      if (v) {
+        const isoExpiry = new Date(Number(v.expires_at)).toISOString().slice(0, 19);
+        const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+        const now = Date.now();
+        for (const r of routers) {
+          await db.prepare(
+            "INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)"
+          ).run(id("cmd"), r.router_id, "bind_mac", JSON.stringify({ username: mac, password: isoExpiry, bandwidthMbps: bandwidth }), "pending", now);
+        }
+      }
+    }
+    return json(res, 200, { ok: true, bandwidthMbps: bandwidth });
+  });
+
+  router.post("/api/reseller/clients/:mac/unbind", async (req, res, { params }) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const mac = String(params.mac || "").trim().toUpperCase();
+    const existing = await db.prepare("SELECT * FROM client_devices WHERE reseller_id = ? AND mac = ? AND status = 'active'").get(resellerId, mac);
+    if (!existing) return json(res, 404, { error: "device not found" });
+
+    await db.prepare("UPDATE client_devices SET status = 'unbound' WHERE id = ?").run(existing.id);
+    const now = Date.now();
+    const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+    for (const r of routers) {
+      await db.prepare(
+        "INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)"
+      ).run(id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: mac }), "pending", now);
+    }
+    return json(res, 200, { ok: true });
+  });
+
   // --- Captive portal settings ---
   // contactEmail/contactWhatsapp are shown to end-users on the portal so
   // they have a manual way to reach the reseller (no automated

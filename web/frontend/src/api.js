@@ -171,6 +171,10 @@ export const api = {
     disconnectSession: (id) => del(`/api/reseller/sessions/${id}`),
 
     routers: () => get("/api/reseller/routers"),
+    clients: () => get("/api/reseller/clients"),
+    addClient: (body) => post("/api/reseller/clients", body),
+    updateClient: (mac, body) => put(`/api/reseller/clients/${encodeURIComponent(mac)}`, body),
+    unbindClient: (mac) => post(`/api/reseller/clients/${encodeURIComponent(mac)}/unbind`, {}),
       routersLive: () => get("/api/reseller/routers/live"),
     registerRouter: (body) => post("/api/reseller/routers", body),
     createPairingCode: () => post("/api/reseller/pairing-codes", {}),
