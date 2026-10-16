@@ -257,10 +257,29 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       )}
       <div style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 420, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ background: `linear-gradient(135deg, ${reseller.color || T.primary}, ${T.secondary})`, padding: "28px 22px", textAlign: "center", color: "#fff" }}>
-          <Wifi size={30} style={{ marginBottom: 8 }} />
+          {(reseller.logo_url || reseller.logoUrl) ? (
+            <img src={reseller.logo_url || reseller.logoUrl} alt="" style={{ height: 44, maxWidth: 140, objectFit: "contain", marginBottom: 8 }} />
+          ) : (
+            <Wifi size={30} style={{ marginBottom: 8 }} />
+          )}
           <div style={{ fontWeight: 700, fontSize: 17 }}>{reseller.portalTitle}</div>
-          <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 3 }}>{reseller.ssid}</div>
+          {(reseller.welcome_message || reseller.welcomeMessage) && (
+            <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 5, lineHeight: 1.4 }}>{reseller.welcome_message || reseller.welcomeMessage}</div>
+          )}
+          <div style={{ fontSize: 12.5, opacity: 0.85, marginTop: 6 }}>📡 {reseller.ssid}</div>
+          {(reseller.support_phone || reseller.supportPhone) && (
+            <div style={{ fontSize: 12, opacity: 0.9, marginTop: 8 }}>
+              <a href={`tel:${(reseller.support_phone || reseller.supportPhone).replace(/[^+0-9]/g, "")}`} style={{ color: "#fff", textDecoration: "underline" }}>📞 {reseller.support_phone || reseller.supportPhone}</a>
+            </div>
+          )}
         </div>
+        {(reseller.terms_url || reseller.termsUrl || reseller.privacy_url || reseller.privacyUrl) && (
+          <div style={{ padding: "9px 14px", textAlign: "center", fontSize: 11, color: T.sub, background: "#fafafa", borderBottom: `1px solid ${T.border}` }}>
+            {(reseller.terms_url || reseller.termsUrl) && <a href={reseller.terms_url || reseller.termsUrl} target="_blank" rel="noreferrer" style={{ color: T.sub, textDecoration: "underline" }}>Terms</a>}
+            {(reseller.terms_url || reseller.termsUrl) && (reseller.privacy_url || reseller.privacyUrl) && <span style={{ margin: "0 8px", color: T.sub }}>·</span>}
+            {(reseller.privacy_url || reseller.privacyUrl) && <a href={reseller.privacy_url || reseller.privacyUrl} target="_blank" rel="noreferrer" style={{ color: T.sub, textDecoration: "underline" }}>Privacy</a>}
+          </div>
+        )}
 
         {showHelp ? (
           <div style={{ padding: 22 }}>
