@@ -154,6 +154,50 @@ export async function migrate() {
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_voucher ON sessions(voucher_id);
 
+    CREATE TABLE IF NOT EXISTS radcheck (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      attribute TEXT NOT NULL,
+      op TEXT NOT NULL DEFAULT ':=',
+      value TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_radcheck_username ON radcheck(username);
+    CREATE TABLE IF NOT EXISTS radreply (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      attribute TEXT NOT NULL,
+      op TEXT NOT NULL DEFAULT ':=',
+      value TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_radreply_username ON radreply(username);
+    CREATE TABLE IF NOT EXISTS nas (
+      id SERIAL PRIMARY KEY,
+      nasname TEXT NOT NULL,
+      shortname TEXT,
+      type TEXT DEFAULT 'other',
+      ports INTEGER,
+      secret TEXT NOT NULL,
+      description TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_nas_nasname ON nas(nasname);
+    CREATE TABLE IF NOT EXISTS radacct (
+      radacctid BIGSERIAL PRIMARY KEY,
+      acctsessionid TEXT NOT NULL,
+      acctuniqueid TEXT NOT NULL UNIQUE,
+      username TEXT NOT NULL,
+      nasipaddress TEXT NOT NULL,
+      acctstarttime TIMESTAMPTZ,
+      acctstoptime TIMESTAMPTZ,
+      acctsessiontime BIGINT,
+      acctinputoctets BIGINT,
+      acctoutputoctets BIGINT,
+      calledstationid TEXT,
+      callingstationid TEXT,
+      acctterminatecause TEXT,
+      framedipaddress TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_radacct_username ON radacct(username);
+    CREATE INDEX IF NOT EXISTS idx_radacct_start ON radacct(acctstarttime);
     CREATE TABLE IF NOT EXISTS routers (
       id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, router_id TEXT UNIQUE NOT NULL,
       api_key_hash TEXT NOT NULL,

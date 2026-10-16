@@ -13,6 +13,7 @@ import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
+import { registerRadiusRoutes } from "./routes/radius.js";
 import { registerInstallerRoutes } from "./routes/installer.js";
 import { registerInstallerPlanConfigRoutes } from "./routes/installerPlanConfig.js";
 import { registerPlanPricesRoutes, registerPublicPlansRoutes } from "./routes/planPrices.js";
@@ -106,6 +107,7 @@ async function main() {
   registerResellerRoutes(router);
   registerRouterRoutes(router);
   registerAgentRoutes(router);
+registerRadiusRoutes(router);
   registerInstallerRoutes(router);
   registerInstallerPlanConfigRoutes(router);
   registerPlanPricesRoutes(router);
