@@ -119,40 +119,12 @@ function PairingFlow({ onComplete, onBack }) {
     setShowFallback(false);
     setShowDownloadGuide(false);
 
-    // Watch focus — if Windows pops the deep-link dialog OR launches the
-    // installer, we lose focus. If we still have focus after 1.2s, the
-    // installer definitely isn't installed on this PC.
-    let focusLost = false;
-    const onBlur = () => { focusLost = true; };
-    if (typeof window !== "undefined") {
-      window.addEventListener("blur", onBlur, { once: true });
-    }
-    var rid = resolveResellerId();
-    var params = new URLSearchParams({
-      resellerId: rid,
-      ip: routerIp || "192.168.88.1",
-      pairingCode: code,
-      ssid: ssid,
-      pass: wifiPass,
-    });
-    var deeplink = "safelinks-installer://configure?" + params.toString();
-    var a = document.createElement("a");
-    a.href = deeplink;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    await new Promise(function(r) { setTimeout(r, 1200); });
-    if (typeof window !== "undefined") {
-      window.removeEventListener("blur", onBlur);
-    }
-    if (!focusLost && !document.hasFocus()) focusLost = true;
-    if (!focusLost) {
-      // Installer never launched → not installed. Show guide instantly.
-      setConfiguringRouter(false);
-      setShowDownloadGuide(true);
-      return;
-    }
+    // Fire the deep-link. Windows launches the installed SAFE_Links
+    // installer, which reads the ?configure URL and jumps to the scan/
+    // configure flow. We do NOT detect success via browser focus —
+    // Windows 11 doesn't reliably steal focus on protocol-handler
+    // launches, and false-negatives would show the wrong fallback.
+    // The polling loop below confirms the router checked in.
     var started = Date.now();
     var t = setInterval(async function() {
       try {
