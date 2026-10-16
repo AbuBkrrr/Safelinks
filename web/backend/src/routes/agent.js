@@ -179,8 +179,8 @@ export function registerAgentRoutes(router) {
     const routerId = `RTR-${resellerId.slice(-4).toUpperCase()}-${genCode(3)}`;
     const apiKey = `sk_${genCode(24)}`;
 
-    await db.prepare("INSERT INTO routers (id,reseller_id,router_id,api_key_hash,model,firmware,last_check_in,status) VALUES (?,?,?,?,?,?,?,?)")
-      .run(id("rt"), resellerId, routerId, hashPassword(apiKey), body.model || body.identity || "Unknown", body.firmware || "Unknown", now, "online");
+    await db.prepare("INSERT INTO routers (id,reseller_id,router_id,api_key_hash,api_key,model,firmware,last_check_in,status) VALUES (?,?,?,?,?,?,?,?,?)")
+      .run(id("rt"), resellerId, routerId, hashPassword(apiKey), apiKey, body.model || body.identity || "Unknown", body.firmware || "Unknown", now, "online");
     await db.prepare("INSERT INTO installations (id,reseller_id,router_id,ip,location,status,time) VALUES (?,?,?,?,?,?,?)")
       .run(id("i"), resellerId, routerId, body.ip || null, body.identity || null, "completed", now);
     await db.prepare("UPDATE pairing_codes SET status = 'used', router_id = ?, used_at = ? WHERE id = ?").run(routerId, now, pc.id);
@@ -267,9 +267,19 @@ export function registerAgentRoutes(router) {
     if (!router_id || !api_key) return err(res, 400, "router_id/rid and api_key/key required");
     const rt = await db.prepare("SELECT router_id, reseller_id, api_key_hash FROM routers WHERE router_id = ?").get(router_id);
     if (!rt) return err(res, 404, "unknown router");
-    const crypto = await import("node:crypto");
-    const h = crypto.createHash("sha256").update(api_key).digest("hex");
-    if (h !== rt.api_key_hash) return err(res, 401, "bad api key");
+    // Codevertex-style: prefer plaintext comparison (register stores the
+    // exact string now). Fall back to sha256 for old rows where only the
+    // bcrypt hash exists — but note old bcrypt rows were never comparable
+    // to sha256, so those routers must re-register once.
+    const rtFull = await db.prepare("SELECT api_key, api_key_hash FROM routers WHERE router_id = ?").get(router_id);
+    let authed = false;
+    if (rtFull && rtFull.api_key && rtFull.api_key === api_key) authed = true;
+    if (!authed) {
+      const crypto = await import("node:crypto");
+      const h = crypto.createHash("sha256").update(api_key).digest("hex");
+      if (rtFull && h === rtFull.api_key_hash) authed = true;
+    }
+    if (!authed) return err(res, 401, "bad api key");
 
     const now = Date.now();
     console.log("[agent/report] rid=" + router_id + " keyLen=" + String(api_key).length + " hasMetrics=" + !!(b.metrics || b.cpu !== undefined || b.ramUsed !== undefined) + " hasSessions=" + (typeof b.sessions === "string" ? b.sessions.length + "chars" : Array.isArray(b.sessions) ? b.sessions.length + "items" : "no"));
