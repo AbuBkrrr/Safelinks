@@ -53,13 +53,18 @@ export function registerSuperAdminRoutes(router) {
   // ── License plans CRUD — Super Admin manages tier features + limits ──
   router.get("/api/admin/plans", async (req, res) => {
     const rows = await db.prepare("SELECT * FROM platform_plans ORDER BY id ASC").all();
-    return json(res, 200, rows.map(r => ({
-      id: r.id, name: r.name, description: r.description || "",
-      monthlyPriceNgn: r.monthly_price_ngn, yearlyPriceNgn: r.yearly_price_ngn,
-      maxDevices: r.max_devices, maxClients: r.max_clients, maxRouters: r.max_routers,
-      maxVouchers: r.max_vouchers, bandwidthCapMbps: r.bandwidth_cap_mbps,
-      features: r.features || {},
-    })));
+    return json(res, 200, {
+      plans: rows.map(r => ({
+        ...r,
+        price: r.monthly_price_ngn,
+        maxClients: r.max_clients,
+        maxDevicesPerClient: r.max_devices_per_client ?? r.max_devices,
+        maxRouters: r.max_routers,
+        maxVouchers: r.max_vouchers,
+        bandwidthCapMbps: r.bandwidth_cap_mbps,
+        features: r.features || {},
+      })),
+    });
   });
 
   router.put("/api/admin/plans/:id", async (req, res, { params, body }) => {

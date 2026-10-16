@@ -177,6 +177,12 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       pool_start: p.pool_start || "192.168.88.10",
       pool_end: p.pool_end || "192.168.88.254",
       bandwidth_percent: p.bandwidth_percent ?? 5,
+      maxDevices: p.maxDevices ?? p.max_devices ?? 5,
+      maxClients: p.maxClients ?? p.max_clients ?? 20,
+      maxRouters: p.maxRouters ?? p.max_routers ?? 1,
+      maxVouchers: p.maxVouchers ?? p.max_vouchers ?? 200,
+      bandwidthCapMbps: p.bandwidthCapMbps ?? p.bandwidth_cap_mbps ?? 50,
+      features: { ...(p.features || {}) },
       prices: [],
       availableCurrencies: [],
       activeCurrency: null,
@@ -228,12 +234,26 @@ export default function SuperAdminApp({ session, onExit, notify }) {
 
   async function savePlatformPlan(p) {
     try {
-    await api.admin.updatePlatformPlan(p.id, {
+    const tierFields = {
       name: p.name,
+      description: p.description || "",
       pool_start: p.pool_start,
       pool_end: p.pool_end,
       bandwidth_percent: Number(p.bandwidth_percent),
-    });
+      maxDevices: Number(p.maxDevices) || 5,
+      maxClients: Number(p.maxClients) || 20,
+      maxRouters: Number(p.maxRouters) || 1,
+      maxVouchers: Number(p.maxVouchers) || 200,
+      bandwidthCapMbps: Number(p.bandwidthCapMbps) || 50,
+      features: p.features || {},
+    };
+    if (p.isNew) {
+      await api.admin.createPlatformPlan({ ...tierFields, id: p.id });
+    } else if (api.admin.updatePlatformPlanById) {
+      await api.admin.updatePlatformPlanById(p.id, tierFields);
+    } else {
+      await api.admin.updatePlatformPlan(p.id, tierFields);
+    }
 
     // Save the active currency price (only if the user changed it)
     if (p.activeCurrency && p.currencyPrice !== undefined && p.currencyPrice !== "") {
@@ -436,7 +456,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
       )}
 
       {tab === "plans" && (
-        <Panel title="Platform plans (what resellers pay you)">
+        <Panel title="Platform plans (what resellers pay you)" action={<Btn size="sm" onClick={() => setPlanEdits({ id: "plan_" + Date.now().toString(36), isNew: true, name: "New plan", description: "", pool_start: "192.168.88.10", pool_end: "192.168.88.254", bandwidth_percent: 5, maxDevices: 5, maxClients: 50, maxRouters: 1, maxVouchers: 200, bandwidthCapMbps: 50, features: {}, prices: [], availableCurrencies: [], activeCurrency: null, pricesLoading: false, pricesError: null })}><Plus size={14} /> New plan</Btn>}>
           {platformPlans.loading ? <Loading /> : (
             <>
               {viewCurrency && (
@@ -554,6 +574,59 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                               onChange={(e) => setPlanEdits({ ...planEdits, bandwidth_percent: Number(e.target.value) })}
                               style={{ width: "100%" }} />
                           </Field>
+
+                          <div style={{ fontSize: 12, fontWeight: 700, color: T.sub, marginTop: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Tier limits</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <Field label="Max clients (reseller-wide)">
+                              <input style={inputStyle} type="number" min="0"
+                                value={planEdits.maxClients}
+                                onChange={(e) => setPlanEdits({ ...planEdits, maxClients: e.target.value })} />
+                            </Field>
+                            <Field label="Max devices per voucher">
+                              <input style={inputStyle} type="number" min="1"
+                                value={planEdits.maxDevices}
+                                onChange={(e) => setPlanEdits({ ...planEdits, maxDevices: e.target.value })} />
+                            </Field>
+                            <Field label="Max routers">
+                              <input style={inputStyle} type="number" min="0"
+                                value={planEdits.maxRouters}
+                                onChange={(e) => setPlanEdits({ ...planEdits, maxRouters: e.target.value })} />
+                            </Field>
+                            <Field label="Max vouchers">
+                              <input style={inputStyle} type="number" min="0"
+                                value={planEdits.maxVouchers}
+                                onChange={(e) => setPlanEdits({ ...planEdits, maxVouchers: e.target.value })} />
+                            </Field>
+                            <Field label="Bandwidth cap (Mbps)">
+                              <input style={inputStyle} type="number" min="0"
+                                value={planEdits.bandwidthCapMbps}
+                                onChange={(e) => setPlanEdits({ ...planEdits, bandwidthCapMbps: e.target.value })} />
+                            </Field>
+                          </div>
+
+                          <div style={{ fontSize: 12, fontWeight: 700, color: T.sub, marginTop: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Feature flags</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 4 }}>
+                            {[
+                              ["custom_branding", "Custom branding"],
+                              ["custom_domain", "Custom domain"],
+                              ["api_access", "API access"],
+                              ["reports_export", "Reports export"],
+                              ["sms_alerts", "SMS alerts"],
+                              ["priority_support", "Priority support"],
+                              ["hourly_plans", "Hourly plans"],
+                              ["white_label", "White label"],
+                            ].map(([k, label]) => (
+                              <label key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                                <input type="checkbox"
+                                  checked={!!(planEdits.features && planEdits.features[k])}
+                                  onChange={(e) => setPlanEdits({
+                                    ...planEdits,
+                                    features: { ...(planEdits.features || {}), [k]: e.target.checked },
+                                  })} />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
 
                           <div style={{ display: "flex", gap: 6 }}>
                             <Btn size="sm" onClick={() => savePlatformPlan(planEdits)}><Save size={12} /> Save</Btn>
