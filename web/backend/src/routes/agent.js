@@ -3,6 +3,31 @@ import { text } from "../http.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { rateLimitByIp } from "../rateLimit.js";
 
+// ─── Numeric coercion for RouterOS values ──────────────────────
+// RouterOS returns uptime as "1w2d3h4m5s" and cpu-load possibly as
+// "5%" — both produce NaN when passed through Number(). Postgres BIGINT
+// rejects NaN → 500. Coerce every incoming metric safely.
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rosUptimeToSeconds(v) {
+  if (v == null) return 0;
+  const direct = Number(v);
+  if (Number.isFinite(direct)) return direct;
+  const m = String(v).match(/(\d+)([wdhms])/g);
+  if (!m) return 0;
+  const mult = { w: 604800, d: 86400, h: 3600, m: 60, s: 1 };
+  let total = 0;
+  for (const part of m) {
+    const mm = part.match(/(\d+)([wdhms])/);
+    if (mm) total += Number(mm[1]) * mult[mm[2]];
+  }
+  return total;
+}
+
+
 // The zero-touch, self-registering router agent protocol. Everything
 // here speaks plain `KEY value` lines, one per line — NOT JSON.
 // RouterOS's scripting language has no JSON parser worth relying on,
@@ -316,7 +341,7 @@ export function registerAgentRoutes(router) {
       await db.prepare(`INSERT INTO router_metrics (router_id, reseller_id, cpu_load, ram_used, ram_total, uptime_seconds, active_user_count, updated_at)
         VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT (router_id) DO UPDATE SET cpu_load=EXCLUDED.cpu_load, ram_used=EXCLUDED.ram_used, ram_total=EXCLUDED.ram_total, uptime_seconds=EXCLUDED.uptime_seconds, active_user_count=EXCLUDED.active_user_count, updated_at=EXCLUDED.updated_at`)
-        .run(router_id, rt.reseller_id, Number(metrics.cpu || 0), Number(metrics.ramUsed || 0), Number(metrics.ramTotal || 0), Number(metrics.uptime || 0), Array.isArray(sessions) ? sessions.length : 0, now);
+        .run(router_id, rt.reseller_id, num(metrics.cpu), num(metrics.ramUsed), num(metrics.ramTotal), rosUptimeToSeconds(metrics.uptime), Array.isArray(sessions) ? sessions.length : 0, now);
     }
 
     // Refresh active sessions (delete then insert — simplest correct pattern)
@@ -327,7 +352,7 @@ export function registerAgentRoutes(router) {
         await db.prepare(`INSERT INTO active_sessions (id, router_id, reseller_id, mac, ip, username, bytes_in, bytes_out, started_at, last_seen)
           VALUES (?,?,?,?,?,?,?,?,?,?)`)
           .run(id("as"), router_id, rt.reseller_id, String(s.mac), s.ip || null, s.username || null,
-               Number(s.bytesIn || 0), Number(s.bytesOut || 0), Number(s.startedAt || now), now);
+               num(s.bytesIn), num(s.bytesOut), num(s.startedAt) || now, now);
       }
     }
 
