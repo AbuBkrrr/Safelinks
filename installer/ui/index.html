@@ -197,6 +197,25 @@
 
 </div>
 
+<!-- Success screen — shown after the router is configured -->
+<div id="s-success" class="screen">
+  <div style="text-align: center; padding: 30px 0; max-width: 380px; margin: 0 auto;">
+    <div style="font-size: 60px; margin-bottom: 10px;">✅</div>
+    <h2 style="margin-bottom: 8px;">Router configured</h2>
+    <div class="sub" style="margin-bottom: 6px;">
+      <b id="success-ssid">SAFE_Links-WiFi</b> is now broadcasting.
+    </div>
+    <div style="font-size: 12.5px; color: #94a3b8; margin-bottom: 30px;">
+      <span id="success-router">Ready to serve</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <button id="btn-success-dashboard" class="primary" style="padding: 12px 0; font-size: 14px;">📊 Open dashboard</button>
+      <button id="btn-success-portal" class="secondary" style="padding: 12px 0; font-size: 14px;">🌐 Open portal</button>
+      <button id="btn-success-signout" class="secondary" style="padding: 12px 0; font-size: 14px;">↪ Sign out</button>
+    </div>
+  </div>
+</div>
+
 <div id="cfg-modal" class="cfg-modal-backdrop" style="display:none;">
   <div class="cfg-modal">
     <button class="btn-close" onclick="closeCfgModal()">&#215;</button>
@@ -498,7 +517,15 @@ async function runCheckStatus() {
     if (r.overall_ok) {
       var topDash = document.getElementById('btn-dashboard');
       if (topDash) topDash.style.display = '';
-      showSuccessPanel(ip);
+      try { closeCfgModal(); } catch (_) {}
+      try {
+        var ssidEl = document.getElementById('success-ssid');
+        var cfgSsidEl = document.getElementById('cfg-ssid');
+        if (ssidEl && cfgSsidEl && cfgSsidEl.value) ssidEl.textContent = cfgSsidEl.value;
+        var rEl = document.getElementById('success-router');
+        if (rEl) rEl.textContent = 'RB750GL ready — ' + (ip || '192.168.88.1');
+        show('success');
+      } catch (_) {}
     }
   } catch (e) {
     checksEl.innerHTML = '<div style="color:#fc8181; font-size:12.5px;">Check failed: ' + e + '</div>';
@@ -672,6 +699,35 @@ document.getElementById('btn-signup').onclick = async () => {
   try { await invoke('open_signup'); } catch (e) { alert('Could not open browser: ' + e); }
 };
 
+// ============ Success screen actions ============
+(function () {
+  var b1 = document.getElementById('btn-success-dashboard');
+  if (b1) b1.onclick = async function () {
+    var tok = localStorage.getItem('auth_token') || '';
+    try { await invoke('open_dashboard', { token: tok }); } catch (e) { alert('Could not open dashboard: ' + e); }
+  };
+  var b2 = document.getElementById('btn-success-portal');
+  if (b2) b2.onclick = function () {
+    var rid = localStorage.getItem('reseller_id') || '';
+    var u = 'https://www.safelinks.name.ng/portal/' + encodeURIComponent(rid);
+    var d = 'safelinks-installer://open?url=' + encodeURIComponent(u);
+    var a = document.createElement('a');
+    a.href = d; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+  };
+  var b3 = document.getElementById('btn-success-signout');
+  if (b3) b3.onclick = async function () {
+    try { await invoke('clear_credentials'); } catch (_) {}
+    try {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('reseller_id');
+      localStorage.removeItem('user_email');
+    } catch (_) {}
+    show('login');
+  };
+})();
+
 document.getElementById('btn-logout').onclick = async () => {
   try {
     await invoke('clear_credentials');
@@ -695,7 +751,15 @@ document.getElementById('in-password').addEventListener('keydown', e => {
   const rep = await invoke('check_prerequisites').catch(() => null);
   if (rep && rep.all_required_ok) {
     const ok = await tryAutoLogin();
-    if (!ok) show('login');
+    if (!ok) {
+      show('login');
+    } else {
+      // Signed in → auto-open dashboard per "Start Menu → installer → dashboard" flow.
+      try {
+        var __tok = localStorage.getItem('auth_token') || '';
+        invoke('open_dashboard', { token: __tok }).catch(function(){});
+      } catch (_) {}
+    }
   }
 })();
 
