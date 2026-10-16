@@ -35,6 +35,35 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     try { return new URLSearchParams(window.location.search).get("ip") || null; } catch (_) { return null; }
   });
 
+  // __suspended_view — shown when the voucher is suspended/expired
+  const __suspended = (() => {
+    try { return new URLSearchParams(window.location.search).get("suspended") === "1"; }
+    catch (_) { return false; }
+  })();
+  if (__suspended) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg, padding: 20 }}>
+        <div style={{ maxWidth: 420, width: "100%", background: "#fff", borderRadius: 16, padding: 28, textAlign: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>&#9208;</div>
+          <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 8 }}>Your access is paused</div>
+          <div style={{ fontSize: 13.5, color: T.sub, marginBottom: 20, lineHeight: 1.5 }}>
+            Your subscription has expired or been suspended. Renew to reconnect to the internet.
+          </div>
+          <Btn
+            onClick={() => {
+              const params = new URLSearchParams(window.location.search);
+              params.delete("suspended");
+              window.location.search = params.toString();
+            }}
+            style={{ width: "100%", justifyContent: "center", padding: "12px 0" }}
+          >
+            Renew subscription
+          </Btn>
+        </div>
+      </div>
+    );
+  }
+
   async function uploadReceiptFile(file) {
     const dataBase64 = await fileToBase64(file);
     return api.portalUploadReceipt(resellerId, { filename: file.name, mimeType: file.type, dataBase64 });

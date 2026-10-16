@@ -18,6 +18,89 @@ import { useResource, usePollingResource } from "./hooks.js";
 import { LANGUAGES } from "./i18n.js";
 import { dt } from "./dashboardI18n.js";
 
+function LiveRouters({ url }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const token = (typeof localStorage !== "undefined" && localStorage.getItem("SAFELINKS_token")) || "";
+        const resp = await fetch(url, { headers: token ? { Authorization: "Bearer " + token } : {} });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        if (alive) { setRows(Array.isArray(data) ? data : []); setErr(null); }
+      } catch (e) {
+        if (alive) setErr(String((e && e.message) || e));
+      }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, [url]);
+  const fmtUptime = (s) => {
+    if (!s) return "-";
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d) return d + "d " + h + "h";
+    if (h) return h + "h " + m + "m";
+    return m + "m";
+  };
+  const fmtRam = (used, total) => {
+    if (!total) return "-";
+    const pct = Math.round((used / total) * 100);
+    return pct + "% (" + Math.round(used / 1048576) + "/" + Math.round(total / 1048576) + " MB)";
+  };
+  return (
+    <Panel title="Live routers" style={{ marginBottom: 14 }}>
+      {err ? (
+        <div style={{ color: "#c53030", fontSize: 12.5 }}>{err}</div>
+      ) : !rows ? (
+        <Loading />
+      ) : rows.length === 0 ? (
+        <div style={{ color: T.sub, fontSize: 12.5 }}>No routers registered yet.</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: T.sub, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <th style={{ padding: "6px 8px" }}>Status</th>
+                <th>Router</th>
+                <th>Reseller</th>
+                <th>CPU</th>
+                <th>RAM</th>
+                <th>Uptime</th>
+                <th>Users</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.routerId} style={{ borderTop: "1px solid " + T.border }}>
+                  <td style={{ padding: "8px" }}>
+                    <span style={{
+                      display: "inline-block", width: 8, height: 8, borderRadius: 50,
+                      background: r.online ? "#38a169" : "#e53e3e",
+                      marginRight: 6, verticalAlign: "middle",
+                    }} />
+                    {r.online ? "online" : "offline"}
+                  </td>
+                  <td style={{ fontFamily: "monospace" }}>{r.routerId}</td>
+                  <td>{r.resellerName || r.resellerId || "-"}</td>
+                  <td>{(r.cpuLoad || 0) + "%"}</td>
+                  <td>{fmtRam(r.ramUsed, r.ramTotal)}</td>
+                  <td>{fmtUptime(r.uptimeSeconds)}</td>
+                  <td>{r.activeUsers || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export default function SuperAdminApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("overview");
 
@@ -304,6 +387,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
               )}
             </div>
           )}
+            <LiveRouters url="/api/admin/routers/live" />
         </>
       )}
 
