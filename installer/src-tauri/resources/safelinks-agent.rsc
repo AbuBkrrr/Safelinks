@@ -1,261 +1,57 @@
-# =============================================================================
-# SAFELINKS zero-touch agent — MikroTik RouterOS 7.x
-# =============================================================================
-#
-# WHAT THIS DOES
-#   Installs two named scripts on the router:
-#     safelinks-register  — run ONCE, by hand, using a short pairing code
-#                          generated from the reseller's dashboard
-#                          (installer wizard -> "Pair a router"). This is
-#                          the ONLY thing typed in by hand anywhere in
-#                          this flow — the router reports its own model
-#                          and RouterOS version itself.
-#     safelinks-checkin    — installed as a /system scheduler job that runs
-#                          every 30s once pairing succeeds. Polls
-#                          POST /api/agent/checkin, and executes whatever
-#                          voucher commands (create/enable/disable/delete
-#                          hotspot user) SAFELINKS has queued.
-#
-# WHAT THIS ASSUMES
-#   A working /ip hotspot server already exists on this router (interface,
-#   IP pool, DNS, walled garden — the normal MikroTik "Hotspot Setup"
-#   wizard, done once per site). This script does NOT create or modify
-#   your hotspot network setup — guessing at your interface/IP ranges
-#   would be more likely to break an install than help one. It only
-#   manages /ip hotspot user entries (the vouchers) once a hotspot
-#   already exists.
-#
-# BEFORE YOU RUN THIS
-#   1. Edit SAFELINKS_API_URL below if you're not using the default domain.
-#   2. From the reseller dashboard, go to Routers -> "Pair a new router",
-#      copy the 6-character code shown (expires in 15 minutes).
-#   3. Import this file: /import file=SAFELINKS-agent.rsc
-#   4. Run once: /system script run safelinks-register
-#      It will prompt for the pairing code via :environment or you can
-#      set it directly — see the "SET YOUR PAIRING CODE HERE" line below.
-#
-# ⚠ VALIDATION STATUS
-#   This script was written against documented RouterOS 7 scripting
-#   syntax (/tool fetch ... as-value output=user, :do/on-error blocks,
-#   /ip hotspot user management) but has NOT been run against a physical
-#   router or a Cloud Hosted Router (CHR) instance in this environment —
-#   there was no RouterOS available to test against. Validate on a spare
-#   device or a CHR VM before rolling this out to production routers.
-# =============================================================================
+# safelinks-bootstrap.rsc — RouterOS 7.x compatible. No multiline source blocks.
+:global safelinksApiBase "https://www.safelinks.name.ng"
+:local slCode "PASTE-CODE-HERE"
 
-:global safelinksApiUrl "https://backend-services-production-78d8.up.railway.app"
-:global safelinksCredFile "SAFELINKS-credentials.txt"
+:local slId [/system identity get name]
+:local slModel [/system routerboard get model]
+:local slFw [/system package get [find name=routeros] version]
 
-# ---------------------------------------------------------------------------
-# safelinks-register — run this ONE TIME by hand
-# ---------------------------------------------------------------------------
-:if ([:len [/system script find name="safelinks-register"]] > 0) do={ /system script remove [find name="safelinks-register"] }
-/system script add name="safelinks-register" source={
-  :global safelinksApiUrl
-  :global safelinksCredFile
+:local slPost ("code=" . $slCode . "&model=" . $slModel . "&firmware=" . $slFw . "&identity=" . $slId)
+:local slRes ""
+:do {
+  :set slRes [/tool fetch url=($safelinksApiBase . "/api/agent/register") http-method=post http-data=$slPost as-value output=user]
+} on-error={
+  :log error "safelinks-bootstrap: register fetch failed"
+  :error "safelinks-bootstrap: network error"
+}
+:local slBody ($slRes->"data")
 
-  # === SET YOUR PAIRING CODE HERE (the 6-character code from the dashboard) ===
-  :local pairingCode "PASTE-CODE-HERE"
-
-  :if ($pairingCode = "PASTE-CODE-HERE") do={
-    :log warning "safelinks-register: edit this script and set \$pairingCode to the code from your dashboard before running it."
-    :error "safelinks-register: pairing code not set"
-  }
-
-  :local routerIdentity [/system identity get name]
-  :local routerModel [/system routerboard get model]
-  :local routerFirmware ("RouterOS " . [/system package get [find name="routeros"] version])
-
-  :local postData ("code=" . $pairingCode . "&model=" . $routerModel . "&firmware=" . $routerFirmware . "&identity=" . $routerIdentity)
-
-  :local result ""
-  :do {
-    :local fetchResult [/tool fetch url=($safelinksApiUrl . "/api/agent/register") http-method=post http-data=$postData as-value output=user]
-    :set result ($fetchResult->"data")
-  } on-error={
-    :log error "safelinks-register: could not reach SAFELINKS — check SAFELINKS_API_URL and internet connectivity"
-    :error "safelinks-register: fetch failed"
-  }
-
-  :if ([:find $result "STATUS OK"] = nil) do={
-    :log error ("safelinks-register: registration failed — " . $result)
-    :error "safelinks-register: server rejected registration (see log)"
-  }
-
-  # Pull ROUTER_ID and API_KEY out of the plain-text response. Each is on
-  # its own line as "ROUTER_ID <value>" / "API_KEY <value>" — find the
-  # line, then take everything after the first space.
-  :local routerId ""
-  :local apiKey ""
-  :local pos 0
-  :while ($pos < [:len $result]) do={
-    :local nl [:find $result "\n" $pos]
-    :if ($nl = nil) do={ :set nl [:len $result] }
-    :local line [:pick $result $pos $nl]
-    :if ([:pick $line 0 10] = "ROUTER_ID ") do={ :set routerId [:pick $line 10 [:len $line]] }
-    :if ([:pick $line 0 8] = "API_KEY ") do={ :set apiKey [:pick $line 8 [:len $line]] }
-    :set pos ($nl + 1)
-  }
-
-  :if ($routerId = "" or $apiKey = "") do={
-    :log error "safelinks-register: could not parse ROUTER_ID/API_KEY from response"
-    :error "safelinks-register: parse failure (see log)"
-  }
-
-  # Persist to a file so safelinks-checkin.rsc survives a reboot — a
-  # :global variable set here does NOT survive a router restart, but a
-  # file does.
-  :local credContents ($routerId . "\n" . $apiKey . "\n")
-  :if ([:len [/file find name=$safelinksCredFile]] > 0) do={ /file remove [find name=$safelinksCredFile] }
-  /file add name=$safelinksCredFile contents=$credContents
-
-  :log info ("safelinks-register: paired successfully as " . $routerId)
-  :put ("Paired. Router ID: " . $routerId . " — starting check-in scheduler.")
-
-  # Enable the recurring check-in now that we have credentials.
-  /system scheduler enable [find name="safelinks-checkin"]
+:if ([:find $slBody "STATUS OK"] = nil) do={
+  :log error ("safelinks-bootstrap: rejected — " . $slBody)
+  :error "safelinks-bootstrap: register rejected"
 }
 
-# ---------------------------------------------------------------------------
-# safelinks-checkin — runs every 30s via the scheduler below, once paired
-# ---------------------------------------------------------------------------
-/system script
-:if ([:len [/system script find name="safelinks-checkin"]] > 0) do={ remove [find name="safelinks-checkin"] }
-add name="safelinks-checkin" source={
-  :global safelinksApiUrl
-  :global safelinksCredFile
-
-  :if ([:len [/file find name=$safelinksCredFile]] = 0) do={
-    :log warning "safelinks-checkin: not paired yet — run safelinks-register first"
-    :error "safelinks-checkin: no credentials file"
-  }
-
-  :local credContents [/file get [find name=$safelinksCredFile] contents]
-  :local nl1 [:find $credContents "\n"]
-  :local routerId [:pick $credContents 0 $nl1]
-  :local rest [:pick $credContents ($nl1 + 1) [:len $credContents]]
-  :local nl2 [:find $rest "\n"]
-  :local apiKey [:pick $rest 0 $nl2]
-
-  :local postData ("router_id=" . $routerId . "&api_key=" . $apiKey)
-  :local result ""
-  :do {
-    :local fetchResult [/tool fetch url=($safelinksApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
-    :set result ($fetchResult->"data")
-  } on-error={
-    :log warning "safelinks-checkin: could not reach SAFELINKS this cycle — will retry next scheduled run"
-    :error "safelinks-checkin: fetch failed"
-  }
-
-  :if ([:find $result "STATUS OK"] = nil) do={
-    :log warning ("safelinks-checkin: server rejected check-in — " . $result)
-    :error "safelinks-checkin: bad response"
-  }
-
-  # Walk the response line by line. Fixed field order, space-separated:
-  #   CMD <id> <type> <username> <password> <deviceLimit> <bandwidthMbps>
-  # "-" means "field not applicable to this command type".
-  :local pos 0
-  :while ($pos < [:len $result]) do={
-    :local nl [:find $result "\n" $pos]
-    :if ($nl = nil) do={ :set nl [:len $result] }
-    :local line [:pick $result $pos $nl]
-    :set pos ($nl + 1)
-    :if ([:pick $line 0 4] = "CMD ") do={
-      :local rest2 [:pick $line 4 [:len $line]]
-      # Split rest2 on spaces into up to 6 fields.
-      :local fields [:toarray ""]
-      :local fpos 0
-      :while ($fpos <= [:len $rest2]) do={
-        :local sp [:find $rest2 " " $fpos]
-        :if ($sp = nil) do={ :set sp [:len $rest2] }
-        :set fields ($fields, [:pick $rest2 $fpos $sp])
-        :set fpos ($sp + 1)
-      }
-      :local cmdId ($fields->0)
-      :local cmdType ($fields->1)
-      :local cmdUser ($fields->2)
-      :local cmdPass ($fields->3)
-      :local cmdDeviceLimit ($fields->4)
-      :local cmdBandwidth ($fields->5)
-
-      :local execStatus "executed"
-      :local execDetail ""
-      :do {
-        :if ($cmdType = "unbind_mac") do={
-        /ip hotspot ip-binding remove [find mac-address=$cmdUser]
-        :do { /system scheduler remove [find name=("safelinks-exp-" . $cmdUser)] } on-error={}
-      }
-      :if ($cmdType = "create_user") do={
-          :local rateLimit ($cmdBandwidth . "M/" . $cmdBandwidth . "M")
-          :if ([:len [/ip hotspot user find name=$cmdUser]] > 0) do={
-            /ip hotspot user set [find name=$cmdUser] password=$cmdPass rate-limit=$rateLimit
-          } else={
-            /ip hotspot user add name=$cmdUser password=$cmdPass rate-limit=$rateLimit
-          }
-        } else={ :if ($cmdType = "enable_user") do={
-          /ip hotspot user enable [find name=$cmdUser]
-        } else={ :if ($cmdType = "disable_user") do={
-          /ip hotspot user disable [find name=$cmdUser]
-        } else={ :if ($cmdType = "delete_user") do={
-          /ip hotspot user remove [find name=$cmdUser]
-        } else={ :if ($cmdType = "set_ssid") do={
-          # $cmdUser carries the new SSID
-          :do { /interface wireless set [find] ssid=$cmdUser } on-error={}
-          :do { /interface wifi set [find] ssid=$cmdUser } on-error={}
-        } else={ :if ($cmdType = "bind_mac") do={
-          # Zero-click bypass: client MAC goes straight through the hotspot.
-          # $cmdUser is the MAC address (same field name reused).
-          /ip hotspot ip-binding remove [find mac-address=$cmdUser]
-          /ip hotspot ip-binding add mac-address=$cmdUser type=bypassed comment=("SAFELinks exp:" . $cmdPass)
-          :do { /system scheduler remove [find name=("safelinks-exp-" . $cmdUser)] } on-error={}
-          :if ([:len $cmdPass] >= 19) do={
-            :local expDate [:pick $cmdPass 0 10]
-            :local expTime [:pick $cmdPass 11 19]
-            :do { /system scheduler add name=("safelinks-exp-" . $cmdUser) start-date=$expDate start-time=$expTime interval=0s on-event=("/ip hotspot ip-binding remove [find mac-address=" . $cmdUser . "]") } on-error={ :log warning ("safelinks: schedule failed for " . $cmdUser) }
-          }
-        } else={
-          :set execStatus "failed"
-          :set execDetail ("unknown command type: " . $cmdType)
-        }}}}}}}}
-      } on-error={
-        :set execStatus "failed"
-        :set execDetail ("RouterOS command threw an error executing " . $cmdType . " for " . $cmdUser)
-      }
-
-      :local ackData ("router_id=" . $routerId . "&api_key=" . $apiKey . "&status=" . $execStatus . "&detail=" . $execDetail)
-      :do {
-        /tool fetch url=($safelinksApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
-      } on-error={
-        :log warning ("safelinks-checkin: could not ack command " . $cmdId . " — it will be re-sent next check-in if still pending")
-      }
-    }
-
-  # Report metrics + active sessions to backend
-  :local cpu [/system resource get cpu-load]
-  :local ramUsed [/system resource get free-memory]
-  :local ramTotal [/system resource get total-memory]
-  :local uptimeS [/system resource get uptime]
-  :local sessions ""
-  :foreach h in=[/ip hotspot active find] do={
-    :local m [/ip hotspot active get $h mac-address]
-    :local ip [/ip hotspot active get $h address]
-    :local u [/ip hotspot active get $h user]
-    :local bi [/ip hotspot active get $h bytes-in]
-    :local bo [/ip hotspot active get $h bytes-out]
-    :local ut [/ip hotspot active get $h uptime]
-    :set sessions ($sessions . "mac=" . $m . "&ip=" . $ip . "&user=" . $u . "&bin=" . $bi . "&bout=" . $bo . "&ut=" . $ut . ";")
-  }
-  :do {
-    /tool fetch url=($safelinksApiUrl . "/api/agent/report") http-method=post http-data=("router_id=" . $routerId . "&api_key=" . $apiKey . "&cpu=" . $cpu . "&ramUsed=" . ($ramTotal - $ramUsed) . "&ramTotal=" . $ramTotal . "&uptime=" . $uptimeS . "&sessions=" . $sessions) output=none
-  } on-error={}
-  }
+:local slRid ""
+:local slKey ""
+:local slPR [:find $slBody "ROUTER_ID "]
+:local slPK [:find $slBody "API_KEY "]
+:if ($slPR != nil) do={
+  :local slStart ($slPR + 10)
+  :local slEnd [:find $slBody "\n" $slStart]
+  :if ($slEnd = nil) do={ :set slEnd [:len $slBody] }
+  :set slRid [:pick $slBody $slStart $slEnd]
+}
+:if ($slPK != nil) do={
+  :local slStart ($slPK + 8)
+  :local slEnd [:find $slBody "\n" $slStart]
+  :if ($slEnd = nil) do={ :set slEnd [:len $slBody] }
+  :set slKey [:pick $slBody $slStart $slEnd]
 }
 
-# ---------------------------------------------------------------------------
-# Scheduler — starts disabled; safelinks-register enables it on success
-# ---------------------------------------------------------------------------
-:if ([:len [/system scheduler find name="safelinks-checkin"]] > 0) do={ /system scheduler remove [find name="safelinks-checkin"] }
-/system scheduler add name="safelinks-checkin" interval=30s on-event="/system script run safelinks-checkin" disabled=yes
+:if (($slRid = "") or ($slKey = "")) do={
+  :log error "safelinks-bootstrap: missing creds"
+  :error "safelinks-bootstrap: parse error"
+}
 
-:put "SAFELINKS agent scripts installed. Now edit safelinks-register (set your pairing code) and run: /system script run safelinks-register"
+:local slCreds ($slRid . "\n" . $slKey)
+/file remove [find name="safelinks-credentials.txt"]
+/file add name="safelinks-credentials.txt" contents=$slCreds
+
+:local slCkUrl ($safelinksApiBase . "/api/agent/heartbeat.rsc?rid=" . $slRid . "&key=" . $slKey)
+:local slCkEvent ("/tool fetch url=" . $slCkUrl . " dst-path=safelinks-cmd.rsc check-certificate=no; /import file=safelinks-cmd.rsc")
+
+/system scheduler remove [find name="safelinks-checkin"]
+/system scheduler add name="safelinks-checkin" interval=30s on-event=$slCkEvent
+
+:put ("safelinks-bootstrap: OK rid=" . $slRid)
+:log info ("safelinks-bootstrap: paired as " . $slRid)

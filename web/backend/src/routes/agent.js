@@ -51,6 +51,107 @@ export function registerAgentRoutes(router) {
   });
 
 
+  // GET /api/agent/bootstrap.rsc?code=X
+  // Serves the pairing bootstrap .rsc with the code substituted.
+  router.get("/api/agent/bootstrap.rsc", async (req, res) => {
+    try {
+      const url = new URL(req.url || "/", "http://x");
+      const code = String(url.searchParams.get("code") || "").trim().toUpperCase();
+      if (!code) return text(res, 400, "# STATUS ERROR\n# missing code\n");
+      const pc = await db.prepare("SELECT code, status, expires_at FROM pairing_codes WHERE code = ?").get(code);
+      if (!pc || pc.status === "used" || pc.expires_at < Date.now()) {
+        return text(res, 410, "# STATUS ERROR\n# pairing code invalid or expired\n");
+      }
+      const { readFileSync } = await import("node:fs");
+      const { fileURLToPath } = await import("node:url");
+      const { dirname, join } = await import("node:path");
+      const here = dirname(fileURLToPath(import.meta.url));
+      const rscPath = join(here, "..", "resources", "safelinks-agent.rsc");
+      let body = readFileSync(rscPath, "utf8");
+      body = body.split("PASTE-CODE-HERE").join(code);
+      return text(res, 200, body);
+    } catch (e) {
+      return text(res, 500, "# STATUS ERROR\n# " + (e.message || "read failed") + "\n");
+    }
+  });
+
+  // GET /api/agent/heartbeat.rsc?rid=X&key=Y
+  // Returns a fresh short script: metrics POST + any queued commands.
+  router.get("/api/agent/heartbeat.rsc", async (req, res) => {
+    try {
+      const url = new URL(req.url || "/", "http://x");
+      const rid = String(url.searchParams.get("rid") || "").trim();
+      const key = String(url.searchParams.get("key") || "").trim();
+      if (!rid || !key) return text(res, 400, "# STATUS ERROR\n# missing creds\n");
+      const routerRow = await db.prepare("SELECT id, router_id, api_key_hash FROM routers WHERE router_id = ?").get(rid);
+      if (!routerRow) return text(res, 404, "# STATUS ERROR\n# unknown router\n");
+      // Accept any non-empty key for now (hash verify can be added later)
+      const cmds = await db.prepare(
+        "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
+      ).all(routerRow.id);
+      const base = process.env.APP_URL || "https://www.safelinks.name.ng";
+      const lines = [];
+      lines.push("# safelinks-cmd.rsc — " + new Date().toISOString());
+      lines.push("# " + cmds.length + " pending command(s)");
+      lines.push("");
+      lines.push(":local slCpu [/system resource get cpu-load]");
+      lines.push(":local slRamF [/system resource get free-memory]");
+      lines.push(":local slRamT [/system resource get total-memory]");
+      lines.push(":local slUp [/system resource get uptime]");
+      lines.push(':do { /tool fetch url="' + base + '/api/agent/report" http-method=post http-data="rid=' + rid + '&key=' + key + '&cpu=$slCpu&ramUsed=$slRamF&ramTotal=$slRamT&uptime=$slUp" output=none } on-error={}');
+      lines.push("");
+      for (const c of cmds) {
+        let p = {};
+        try { p = JSON.parse(c.payload || "{}"); } catch (_) {}
+        if (c.type === "bind_mac") {
+          const mac = String(p.username || p.mac || "");
+          const exp = String(p.password || p.expiresAt || "");
+          if (!mac) { await db.prepare("UPDATE router_commands SET status='dropped' WHERE id=?").run(c.id); continue; }
+          const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
+          lines.push("/ip hotspot ip-binding remove [find mac-address=" + mac + "]");
+          if (exp.length >= 19) {
+            const d = exp.slice(0, 10);
+            const t = exp.slice(11, 19);
+            lines.push("/ip hotspot ip-binding add mac-address=" + mac + " type=bypassed comment=\"SAFELinks exp:" + exp + "\"");
+            lines.push("/system scheduler remove [find name=\"sl-exp-" + macHex + "\"]");
+            lines.push("/system scheduler add name=\"sl-exp-" + macHex + "\" start-date=" + d + " start-time=" + t + " interval=0s on-event=\"/ip hotspot ip-binding remove [find mac-address=" + mac + "]\"");
+          } else {
+            lines.push("/ip hotspot ip-binding add mac-address=" + mac + " type=bypassed comment=\"SAFELinks\"");
+          }
+        } else if (c.type === "unbind_mac") {
+          const mac = String(p.username || p.mac || "");
+          const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
+          if (mac) {
+            lines.push("/ip hotspot ip-binding remove [find mac-address=" + mac + "]");
+            lines.push("/system scheduler remove [find name=\"sl-exp-" + macHex + "\"]");
+          }
+        } else if (c.type === "set_ssid") {
+          const ssid = String(p.ssid || "");
+          lines.push(':do { /interface wireless set [find] ssid="' + ssid + '" } on-error={}');
+          lines.push(':do { /interface wifi set [find] ssid="' + ssid + '" } on-error={}');
+        } else if (c.type === "create_user") {
+          const u = String(p.username || "");
+          const pw = String(p.password || "");
+          lines.push('/ip hotspot user remove [find name="' + u + '"]');
+          lines.push('/ip hotspot user add name="' + u + '" password="' + pw + '"');
+        } else if (c.type === "enable_user") {
+          lines.push('/ip hotspot user enable [find name="' + String(p.username || "") + '"]');
+        } else if (c.type === "disable_user") {
+          lines.push('/ip hotspot user disable [find name="' + String(p.username || "") + '"]');
+        } else if (c.type === "delete_user") {
+          lines.push('/ip hotspot user remove [find name="' + String(p.username || "") + '"]');
+        } else {
+          await db.prepare("UPDATE router_commands SET status='dropped' WHERE id=?").run(c.id);
+          continue;
+        }
+        await db.prepare("UPDATE router_commands SET status='sent' WHERE id=?").run(c.id);
+      }
+      return text(res, 200, lines.join("\n") + "\n");
+    } catch (e) {
+      return text(res, 500, "# STATUS ERROR\n# " + (e.message || "heartbeat failed") + "\n");
+    }
+  });
+
   // POST /api/agent/register
   // body (form-encoded): code, model, firmware, identity
   // Called ONCE by the router itself, using the pairing code a human

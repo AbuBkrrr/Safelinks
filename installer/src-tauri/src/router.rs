@@ -650,86 +650,40 @@ async fn install_agent(
     if !pc_resp.status().is_success() {
         return Err(format!("pairing-code HTTP {}", pc_resp.status().as_u16()));
     }
-    let pc_body: serde_json::Value = pc_resp
-        .json()
-        .await
+    let pc_body: serde_json::Value = pc_resp.json().await
         .map_err(|e| format!("pairing-code JSON: {}", e))?;
-    let code = pc_body
-        .get("code")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "pairing-code response missing code".to_string())?
+    let code = pc_body.get("code").and_then(|v| v.as_str())
+        .ok_or_else(|| "pairing-code missing".to_string())?
         .to_string();
     log.push(format!("Generated pairing code: {}", code));
 
-    // 2. Fetch agent RSC — code is substituted server-side
-    let agent_resp = client
-        .get(format!("{}/api/agent/install/{}", SL_BACKEND, code))
-        .send()
-        .await
-        .map_err(|e| format!("agent fetch: {}", e))?;
-    if !agent_resp.status().is_success() {
-        return Err(format!("agent fetch HTTP {}", agent_resp.status().as_u16()));
-    }
-    let agent_body = agent_resp
-        .text()
-        .await
-        .map_err(|e| format!("agent body: {}", e))?;
-    log.push(format!("Fetched agent RSC ({} bytes)", agent_body.len()));
-
-    // 3. Publish to short-lived URL
-    let pub_resp = client
-        .post(format!("{}/api/installer/rsc-publish", SL_BACKEND))
-        .bearer_auth(auth_token)
-        .json(&serde_json::json!({ "content": agent_body }))
-        .send()
-        .await
-        .map_err(|e| format!("agent publish: {}", e))?;
-    if !pub_resp.status().is_success() {
-        return Err(format!("agent publish HTTP {}", pub_resp.status().as_u16()));
-    }
-    let pub_body: serde_json::Value = pub_resp
-        .json()
-        .await
-        .map_err(|e| format!("agent publish JSON: {}", e))?;
-    let agent_url = pub_body
-        .get("url")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "agent publish missing url".to_string())?;
-
-    // 4. Router fetches it
+    // 2. Router fetches bootstrap.rsc?code=<code>
+    let boot_url = format!("{}/api/agent/bootstrap.rsc?code={}", SL_BACKEND, code);
     let fetch_cmd = format!(
-        "/tool fetch url=\"{}\" dst-path=\"safelinks-agent.rsc\" check-certificate=no",
-        agent_url
+        "/tool fetch url=\"{}\" dst-path=\"safelinks-bootstrap.rsc\" check-certificate=no",
+        boot_url
     );
-    let fetch_out = exec_raw(session, &fetch_cmd)
-        .await
-        .map_err(|e| format!("agent fetch exec: {}", e))?;
+    let fetch_out = exec_raw(session, &fetch_cmd).await
+        .map_err(|e| format!("bootstrap fetch exec: {}", e))?;
     if fetch_out.contains("failure:") || fetch_out.contains("status: failed") {
-        return Err(format!("agent fetch on router failed: {}", fetch_out.trim()));
+        return Err(format!("bootstrap fetch failed: {}", fetch_out.trim()));
     }
-    log.push("Router fetched safelinks-agent.rsc".to_string());
+    log.push("Router fetched safelinks-bootstrap.rsc".to_string());
 
-    // 5. Import
-    let import_out = exec_raw(session, "/import file=safelinks-agent.rsc")
-        .await
-        .map_err(|e| format!("agent import exec: {}", e))?;
+    // 3. Import — runs pairing + scheduler creation inline
+    let import_out = exec_raw(session, "/import file=safelinks-bootstrap.rsc").await
+        .map_err(|e| format!("bootstrap import exec: {}", e))?;
     let import_failed = import_out.contains("failure:")
         || import_out.contains("status: failed")
         || import_out.contains("Script Error:")
         || import_out.contains("syntax error");
     if import_failed && !import_out.contains("loaded and executed") {
-        return Err(format!("agent import failed: {}", import_out.trim()));
+        return Err(format!("bootstrap import failed: {}", import_out.trim()));
     }
-    log.push("Agent scripts imported".to_string());
-
-    // 6. Register (pairs + enables checkin scheduler)
-    let reg_out = exec_raw(session, "/system script run safelinks-register")
-        .await
-        .map_err(|e| format!("register exec: {}", e))?;
-    if !reg_out.contains("Paired") {
-        return Err(format!("register did not confirm pairing: {}", reg_out.trim()));
+    if !import_out.contains("safelinks-bootstrap: OK") {
+        return Err(format!("bootstrap did not confirm pairing: {}", import_out.trim()));
     }
-    log.push("Agent paired with backend".to_string());
+    log.push("Bootstrap paired with backend".to_string());
 
     Ok(())
 }
