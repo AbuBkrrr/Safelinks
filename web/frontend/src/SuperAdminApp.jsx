@@ -1,11 +1,6 @@
 import { fileUrl } from "./ui.jsx";
 import React, { useMemo, useState, useEffect } from "react";
-import {
-  Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package,
-  Activity, Server, LifeBuoy, AlertCircle, MessageSquare, Mail, Gauge, Cpu,
-  CreditCard, Settings as SettingsIcon, Save, CheckCircle2, ChevronRight, Gift,
-  KeyRound, Download, Ban, Copy,
-} from "lucide-react";
+import { Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package, Activity, Server, LifeBuoy, AlertCircle, MessageSquare, Mail, Gauge, Cpu, CreditCard, Settings as SettingsIcon, Save, CheckCircle2, ChevronRight, Gift, KeyRound, Download, Ban, Copy, Plus } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
