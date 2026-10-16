@@ -125,6 +125,23 @@ function PairingFlow({ onComplete, onBack }) {
     // Windows 11 doesn't reliably steal focus on protocol-handler
     // launches, and false-negatives would show the wrong fallback.
     // The polling loop below confirms the router checked in.
+    var rid = resolveResellerId();
+    var params = new URLSearchParams({
+      resellerId: rid,
+      ip: routerIp || "192.168.88.1",
+      pairingCode: code,
+      ssid: ssid,
+      pass: wifiPass,
+    });
+    var deeplink = "safelinks-installer://configure?" + params.toString();
+    var a = document.createElement("a");
+    a.href = deeplink;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // No focus check — Windows 11 doesn't reliably blur the browser
+    // on protocol-handler launches. Polling below is the real signal.
     var started = Date.now();
     var t = setInterval(async function() {
       try {
