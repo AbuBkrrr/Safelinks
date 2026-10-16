@@ -69,29 +69,34 @@ export function registerSuperAdminRoutes(router) {
 
   router.put("/api/admin/plans/:id", async (req, res, { params, body }) => {
     const b = body || {};
-    await db.prepare(`UPDATE platform_plans SET
-      name = COALESCE(?, name),
-      description = COALESCE(?, description),
-      monthly_price_ngn = COALESCE(?, monthly_price_ngn),
-      yearly_price_ngn = COALESCE(?, yearly_price_ngn),
-      max_devices = COALESCE(?, max_devices),
-      max_clients = COALESCE(?, max_clients),
-      max_routers = COALESCE(?, max_routers),
-      max_vouchers = COALESCE(?, max_vouchers),
-      bandwidth_cap_mbps = COALESCE(?, bandwidth_cap_mbps),
-      features = COALESCE(?, features)
-      WHERE id = ?`).run(
-      b.name || null, b.description || null,
-      b.monthlyPriceNgn == null ? null : Number(b.monthlyPriceNgn),
-      b.yearlyPriceNgn == null ? null : Number(b.yearlyPriceNgn),
-      b.maxDevices == null ? null : Number(b.maxDevices),
-      b.maxClients == null ? null : Number(b.maxClients),
-      b.maxRouters == null ? null : Number(b.maxRouters),
-      b.maxVouchers == null ? null : Number(b.maxVouchers),
-      b.bandwidthCapMbps == null ? null : Number(b.bandwidthCapMbps),
-      b.features ? JSON.stringify(b.features) : null,
-      params.id);
-    return json(res, 200, { ok: true });
+    try {
+      await db.prepare(`UPDATE platform_plans SET
+        name = COALESCE(?, name),
+        description = COALESCE(?, description),
+        monthly_price_ngn = COALESCE(?, monthly_price_ngn),
+        yearly_price_ngn = COALESCE(?, yearly_price_ngn),
+        max_devices = COALESCE(?, max_devices),
+        max_clients = COALESCE(?, max_clients),
+        max_routers = COALESCE(?, max_routers),
+        max_vouchers = COALESCE(?, max_vouchers),
+        bandwidth_cap_mbps = COALESCE(?, bandwidth_cap_mbps),
+        features = COALESCE(?::jsonb, features)
+        WHERE id = ?`).run(
+        b.name || null, b.description || null,
+        b.monthlyPriceNgn == null ? null : Number(b.monthlyPriceNgn),
+        b.yearlyPriceNgn == null ? null : Number(b.yearlyPriceNgn),
+        b.maxDevices == null ? null : Number(b.maxDevices),
+        b.maxClients == null ? null : Number(b.maxClients),
+        b.maxRouters == null ? null : Number(b.maxRouters),
+        b.maxVouchers == null ? null : Number(b.maxVouchers),
+        b.bandwidthCapMbps == null ? null : Number(b.bandwidthCapMbps),
+        b.features ? JSON.stringify(b.features) : null,
+        params.id);
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      console.error('[admin/plans PUT] update failed:', e && e.message, e);
+      return json(res, 500, { error: String((e && e.message) || e) });
+    }
   });
 
   router.post("/api/admin/plans", async (req, res, { body }) => {
