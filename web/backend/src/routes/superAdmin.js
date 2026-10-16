@@ -58,7 +58,7 @@ export function registerSuperAdminRoutes(router) {
         ...r,
         price: r.monthly_price_ngn,
         maxClients: r.max_clients,
-        maxDevicesPerClient: r.max_devices_per_client ?? r.max_devices,
+        maxDevicesPerClient: r.max_devices ?? r.max_devices_per_client,
         maxRouters: r.max_routers,
         maxVouchers: r.max_vouchers,
         bandwidthCapMbps: r.bandwidth_cap_mbps,

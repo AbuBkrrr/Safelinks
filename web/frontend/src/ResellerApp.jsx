@@ -167,6 +167,7 @@ export default function ResellerApp({ session, onExit, notify }) {
 
   const tabs = [
     { key: "vouchers", label: dt(dashboardLang, "tabVouchers"), icon: Users },
+    { key: "clients", label: "Clients", icon: Activity },
     { key: "sessions", label: dt(dashboardLang, "tabSessions"), icon: Activity },
     { key: "routers", label: dt(dashboardLang, "tabRouters"), icon: Router },
     { key: "delivery", label: dt(dashboardLang, "tabDelivery"), icon: Mail },
