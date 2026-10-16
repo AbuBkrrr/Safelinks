@@ -272,6 +272,12 @@ export function registerAgentRoutes(router) {
     if (h !== rt.api_key_hash) return err(res, 401, "bad api key");
 
     const now = Date.now();
+    console.log("[agent/report] rid=" + router_id + " keyLen=" + String(api_key).length + " hasMetrics=" + !!(b.metrics || b.cpu !== undefined || b.ramUsed !== undefined) + " hasSessions=" + (typeof b.sessions === "string" ? b.sessions.length + "chars" : Array.isArray(b.sessions) ? b.sessions.length + "items" : "no"));
+    // Refresh online state — proves the router is polling even if metrics are wrong
+    try {
+      await db.prepare("UPDATE routers SET last_check_in = ?, status = 'online' WHERE router_id = ?").run(now, router_id);
+    } catch (_) {}
+
     // Normalize metrics + sessions into the shape this handler expects
     const metricsFromFlat = {
       cpu: b.cpu,

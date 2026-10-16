@@ -54,7 +54,23 @@ export function readBody(req) {
           return resolve(Object.fromEntries(params.entries()));
         } catch { return resolve({}); }
       }
-      try { resolve(JSON.parse(data)); } catch { resolve({}); }
+      try { resolve(JSON.parse(data)); } catch {}
+      // Codevertex-style fallback: line-based key=value pairs.
+      // RouterOS /tool fetch has no JSON.stringify; sending "k=v\nk=v\n"
+      // is the documented pattern for their polling agent.
+      if (data.includes("\n") && data.includes("=")) {
+        const out = {};
+        for (const line of data.split(/\r?\n/)) {
+          const eq = line.indexOf("=");
+          if (eq > 0) {
+            const k = line.slice(0, eq).trim();
+            const v = line.slice(eq + 1).trim();
+            if (k) out[k] = v;
+          }
+        }
+        if (Object.keys(out).length > 0) return resolve(out);
+      }
+      return resolve({});
     });
     req.on("error", reject);
   });
