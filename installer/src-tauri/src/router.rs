@@ -713,7 +713,11 @@ async fn install_agent(
     let import_out = exec_raw(session, "/import file=safelinks-agent.rsc")
         .await
         .map_err(|e| format!("agent import exec: {}", e))?;
-    if import_out.contains("failure:") && !import_out.contains("loaded and executed") {
+    let import_failed = import_out.contains("failure:")
+        || import_out.contains("status: failed")
+        || import_out.contains("Script Error:")
+        || import_out.contains("syntax error");
+    if import_failed && !import_out.contains("loaded and executed") {
         return Err(format!("agent import failed: {}", import_out.trim()));
     }
     log.push("Agent scripts imported".to_string());

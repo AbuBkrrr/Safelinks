@@ -217,7 +217,7 @@ add name="safelinks-checkin" source={
         } else={
           :set execStatus "failed"
           :set execDetail ("unknown command type: " . $cmdType)
-        }}}}
+        }}}}}}}}
       } on-error={
         :set execStatus "failed"
         :set execDetail ("RouterOS command threw an error executing " . $cmdType . " for " . $cmdUser)
