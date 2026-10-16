@@ -27,6 +27,25 @@ const DURATIONS = [
   { key: "6months", label: "6 months" }, { key: "yearly", label: "Yearly" },
 ];
 
+const DURATION_UNITS = [
+  { key: "minute", label: "Minutes" },
+  { key: "hour",   label: "Hours"   },
+  { key: "day",    label: "Days"    },
+  { key: "week",   label: "Weeks"   },
+  { key: "month",  label: "Months"  },
+  { key: "year",   label: "Years"   },
+];
+
+function formatPlanDuration(p) {
+  if (p && p.duration_value && p.duration_unit) {
+    const n = Number(p.duration_value);
+    const unit = p.duration_unit + (n === 1 ? "" : "s");
+    return n + " " + unit;
+  }
+  const legacy = DURATIONS.find((d) => d.key === p?.duration);
+  return legacy ? legacy.label.toLowerCase() : (p?.duration || "");
+}
+
 function LiveRouters({ url }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
@@ -203,7 +222,11 @@ export default function ResellerApp({ session, onExit, notify }) {
     if (!planForm.name || !planForm.price) return;
     try {
       const body = {
-        name: planForm.name, duration: planForm.duration, price: Number(planForm.price),
+        name: planForm.name,
+      duration: planForm.duration || (planForm.durationValue && planForm.durationUnit ? (planForm.durationValue + "_" + planForm.durationUnit) : "monthly"),
+      durationUnit: planForm.durationUnit || "day",
+      durationValue: Number(planForm.durationValue) || null,
+      price: Number(planForm.price),
         deviceLimit: Number(planForm.deviceLimit), bandwidth: Number(planForm.bandwidth),
         priority: planForm.priority, popular: !!planForm.popular,
       };
@@ -659,17 +682,17 @@ export default function ResellerApp({ session, onExit, notify }) {
       )}
 
       {tab === "plans" && (
-        <Panel title="Subscription plans" action={<Btn size="sm" onClick={() => setPlanForm({ isNew: true, name: "", duration: "monthly", price: "", deviceLimit: 3, bandwidth: 25, priority: "medium", popular: false })}><Plus size={14} /> New plan</Btn>}>
+        <Panel title="Subscription plans" action={<Btn size="sm" onClick={() => setPlanForm({ isNew: true, name: "", duration: "monthly", durationUnit: "day", durationValue: 30, price: "", deviceLimit: 3, bandwidth: 25, priority: "medium", popular: false })}><Plus size={14} /> New plan</Btn>}>
           {plans.loading ? <Loading /> : (
             <div style={{ opacity: licenseExpired ? 0.45 : 1, pointerEvents: licenseExpired ? "none" : "auto", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 12 }}>
               {(plans.data || []).map((p) => (
                 <div key={p.id} style={{ border: `1px solid ${p.popular ? T.primary : T.border}`, borderRadius: 10, padding: 14, position: "relative" }}>
                   {!!p.popular && <div style={{ position: "absolute", top: -10, right: 12, background: T.primary, color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>MOST POPULAR</div>}
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, margin: "6px 0", color: T.primary }}>{formatMoney(p.price, currency)}<span style={{ fontSize: 12, color: T.sub, fontWeight: 500 }}> / {DURATIONS.find((d) => d.key === p.duration)?.label.toLowerCase()}</span></div>
+                  <div style={{ fontSize: 22, fontWeight: 700, margin: "6px 0", color: T.primary }}>{formatMoney(p.price, currency)}<span style={{ fontSize: 12, color: T.sub, fontWeight: 500 }}> / {formatPlanDuration(p)}</span></div>
                   <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>{p.device_limit} devices · {p.bandwidth} Mbps · {p.priority} priority</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <Btn size="sm" variant="outline" onClick={() => setPlanForm({ ...p, deviceLimit: p.device_limit })}><Save size={12} /> Edit</Btn>
+                    <Btn size="sm" variant="outline" onClick={() => setPlanForm({ ...p, deviceLimit: p.device_limit, durationUnit: p.duration_unit || "day", durationValue: p.duration_value || 30 })}><Save size={12} /> Edit</Btn>
                     <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => deletePlan(p.id)}><Trash2 size={12} /></Btn>
                   </div>
                 </div>
@@ -685,9 +708,15 @@ export default function ResellerApp({ session, onExit, notify }) {
                 <Field label="Plan name"><input style={inputStyle} value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} placeholder="e.g. Weekly Standard" /></Field>
                 <Field label="Price (USD)"><input style={inputStyle} type="number" value={planForm.price} onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })} /></Field>
                 <Field label="Duration">
-                  <select style={inputStyle} value={planForm.duration} onChange={(e) => setPlanForm({ ...planForm, duration: e.target.value })}>
-                    {DURATIONS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-                  </select>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input style={{ ...inputStyle, maxWidth: 90 }} type="number" min="1"
+                      value={planForm.durationValue || 1}
+                      onChange={(e) => setPlanForm({ ...planForm, durationValue: e.target.value })} />
+                    <select style={inputStyle} value={planForm.durationUnit || "day"}
+                      onChange={(e) => setPlanForm({ ...planForm, durationUnit: e.target.value })}>
+                      {DURATION_UNITS.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
+                    </select>
+                  </div>
                 </Field>
                 <Field label="Device limit"><input style={inputStyle} type="number" value={planForm.deviceLimit} onChange={(e) => setPlanForm({ ...planForm, deviceLimit: e.target.value })} /></Field>
                 <Field label="Bandwidth (Mbps)"><input style={inputStyle} type="number" value={planForm.bandwidth} onChange={(e) => setPlanForm({ ...planForm, bandwidth: e.target.value })} /></Field>
