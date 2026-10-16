@@ -142,12 +142,21 @@ function PairingFlow({ onComplete, onBack }) {
     document.body.removeChild(a);
     // No focus check — Windows 11 doesn't reliably blur the browser
     // on protocol-handler launches. Polling below is the real signal.
-    var started = Date.now();
+    var clickTime = Date.now();
     var t = setInterval(async function() {
       try {
         var list = await api.reseller.routers();
         var arr = (list && (list.routers || list)) || [];
-        var fresh = arr.find(function(r) { return Date.now() - (r.last_check_in || 0) < 180000; });
+        // Fresh = registered around the click. Anchoring on clickTime means
+        // we correctly find a router that registered a few minutes ago, even
+        // if the heartbeat has since gone stale.
+        var fresh = arr.find(function(r) {
+          var ts = Number(r.last_check_in || 0);
+          return ts >= clickTime - 30000;
+        });
+        if (arr.length && !fresh) {
+          console.log("[poll] routers=" + arr.length + " clickTime=" + clickTime + " stamps=" + arr.map(function(r){return r.last_check_in;}).join(","));
+        }
         if (fresh) {
           clearInterval(t);
           setConfiguringRouter(false);
@@ -156,7 +165,7 @@ function PairingFlow({ onComplete, onBack }) {
           return;
         }
       } catch (_) {}
-      if (Date.now() - started > 60000) {
+      if (Date.now() - clickTime > 60000) {
         clearInterval(t);
         setConfiguringRouter(false);
         setShowFallback(true);
