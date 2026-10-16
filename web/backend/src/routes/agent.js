@@ -16,8 +16,18 @@ function rosUptimeToSeconds(v) {
   if (v == null) return 0;
   const s = String(v).trim();
   if (!s) return 0;
+  // Pure-number form (already seconds)
   const direct = Number(s);
-  if (Number.isFinite(direct)) return direct;
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  // RouterOS 7.x time-to-string returns "HH:MM:SS" (e.g. "00:44:24")
+  const hms = s.match(/^([0-9]+):([0-9]+):([0-9]+)/);
+  if (hms) {
+    const h = Number(hms[1]) || 0;
+    const m = Number(hms[2]) || 0;
+    const sec = Number(hms[3]) || 0;
+    return h * 3600 + m * 60 + sec;
+  }
+  // Fallback: word form "1w2d3h4m5s"
   let total = 0;
   const re = /([0-9]+)([wdhms])/g;
   let mm;
