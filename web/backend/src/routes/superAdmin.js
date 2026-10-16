@@ -52,7 +52,7 @@ async function lookupGeo(ip) {
 export function registerSuperAdminRoutes(router) {
   // ── License plans CRUD — Super Admin manages tier features + limits ──
   router.get("/api/admin/plans", async (req, res) => {
-    const rows = await db.prepare("SELECT * FROM platform_plans ORDER BY sort_order ASC NULLS LAST, name ASC").all();
+    const rows = await db.prepare("SELECT * FROM platform_plans ORDER BY id ASC").all();
     return json(res, 200, rows.map(r => ({
       id: r.id, name: r.name, description: r.description || "",
       monthlyPriceNgn: r.monthly_price_ngn, yearlyPriceNgn: r.yearly_price_ngn,
