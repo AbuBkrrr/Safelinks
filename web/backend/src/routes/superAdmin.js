@@ -73,9 +73,7 @@ export function registerSuperAdminRoutes(router) {
       await db.prepare(`UPDATE platform_plans SET
         name = COALESCE(?, name),
         description = COALESCE(?, description),
-        monthly_price_ngn = COALESCE(?, monthly_price_ngn),
-        yearly_price_ngn = COALESCE(?, yearly_price_ngn),
-        max_devices = COALESCE(?, max_devices),
+            max_devices = COALESCE(?, max_devices),
         max_clients = COALESCE(?, max_clients),
         max_routers = COALESCE(?, max_routers),
         max_vouchers = COALESCE(?, max_vouchers),
@@ -83,8 +81,6 @@ export function registerSuperAdminRoutes(router) {
         features = COALESCE(?::jsonb, features)
         WHERE id = ?`).run(
         b.name || null, b.description || null,
-        b.monthlyPriceNgn == null ? null : Number(b.monthlyPriceNgn),
-        b.yearlyPriceNgn == null ? null : Number(b.yearlyPriceNgn),
         b.maxDevices == null ? null : Number(b.maxDevices),
         b.maxClients == null ? null : Number(b.maxClients),
         b.maxRouters == null ? null : Number(b.maxRouters),
