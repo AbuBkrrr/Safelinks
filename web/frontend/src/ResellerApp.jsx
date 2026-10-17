@@ -142,7 +142,7 @@ function LiveRouters({ url }) {
 
 export default function ResellerApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("vouchers");
-  const [voucherGenForm, setVoucherGenForm] = useState({ count: 10, planId: "", durationDays: 30 });
+  const [voucherGenForm, setVoucherGenForm] = useState({ count: 10, planId: "" });
   const [generatedVouchers, setGeneratedVouchers] = useState(null);
 
   const vouchers = useResource(() => api.reseller.vouchers(), [], (r) => r.vouchers);
@@ -203,6 +203,50 @@ export default function ResellerApp({ session, onExit, notify }) {
       notify(`Generated ${res.count} vouchers.`);
       vouchers.refetch();
     } catch (err) { notify(err.message); }
+  }
+
+  function downloadVouchersCsv() {
+    if (!generatedVouchers || !generatedVouchers.length) return;
+    const header = "Username,Password,Plan,Expires At\n";
+    const rows = generatedVouchers.map(v => {
+      const plan = (plans.data || []).find(p => p.id === v.plan_id);
+      const planName = plan ? plan.name : v.plan_id;
+      const exp = v.expires_at ? new Date(Number(v.expires_at)).toISOString() : '';
+      return v.username + "," + v.password + "," + planName + "," + exp;
+    }).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "vouchers-" + Date.now() + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadQrCodes() {
+    if (!generatedVouchers || !generatedVouchers.length) return;
+    const rid = session?.user?.id || session?.user?.resellerId || "";
+    const cards = generatedVouchers.map(function(v) {
+      var url = "https://www.safelinks.name.ng/portal/" + encodeURIComponent(rid) + "?voucher=" + encodeURIComponent(v.username);
+      var qr = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(url);
+      return '<div class="card">' +
+        '<img src="' + qr + '" alt="QR" />' +
+        '<div class="cred">' + v.username + ' / ' + v.password + '</div>' +
+      '</div>';
+    }).join("");
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Voucher QR Codes</title>' +
+      '<style>body{font-family:sans-serif;padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;background:#f8fafc;}' +
+      '.card{border:1px solid #cbd5e1;border-radius:10px;padding:14px;text-align:center;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.05);}' +
+      'img{width:150px;height:150px;display:block;margin:0 auto 8px;}' +
+      '.cred{font-family:monospace;font-size:12px;color:#334155;margin-top:4px;}</style>' +
+      '</head><body>' + cards + '</body></html>';
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "voucher-qr-codes-" + Date.now() + ".html";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function setVoucherStatus(id, status) {
@@ -640,7 +684,7 @@ export default function ResellerApp({ session, onExit, notify }) {
           <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 640 }}>
             Generate a batch of vouchers for a plan. Clients can use these credentials to log in, or scan the QR code to connect.
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end", maxWidth: 600, marginBottom: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end", maxWidth: 440, marginBottom: 12 }}>
             <Field label="How many">
               <input style={inputStyle} type="number" min="1" max="500" value={voucherGenForm.count} onChange={(e) => setVoucherGenForm({ ...voucherGenForm, count: e.target.value })} />
             </Field>
@@ -650,15 +694,23 @@ export default function ResellerApp({ session, onExit, notify }) {
                 {(plans.data || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </Field>
-            <Field label="Duration (days)">
-              <input style={inputStyle} type="number" min="1" value={voucherGenForm.durationDays} onChange={(e) => setVoucherGenForm({ ...voucherGenForm, durationDays: e.target.value })} />
-            </Field>
           </div>
+          {voucherGenForm.planId && (
+            <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12 }}>
+              Duration: {(plans.data?.find(p => p.id === voucherGenForm.planId)?.duration_days || 30)} days
+            </div>
+          )}
           <Btn onClick={generateVouchers}><Users size={14} /> Generate vouchers</Btn>
           
           {generatedVouchers && (
             <div style={{ marginTop: 16, background: T.bg, borderRadius: 10, padding: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Just generated: {generatedVouchers.length} vouchers</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Just generated: {generatedVouchers.length} vouchers</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={downloadVouchersCsv} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 500 }}>Download CSV</button>
+                  <button onClick={downloadQrCodes} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 500 }}>Download QR Codes</button>
+                </div>
+              </div>
               <div style={{ maxHeight: 200, overflowY: "auto", fontFamily: "monospace", fontSize: 12, color: T.sub, lineHeight: 1.7 }}>
                 {generatedVouchers.map((v) => (
                   <div key={v.id} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
