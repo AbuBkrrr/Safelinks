@@ -86,8 +86,7 @@ export function registerResellerRoutes(router) {
   const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(planId);
   if (!plan) return json(res, 404, { error: "Plan not found" });
   const now = Date.now();
-  const durationDays = Number(plan.duration_days) || 30;
-  const expiresAt = now + durationDays * 86400000;
+  const expiresAt = now + durationToMs(plan.duration_value, plan.duration_unit);
   const vouchers = [];
   for (let i = 0; i < count; i++) {
     const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
