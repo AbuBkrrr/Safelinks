@@ -134,14 +134,28 @@ function PairingFlow({ onComplete, onBack }) {
       pass: wifiPass,
     });
     var deeplink = "safelinks-installer://configure?" + params.toString();
+
+    // Inside the Tauri desktop app → postMessage to the native shell
+    if (window.parent !== window) {
+      window.parent.postMessage({
+        type: 'SAFELINKS_CONFIGURE',
+        resellerId: rid,
+        ip: routerIp || "192.168.88.1",
+        pairingCode: code,
+        ssid: ssid,
+        pass: wifiPass
+      }, '*');
+      setTimeout(function() { setConfiguringRouter(false); }, 5000);
+      return;
+    }
+
+    // Standard browser → fire the OS deep-link
     var a = document.createElement("a");
     a.href = deeplink;
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    // No focus check — Windows 11 doesn't reliably blur the browser
-    // on protocol-handler launches. Polling below is the real signal.
     var clickTime = Date.now();
     var t = setInterval(async function() {
       try {
