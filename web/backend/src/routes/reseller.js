@@ -318,7 +318,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
     if (deviceLimit != null && (typeof deviceLimit !== "number" || deviceLimit < 1)) return json(res, 400, { error: "deviceLimit must be at least 1" });
     const planId = id("p");
     await db.prepare("INSERT INTO plans (id,reseller_id,name,duration,duration_unit,duration_value,price,device_limit,bandwidth,priority,popular,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Number(durationValue) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now());
+      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now());
     json(res, 201, { id: planId });
   });
 
@@ -332,7 +332,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
     const result = await db.prepare(`
       UPDATE plans SET name=?, duration=?, duration_unit=?, duration_value=?, price=?, device_limit=?, bandwidth=?, priority=?, popular=?
       WHERE id = ? AND reseller_id = ?
-    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Number(durationValue) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, params.id, resellerId);
+    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, params.id, resellerId);
     if (result.changes === 0) return json(res, 404, { error: "Plan not found" });
     json(res, 200, { ok: true });
   });
@@ -348,6 +348,18 @@ router.get("/api/reseller/vouchers", async (req, res) => {
   // A client device is a MAC address with a human label + priority that
   // the router treats specially: high = 2× plan bw, medium = plan bw,
   // low = 0.5× plan bw. Priority changes queue a fresh bind_mac.
+  function durationToMs(value, unit) {
+    const v = Number(value) || 1;
+    const u = String(unit || 'day').toLowerCase();
+    if (u === 'minute' || u === 'minutes' || u === 'min' || u === 'mins') return v * 60 * 1000;
+    if (u === 'hour' || u === 'hours' || u === 'hr' || u === 'hrs') return v * 60 * 60 * 1000;
+    if (u === 'day' || u === 'days') return v * 24 * 60 * 60 * 1000;
+    if (u === 'week' || u === 'weeks') return v * 7 * 24 * 60 * 60 * 1000;
+    if (u === 'month' || u === 'months') return v * 30 * 24 * 60 * 60 * 1000;
+    if (u === 'year' || u === 'years') return v * 365 * 24 * 60 * 60 * 1000;
+    return v * 24 * 60 * 60 * 1000;
+  }
+
   function priorityToMbps(priority, planBandwidth) {
     const bw = Number(planBandwidth) || 20;
     if (priority === "high") return Math.round(bw * 2);
@@ -576,8 +588,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       const username = `${pending.name.split(" ")[0].toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const password = genCode(8);
       const voucherId = id("v");
-      const voucherDurationDays = plan?.duration_days || 30;
-      const voucherExpiresAt = now + voucherDurationDays * 86400000;
+      const voucherExpiresAt = now + durationToMs(plan?.duration_value, plan?.duration_unit);
       await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, voucherExpiresAt);
