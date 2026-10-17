@@ -140,8 +140,23 @@ function LiveRouters({ url }) {
   );
 }
 
+// Helper: Format countdown timer for expiry
+function getExpiryCountdown(expiresAt) {
+  if (!expiresAt) return "—";
+  const now = Date.now();
+  const expires = Number(expiresAt);
+  const diff = expires - now;
+  
+  if (diff < 0) return "Expired";
+  if (diff < 60000) return `${Math.ceil(diff / 1000)}s`; // Less than 1 minute
+  if (diff < 3600000) return `${Math.ceil(diff / 60000)}m`; // Less than 1 hour
+  if (diff < 86400000) return `${Math.ceil(diff / 3600000)}h`; // Less than 1 day
+  return `${Math.ceil(diff / 86400000)}d`; // Days
+}
+
 export default function ResellerApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("vouchers");
+  const [countdownNow, setCountdownNow] = useState(Date.now());
   const [voucherGenForm, setVoucherGenForm] = useState({ count: 10, planId: "" });
   const [generatedVouchers, setGeneratedVouchers] = useState(null);
 
@@ -175,6 +190,12 @@ export default function ResellerApp({ session, onExit, notify }) {
   const platformCurrency = bankInfo.data?.platformCurrency || "USD";
   const dashboardLang = portalSettingsRes.data?.dashboardLanguage || portalSettingsRes.data?.dashboard_language || "en";
   const companyName = session?.user?.companyName || "";
+
+  // Update countdown timer every second for live expiry timers
+  useEffect(() => {
+    const interval = setInterval(() => setCountdownNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const tabs = [
     { key: "vouchers", label: dt(dashboardLang, "tabVouchers"), icon: Users },
@@ -760,7 +781,13 @@ export default function ResellerApp({ session, onExit, notify }) {
                       
                       <td>{v.plan_name || "—"} <span style={{ color: T.sub, fontSize: 11 }}>({v.device_limit} devices)</span></td>
                       <td>{v.session_count}</td>
-                      <td style={{ color: Number(v.expires_at) < Date.now() ? T.danger : T.sub }}>{v.expires_at ? new Date(Number(v.expires_at)).toLocaleDateString() : '—'}</td>
+                      <td style={{ color: Number(v.expires_at) < Date.now() ? T.danger : T.primary, fontWeight: 600 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Clock size={12} />
+                          {getExpiryCountdown(v.expires_at)}
+                        </div>
+                        <div style={{ fontSize: 10.5, color: T.sub, fontWeight: 400, marginTop: 2 }}>{v.expires_at ? new Date(Number(v.expires_at)).toLocaleDateString() : '—'}</div>
+                      </td>
                       <td><Badge tone={statusColor(v.status)}>{v.status}</Badge></td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
@@ -870,8 +897,11 @@ export default function ResellerApp({ session, onExit, notify }) {
 
       {tab === "sessions" && (
         <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessions.data?.sessions || sessions.data || []).length} connected</Badge>}>
-          {sessions.loading ? <Loading /> : ((sessions.data?.sessions || sessions.data) || []).map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}` }}>
+          {sessions.loading ? <Loading /> : ((sessions.data?.sessions || sessions.data) || []).map((s) => {
+            const voucherExpires = s.voucher_expires_at;
+            const isExpiringSoon = voucherExpires && (Number(voucherExpires) - Date.now()) < 300000; // Less than 5 minutes
+            return (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}`, background: isExpiringSoon ? `${T.warning}15` : 'transparent' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>
                   {s.voucher_name || s.username || "(unknown)"}{" "}
@@ -882,11 +912,20 @@ export default function ResellerApp({ session, onExit, notify }) {
                   {s.location ? " · " + (s.location.city ? s.location.city + ", " + s.location.country : s.location.country) : ""}
                 </div>
               </div>
-              <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
-                {s.started_at ? timeAgo(s.started_at) : (s.last_seen ? timeAgo(s.last_seen) : "—")}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
+                  {s.started_at ? timeAgo(s.started_at) : (s.last_seen ? timeAgo(s.last_seen) : "—")}
+                </span>
+                {voucherExpires && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: isExpiringSoon ? T.warning : T.primary }}>
+                    <Clock size={11} />
+                    {getExpiryCountdown(voucherExpires)}
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
+            );
+          })}
           {!sessions.loading && ((sessions.data?.sessions || sessions.data) || []).length === 0 && <EmptyRow text="No devices connected right now." />}
         </Panel>
       )}
