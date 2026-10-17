@@ -120,6 +120,8 @@ export function registerAgentRoutes(router) {
   // GET /api/agent/heartbeat.rsc?rid=X&key=Y
   // Returns a fresh short script: metrics POST + any queued commands.
   router.get("/api/agent/heartbeat.rsc", async (req, res) => {
+  // Sweep expired vouchers on every heartbeat so 2-min vouchers actually expire.
+  try { await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(Date.now()); } catch (e) { console.warn('[sweep] voucher expiry failed', e.message); }
     try {
       const url = new URL(req.url || "/", "http://x");
       const rid = String(url.searchParams.get("rid") || "").trim();

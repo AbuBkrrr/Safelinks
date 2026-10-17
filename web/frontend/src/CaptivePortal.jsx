@@ -67,6 +67,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   if (__suspended) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg, padding: 20 }}>
+        <a href={"mailto:" + (info.data?.contactEmail || "support@safelinks.name.ng")} style={{ position: "fixed", bottom: 20, right: 20, background: "#1e293b", color: "#fff", padding: "10px 14px", borderRadius: "50px", textDecoration: "none", fontWeight: 600, fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.2)", zIndex: 999 }}>Support</a>
         <div style={{ maxWidth: 420, width: "100%", background: "#fff", borderRadius: 16, padding: 28, textAlign: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}>
           <div style={{ fontSize: 44, marginBottom: 12 }}>&#9208;</div>
           <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 8 }}>Your access is paused</div>
@@ -335,6 +336,13 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
         <div style={{ padding: 22 }}>
           {step === "connect" && (
             <div style={{ textAlign: "center" }}>
+              <div style={{ marginTop: 20, marginBottom: 20, padding: 16, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Have a voucher code?</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="text" id="voucher-redeem-input" placeholder="e.g. v-abc123xy" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }} />
+                  <Btn onClick={() => { var c = document.getElementById('voucher-redeem-input').value.trim(); if (c) window.location.href = '?voucher=' + encodeURIComponent(c); }}>Connect</Btn>
+                </div>
+              </div>
               <div style={{ fontSize: 13.5, color: T.sub, marginBottom: 18 }}>{t(lang, "connectedTo", { ssid: reseller.ssid })}</div>
               <Btn onClick={() => setStep("plans")} style={{ width: "100%", justifyContent: "center", padding: "11px 0" }}>{t(lang, "continue")} <ChevronRight size={14} /></Btn>
             </div>
@@ -460,7 +468,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 } else {
                   window.location.href = dst;
                 }
-              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
+              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
               <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>{t(lang, "redirecting") || "You will be redirected to the login page and connected automatically."}</div>

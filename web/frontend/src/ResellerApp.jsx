@@ -229,9 +229,13 @@ export default function ResellerApp({ session, onExit, notify }) {
     const cards = generatedVouchers.map(function(v) {
       var url = "https://www.safelinks.name.ng/portal/" + encodeURIComponent(rid) + "?voucher=" + encodeURIComponent(v.username);
       var qr = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(url);
+      var pi = (plans.data || []).find(function(p) { return p.id === v.plan_id; });
+      var pname = pi ? pi.name : 'Standard';
+      var durHrs = pi ? (pi.duration_days * 24) : 720;
       return '<div class="card">' +
         '<img src="' + qr + '" alt="QR" />' +
-        '<div class="cred">' + v.username + ' / ' + v.password + '</div>' +
+        '<div class="cred" style="font-weight:bold;font-size:14px;margin:8px 0;">' + v.username + '</div>' +
+        '<div style="font-size:11px;color:#666;">' + pname + ' · ' + durHrs + 'h</div>' +
       '</div>';
     }).join("");
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Voucher QR Codes</title>' +
@@ -714,7 +718,7 @@ export default function ResellerApp({ session, onExit, notify }) {
               <div style={{ maxHeight: 200, overflowY: "auto", fontFamily: "monospace", fontSize: 12, color: T.sub, lineHeight: 1.7 }}>
                 {generatedVouchers.map((v) => (
                   <div key={v.id} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
-                    <span>{v.username} / {v.password}</span>
+                    <span style={{ fontWeight: 600 }}>{v.username}</span>
                     <button
                       onClick={() => window.open('https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent('https://www.safelinks.name.ng/portal/' + encodeURIComponent(session?.user?.id || '') + '?voucher=' + v.username), '_blank')}
                       style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', padding: '2px 8px', fontSize: 11 }}

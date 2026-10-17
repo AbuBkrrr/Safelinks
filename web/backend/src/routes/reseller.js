@@ -91,7 +91,7 @@ export function registerResellerRoutes(router) {
   const vouchers = [];
   for (let i = 0; i < count; i++) {
     const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
-    const password = Math.random().toString(36).substring(2, 10);
+    const password = "";  // single-code vouchers (no password)
     const vId = id("v");
     await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(vId, resellerId, username, password, "Generated", null, null, null, planId, "active", now, expiresAt);
