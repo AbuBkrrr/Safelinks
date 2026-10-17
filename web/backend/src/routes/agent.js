@@ -135,6 +135,31 @@ export function registerAgentRoutes(router) {
       ).all(routerRow.id);
       const base = process.env.APP_URL || "https://www.safelinks.name.ng";
       const lines = [];
+      // [sweep-r3] Mark expired vouchers + queue unbind/disable — runs on the
+      // route the router actually fetches, so 2-min vouchers expire in the UI
+      // and clients get kicked off the router on the next heartbeat.
+      try {
+        const swNow = Date.now();
+        const swExpired = await db.prepare(
+          "SELECT id, username, reseller_id FROM vouchers WHERE status='active' AND expires_at < ?"
+        ).all(swNow);
+        if (swExpired.length > 0) {
+          await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(swNow);
+          for (const v of swExpired) {
+            const swRouters = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
+            for (const r of swRouters) {
+              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
+                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.username }), "pending", swNow
+              );
+              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
+                id("cmd"), r.router_id, "disable_user", JSON.stringify({ username: v.username }), "pending", swNow
+              );
+            }
+          }
+          console.log('[sweep-r3] expired ' + swExpired.length + ' voucher(s)');
+        }
+      } catch (swErr) { console.error('[sweep-r3] failed:', swErr.message); }
+
       lines.push("# safelinks-cmd.rsc — " + new Date().toISOString());
       lines.push("# " + cmds.length + " pending command(s)");
       lines.push("");
