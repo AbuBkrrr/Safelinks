@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronRight, ArrowLeft, Wifi, Clock, Mail, MessageCircle } from "lucide-react";
 import { T, Btn, Field, inputStyle, TransferPayBlock, Loading, formatMoney, AttachmentPicker } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
+import { Html5Qrcode } from "html5-qrcode";
 import { useResource } from "./hooks.js";
 import { t } from "./i18n.js";
 
@@ -163,6 +164,28 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     }
   }
 
+  const [countdown, setCountdown] = useState(0);
+
+  async function redeemCode(vCode) {
+    if (!vCode) return;
+    if (!clientMac) {
+      setError("MAC address missing. Please open the portal via the WiFi redirect.");
+      return;
+    }
+    setProcessing(true);
+    setError(null);
+    try {
+      const res = await api.portalRedeemVoucher(resellerId, { voucherCode: vCode, clientMac });
+      setVoucher(res.voucher);
+      setStep('confirmed');
+      setCountdown(30); // Start 30s countdown for the router to sync
+    } catch (err) {
+      setError(err.message || "Invalid voucher code");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const vCode = params.get('voucher');
@@ -171,6 +194,42 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       redeemCode(vCode);
     }
   }, [clientMac, resellerId]);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  async function startScanner() {
+    setShowScanner(true);
+    setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode("qr-reader");
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            scanner.stop().then(() => {
+              setShowScanner(false);
+              let code = decodedText;
+              try {
+                const url = new URL(decodedText);
+                if (url.searchParams.has('voucher')) code = url.searchParams.get('voucher');
+              } catch(_) {}
+              redeemCode(code);
+            });
+          },
+          () => {}
+        );
+      } catch (err) {
+        setError("Could not access camera.");
+        setShowScanner(false);
+      }
+    }, 100);
+  }
 
   async function startScanner() {
     setShowScanner(true);
@@ -337,6 +396,16 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     );
   }
 
+  if (showScanner) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: T.bg, padding: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>Scan Voucher QR</div>
+        <div id="qr-reader" style={{ width: "100%", maxWidth: 400, borderRadius: 12, overflow: "hidden" }}></div>
+        <Btn onClick={() => { scannerRef.current?.stop().catch(()=>{}); setShowScanner(false); }} style={{ marginTop: 20 }}>Cancel</Btn>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       minHeight: "100%", background: `linear-gradient(160deg, ${reseller.color || T.primary}, ${T.secondary})`,
@@ -414,6 +483,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input type="text" id="voucher-redeem-input" placeholder="e.g. v-abc123xy" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }} />
                     <Btn onClick={() => { var c = document.getElementById('voucher-redeem-input').value.trim(); if (c) { var url = new URL(window.location.href); url.searchParams.set('voucher', c); window.location.href = url.toString(); } }}>Connect</Btn>
+                  <Btn onClick={startScanner} style={{ background: '#334155', color: 'white', padding: '0 16px' }}>📷</Btn>
                   <Btn onClick={startScanner} style={{ background: '#334155', color: 'white', padding: '0 16px' }}>📷</Btn>
                   </div>
                 </div>
@@ -524,14 +594,11 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "usernameLabel") || "Username"}</div>
                 <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 18, textAlign: "center", padding: "10px 0" }}>{voucher.username}</div>
               </div>
-              <Btn onClick={() => {
-                /* __directToDst — client is already online via MAC bypass;
-                   no need to hit router /login. Go straight to destination. */
+              <Btn disabled={countdown > 0} onClick={() => {
                 const params = new URLSearchParams(window.location.search);
                 const dst = params.get("dst") || "https://budgetpro.com.ng/";
                 const source = params.get("source");
                 if (source === "installer") {
-                  // Open dst in the system browser via deep-link.
                   const deeplink = "safelinks-installer://open?url=" + encodeURIComponent(dst);
                   const a = document.createElement("a");
                   a.href = deeplink;
@@ -542,10 +609,14 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 } else {
                   window.open(dst, '_blank');
                 }
-              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
+              }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15, opacity: countdown > 0 ? 0.5 : 1 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
-              <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>If the internet does not load immediately, wait 30 seconds for the router to sync, then try again.</div>
+              <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>
+                {countdown > 0 
+                  ? "Please wait " + countdown + " seconds for the router to apply your bypass..." 
+                  : "You are connected. Click Start Browsing."}
+              </div>
             </div>
           )}
         </div>
