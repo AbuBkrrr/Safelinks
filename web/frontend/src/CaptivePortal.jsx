@@ -365,6 +365,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               {clientMac && (
                 <div style={{ marginTop: 20, marginBottom: 20, padding: 16, background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0', textAlign: 'left' }}>
                   <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Have a voucher code?</div>
+                    <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>Tip: You can scan the QR code on your voucher with your phone's camera to log in instantly.</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input type="text" id="voucher-redeem-input" placeholder="e.g. v-abc123xy" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }} />
                     <Btn onClick={() => { var c = document.getElementById('voucher-redeem-input').value.trim(); if (c) { var url = new URL(window.location.href); url.searchParams.set('voucher', c); window.location.href = url.toString(); } }}>Connect</Btn>

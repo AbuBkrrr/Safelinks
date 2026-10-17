@@ -115,9 +115,11 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     if (!voucherCode) return json(res, 400, { error: "Voucher code is required" });
     if (!clientMac) return json(res, 400, { error: "Missing device MAC. Please reconnect to the WiFi." });
 
-    const voucher = await db.prepare("SELECT * FROM vouchers WHERE username = ? AND reseller_id = ? AND status = 'active'").get(voucherCode, resellerId);
-    if (!voucher) return json(res, 404, { error: "Invalid or inactive voucher code." });
-    if (Number(voucher.expires_at) < Date.now()) return json(res, 400, { error: "This voucher has expired." });
+    const vCode = String(voucherCode).trim();
+    const voucher = await db.prepare("SELECT * FROM vouchers WHERE username = ? AND reseller_id = ?").get(vCode, resellerId);
+    if (!voucher) return json(res, 404, { error: "Voucher code not found. Please check for typos." });
+    if (voucher.status !== 'active') return json(res, 400, { error: "This voucher is currently " + voucher.status + "." });
+    if (Number(voucher.expires_at) < Date.now()) return json(res, 400, { error: "This voucher has expired. Please contact the reseller." });
 
     // Bind the client's MAC if provided
     if (clientMac) {
