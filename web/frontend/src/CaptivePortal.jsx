@@ -145,7 +145,8 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const vCode = params.get('voucher');
-    if (!vCode || !clientMac || autoRedeeming) return;
+    if (!vCode || autoRedeeming) return;
+    if (!clientMac) { setError("Device MAC not found. Please connect to the WiFi normally."); return; }
     
     setAutoRedeeming(true);
     setProcessing(true);
@@ -361,9 +362,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Have a voucher code?</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input type="text" id="voucher-redeem-input" placeholder="e.g. v-abc123xy" style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 14 }} />
-                  <Btn onClick={() => { var c = document.getElementById('voucher-redeem-input').value.trim(); if (c) window.location.href = '?voucher=' + encodeURIComponent(c); }}>Connect</Btn>
+                  <Btn onClick={() => { var c = document.getElementById('voucher-redeem-input').value.trim(); if (c) { var url = new URL(window.location.href); url.searchParams.set('voucher', c); window.location.href = url.toString(); } }}>Connect</Btn>
                 </div>
               </div>
+              {error && <div style={{ color: T.danger, fontSize: 12.5, margin: "10px 0", textAlign: "center" }}>{error}</div>}
               <div style={{ fontSize: 13.5, color: T.sub, marginBottom: 18 }}>{t(lang, "connectedTo", { ssid: reseller.ssid })}</div>
               <Btn onClick={() => setStep("plans")} style={{ width: "100%", justifyContent: "center", padding: "11px 0" }}>{t(lang, "continue")} <ChevronRight size={14} /></Btn>
             </div>
