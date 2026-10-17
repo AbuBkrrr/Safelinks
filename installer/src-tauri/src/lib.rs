@@ -17,7 +17,22 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             use tauri::Manager;
             for arg in &argv {
-                if arg.starts_with("safelinks-installer://auth") {
+                if arg.starts_with("safelinks-installer://configure") {
+                    if let Some((_, query)) = arg.split_once('?') {
+                        let mut rid = String::new(); let mut ip = String::new();
+                        let mut pc = String::new(); let mut ssid = String::new(); let mut pass = String::new();
+                        for pair in query.split('&') {
+                            let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
+                            let v = urlencoding_decode(v);
+                            match k {
+                                "resellerId" => rid = v, "ip" => ip = v, "pairingCode" => pc = v,
+                                "ssid" => ssid = v, "pass" => pass = v, _ => {}
+                            }
+                        }
+                        let payload = serde_json::json!({ "resellerId": rid, "ip": ip, "pairingCode": pc, "ssid": ssid, "pass": pass });
+                        let _ = app.emit("deep-link-configure", payload);
+                    }
+                } else if arg.starts_with("safelinks-installer://auth") {
                     if let Some((_, query)) = arg.split_once('?') {
                         let mut token = String::new();
                         let mut role = String::new();
@@ -52,7 +67,22 @@ pub fn run() {
                 for url in event.urls() {
                     // safelinks-installer://auth?token=...&role=...&email=...&companyName=...
                     let s = url.as_str();
-                    if let Some(q) = s.split_once("?") {
+                    if s.starts_with("safelinks-installer://configure") {
+                        if let Some((_, query)) = s.split_once('?') {
+                            let mut rid = String::new(); let mut ip = String::new();
+                            let mut pc = String::new(); let mut ssid = String::new(); let mut pass = String::new();
+                            for pair in query.split('&') {
+                                let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
+                                let v = urlencoding_decode(v);
+                                match k {
+                                    "resellerId" => rid = v, "ip" => ip = v, "pairingCode" => pc = v,
+                                    "ssid" => ssid = v, "pass" => pass = v, _ => {}
+                                }
+                            }
+                            let payload = serde_json::json!({ "resellerId": rid, "ip": ip, "pairingCode": pc, "ssid": ssid, "pass": pass });
+                            let _ = handle.emit("deep-link-configure", payload);
+                        }
+                    } else if let Some(q) = s.split_once("?") {
                         let query = q.1;
                         let mut token = String::new();
                         let mut role = String::new();

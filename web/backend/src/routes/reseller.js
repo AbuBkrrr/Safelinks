@@ -79,7 +79,27 @@ async function queueUnbindForVoucher(voucherId, resellerId) {
 
 export function registerResellerRoutes(router) {
   // --- Vouchers ---
-  router.get("/api/reseller/vouchers", async (req, res) => {
+  router.post("/api/reseller/vouchers/generate", async (req, res, { body }) => {
+  const resellerId = requireReseller(req, res); if (!resellerId) return;
+  const { count, planId, durationDays } = body;
+  if (!count || !planId) return json(res, 400, { error: "count and planId required" });
+  const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(planId);
+  if (!plan) return json(res, 404, { error: "Plan not found" });
+  const now = Date.now();
+  const expiresAt = now + (Number(durationDays) || 30) * 86400000;
+  const vouchers = [];
+  for (let i = 0; i < count; i++) {
+    const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
+    const password = Math.random().toString(36).substring(2, 10);
+    const vId = id("v");
+    await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(vId, resellerId, username, password, "Generated", null, null, null, planId, "active", now, expiresAt);
+    vouchers.push({ id: vId, username, password, expires_at: expiresAt });
+  }
+  json(res, 200, { count: vouchers.length, vouchers });
+});
+
+router.get("/api/reseller/vouchers", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const vouchers = await db.prepare(`
       SELECT v.*, p.name AS plan_name, p.device_limit,

@@ -164,6 +164,7 @@ export const api = {
   // --- Reseller ---
   reseller: {
     vouchers: () => get("/api/reseller/vouchers"),
+  generateVouchers: (body) => post("/api/reseller/vouchers/generate", body),
     setVoucherStatus: (id, status) => put(`/api/reseller/vouchers/${id}/status`, { status }),
     deleteVoucher: (id) => del(`/api/reseller/vouchers/${id}`),
 

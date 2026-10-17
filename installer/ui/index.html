@@ -378,6 +378,16 @@ async function doLogin() {
 }
 
 // Deep-link callback from web after Google sign-in
+listen('deep-link-configure', async (event) => {
+  try {
+    const p = event.payload || {};
+    if (p.ssid) document.getElementById('cfg-ssid').value = p.ssid;
+    if (p.pass) document.getElementById('cfg-wifi-pass').value = p.pass;
+    if (p.ip) document.getElementById('cfg-ip').textContent = p.ip;
+    show('scan');
+  } catch (e) { console.warn('configure event error', e); }
+});
+
 listen('deep-link-auth', async (event) => {
   const { token, role, email, companyName } = event.payload || {};
   if (!token || !email) return;

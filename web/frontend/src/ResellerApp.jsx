@@ -142,6 +142,8 @@ function LiveRouters({ url }) {
 
 export default function ResellerApp({ session, onExit, notify }) {
   const [tab, setTab] = useState("vouchers");
+  const [voucherGenForm, setVoucherGenForm] = useState({ count: 10, planId: "", durationDays: 30 });
+  const [generatedVouchers, setGeneratedVouchers] = useState(null);
 
   const vouchers = useResource(() => api.reseller.vouchers(), [], (r) => r.vouchers);
   const sessions = usePollingResource(() => api.reseller.activeSessions(), [], (r) => r.sessions, 10000);
@@ -193,6 +195,16 @@ export default function ResellerApp({ session, onExit, notify }) {
 
   // --- Vouchers ---
   const [revealPw, setRevealPw] = useState({});
+  async function generateVouchers() {
+    if (!voucherGenForm.planId) return notify("Choose a plan first.");
+    try {
+      const res = await api.reseller.generateVouchers(voucherGenForm);
+      setGeneratedVouchers(res.vouchers);
+      notify(`Generated ${res.count} vouchers.`);
+      vouchers.refetch();
+    } catch (err) { notify(err.message); }
+  }
+
   async function setVoucherStatus(id, status) {
     try {
       await api.reseller.setVoucherStatus(id, status);
@@ -623,6 +635,47 @@ export default function ResellerApp({ session, onExit, notify }) {
         </div>
       )}
 
+      {tab === "vouchers" && (
+        <Panel title="Generate Vouchers" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 14, maxWidth: 640 }}>
+            Generate a batch of vouchers for a plan. Clients can use these credentials to log in, or scan the QR code to connect.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end", maxWidth: 600, marginBottom: 12 }}>
+            <Field label="How many">
+              <input style={inputStyle} type="number" min="1" max="500" value={voucherGenForm.count} onChange={(e) => setVoucherGenForm({ ...voucherGenForm, count: e.target.value })} />
+            </Field>
+            <Field label="Plan">
+              <select style={inputStyle} value={voucherGenForm.planId} onChange={(e) => setVoucherGenForm({ ...voucherGenForm, planId: e.target.value })}>
+                <option value="">Choose…</option>
+                {(plans.data || []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Duration (days)">
+              <input style={inputStyle} type="number" min="1" value={voucherGenForm.durationDays} onChange={(e) => setVoucherGenForm({ ...voucherGenForm, durationDays: e.target.value })} />
+            </Field>
+          </div>
+          <Btn onClick={generateVouchers}><Users size={14} /> Generate vouchers</Btn>
+          
+          {generatedVouchers && (
+            <div style={{ marginTop: 16, background: T.bg, borderRadius: 10, padding: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Just generated: {generatedVouchers.length} vouchers</div>
+              <div style={{ maxHeight: 200, overflowY: "auto", fontFamily: "monospace", fontSize: 12, color: T.sub, lineHeight: 1.7 }}>
+                {generatedVouchers.map((v) => (
+                  <div key={v.id} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
+                    <span>{v.username} / {v.password}</span>
+                    <button
+                      onClick={() => window.open('https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent('https://www.safelinks.name.ng/portal/' + encodeURIComponent(session?.user?.id || '') + '?voucher=' + v.username), '_blank')}
+                      style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', padding: '2px 8px', fontSize: 11 }}
+                    >
+                      QR
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Panel>
+      )}
       {tab === "vouchers" && (
         <Panel title="Vouchers" action={<Badge tone={T.primary}>{(vouchers.data || []).length} issued</Badge>}>
           {vouchers.loading ? <Loading /> : (
