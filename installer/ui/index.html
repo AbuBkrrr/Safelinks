@@ -148,8 +148,8 @@
   </div>
 
   <!-- Dashboard Screen (iframe wrapper) -->
-  <div id="s-dashboard" class="screen" style="height: 100vh; display: flex; flex-direction: column;">
-    <iframe id="dashboard-frame" style="flex: 1; border: none; width: 100%; height: 100%;" src="about:blank" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
+  <div id="s-dashboard" class="screen" style="height: 100vh;">
+    <iframe id="dashboard-frame" style="border: none; width: 100%; height: 100%;" src="about:blank" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
   </div>
 
   <div id="s-scan" class="screen">
@@ -810,12 +810,17 @@ async function _optBSaveSetupFile() {
 // The React dashboard (inside the iframe) cannot call Tauri directly.
 // It uses postMessage to trigger native flows.
 window.addEventListener('message', function(ev) {
+  console.log('[shell] Message received from:', ev.origin, ev.data);
   // SECURITY: Only accept messages from our dashboard
-  if (ev.origin !== 'https://www.safelinks.name.ng') return;
+  if (!ev.origin.includes('safelinks.name.ng') && !ev.origin.includes('localhost')) {
+    console.warn('[shell] Blocked message from untrusted origin:', ev.origin);
+    return;
+  }
 
   var msg = ev.data || {};
 
   if (msg.type === 'SAFELINKS_CONFIGURE') {
+    console.log('[shell] SAFELINKS_CONFIGURE received, jumping to scan');
     if (msg.ssid) {
       var ssidEl = document.getElementById('cfg-ssid');
       if (ssidEl) ssidEl.value = msg.ssid;

@@ -137,6 +137,7 @@ function PairingFlow({ onComplete, onBack }) {
 
     // Inside the Tauri desktop app → postMessage to the native shell
     if (window.parent !== window) {
+      console.log('[react] Inside iframe, sending SAFELINKS_CONFIGURE');
       window.parent.postMessage({
         type: 'SAFELINKS_CONFIGURE',
         resellerId: rid,
