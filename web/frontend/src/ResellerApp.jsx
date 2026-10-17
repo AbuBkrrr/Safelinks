@@ -231,12 +231,12 @@ export default function ResellerApp({ session, onExit, notify }) {
       var url = "https://www.safelinks.name.ng/portal/" + encodeURIComponent(rid) + "?voucher=" + encodeURIComponent(v.username);
       var qr = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(url);
       var pi = (plans.data || []).find(function(p) { return p.id === v.plan_id; });
-      var planName = v.plan_name || (pi ? pi.name : 'Standard');
-      var durHrs = pi ? (pi.duration_days * 24) : 720;
+      var pname = pi ? pi.name : 'Standard';
+      var durStr = pi ? (pi.duration_value + ' ' + pi.duration_unit) : '30 days';
       return '<div class="card">' +
         '<img src="' + qr + '" alt="QR" />' +
         '<div class="cred" style="font-weight:bold;font-size:14px;margin:8px 0;">' + v.username + '</div>' +
-        '<div style="font-size:11px;color:#666;">' + planName + ' \u00b7 ' + durHrs + 'h</div>' +
+        '<div style="font-size:11px;color:#666;">' + pname + ' - ' + durStr + '</div>' +
       '</div>';
     }).join("");
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Voucher QR Codes</title>' +
@@ -702,7 +702,7 @@ export default function ResellerApp({ session, onExit, notify }) {
           </div>
           {voucherGenForm.planId && (
             <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12 }}>
-              Duration: {(plans.data?.find(p => p.id === voucherGenForm.planId)?.duration_days || 30)} days
+              Duration: {plans.data?.find(p => p.id === voucherGenForm.planId)?.duration_value || 30} {plans.data?.find(p => p.id === voucherGenForm.planId)?.duration_unit || 'days'}
             </div>
           )}
           <Btn onClick={generateVouchers}><Users size={14} /> Generate vouchers</Btn>

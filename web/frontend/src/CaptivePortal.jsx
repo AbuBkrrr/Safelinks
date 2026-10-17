@@ -493,12 +493,12 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   a.click();
                   document.body.removeChild(a);
                 } else {
-                  window.location.href = dst;
+                  window.open(dst, '_blank');
                 }
               }} style={{ width: "100%", justifyContent: "center", padding: "13px 0", fontSize: 15 }}>
                 🚀 {t(lang, "startBrowsing") || "Start Browsing"}
               </Btn>
-              <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>{t(lang, "redirecting") || "You will be redirected to the login page and connected automatically."}</div>
+              <div style={{ fontSize: 11, color: T.sub, marginTop: 12 }}>If the internet does not load immediately, wait 30 seconds for the router to sync, then try again.</div>
             </div>
           )}
         </div>

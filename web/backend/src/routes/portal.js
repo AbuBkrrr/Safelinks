@@ -113,6 +113,7 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     const resellerId = params.resellerId;
     const { voucherCode, clientMac } = body || {};
     if (!voucherCode) return json(res, 400, { error: "Voucher code is required" });
+    if (!clientMac) return json(res, 400, { error: "Missing device MAC. Please reconnect to the WiFi." });
 
     const voucher = await db.prepare("SELECT * FROM vouchers WHERE username = ? AND reseller_id = ? AND status = 'active'").get(voucherCode, resellerId);
     if (!voucher) return json(res, 404, { error: "Invalid or inactive voucher code." });

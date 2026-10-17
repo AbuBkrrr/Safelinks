@@ -175,7 +175,7 @@ export function registerAgentRoutes(router) {
         let p = {};
         try { p = JSON.parse(c.payload || "{}"); } catch (_) {}
         if (c.type === "bind_mac") {
-          const mac = String(p.username || p.mac || "");
+          const mac = String(p.username || p.mac || "").toUpperCase();
           const exp = String(p.password || p.expiresAt || "");
           if (!mac) { await db.prepare("UPDATE router_commands SET status='dropped' WHERE id=?").run(c.id); continue; }
           const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
@@ -190,7 +190,7 @@ export function registerAgentRoutes(router) {
             lines.push("/ip hotspot ip-binding add mac-address=" + mac + " type=bypassed comment=\"SAFELinks\"");
           }
         } else if (c.type === "unbind_mac") {
-          const mac = String(p.username || p.mac || "");
+          const mac = String(p.username || p.mac || "").toUpperCase();
           const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
           if (mac) {
             lines.push("/ip hotspot ip-binding remove [find mac-address=" + mac + "]");
