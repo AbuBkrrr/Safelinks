@@ -108,6 +108,37 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     }
   });
 
+  // POST /api/portal/:resellerId/redeem — allows a client to enter a voucher code directly
+  router.post("/api/portal/:resellerId/redeem", async (req, res, { params, body }) => {
+    const resellerId = params.resellerId;
+    const { voucherCode, clientMac } = body || {};
+    if (!voucherCode) return json(res, 400, { error: "Voucher code is required" });
+
+    const voucher = await db.prepare("SELECT * FROM vouchers WHERE username = ? AND reseller_id = ? AND status = 'active'").get(voucherCode, resellerId);
+    if (!voucher) return json(res, 404, { error: "Invalid or inactive voucher code." });
+    if (Number(voucher.expires_at) < Date.now()) return json(res, 400, { error: "This voucher has expired." });
+
+    // Bind the client's MAC if provided
+    if (clientMac) {
+      const isoExpiry = new Date(Number(voucher.expires_at)).toISOString().slice(0, 19);
+      const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+      const now = Date.now();
+      for (const r of routers) {
+        await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
+          .run(id("cmd"), r.router_id, "bind_mac", JSON.stringify({ username: clientMac, password: isoExpiry }), "pending", now);
+      }
+    }
+    
+    // Also create the hotspot user so they can log in manually if needed
+    const routers2 = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
+    for (const r of routers2) {
+      await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
+        .run(id("cmd"), r.router_id, "create_user", JSON.stringify({ username: voucher.username, password: voucher.password || voucher.username }), "pending", Date.now());
+    }
+
+    return json(res, 200, { ok: true, voucher });
+  });
+
   // POST /api/portal/:resellerId/signup
   // body: { name, email, phone, business, planId, method, reference }
   // Always creates a pending_activations row â€” nothing is issued until

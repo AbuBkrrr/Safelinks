@@ -95,6 +95,7 @@ export const api = {
   portalSignup: (resellerId, body) => post(`/api/portal/${resellerId}/signup`, body, { auth: false }),
   portalSupport: (resellerId, body) => post(`/api/portal/${resellerId}/support`, body, { auth: false }),
   portalUploadReceipt: (resellerId, body) => post(`/api/portal/${resellerId}/upload-receipt`, body, { auth: false }),
+  portalRedeemVoucher: (resellerId, body) => post(`/api/portal/${resellerId}/redeem`, body, { auth: false }),
   portalUploadSupportAttachment: (resellerId, body) => post(`/api/portal/${resellerId}/support/upload`, body, { auth: false }),
 
   // --- Super Admin ---

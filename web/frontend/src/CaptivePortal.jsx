@@ -140,6 +140,27 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     setProcessing(false);
   }
 
+  const [autoRedeeming, setAutoRedeeming] = useState(false);
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vCode = params.get('voucher');
+    if (!vCode || !clientMac || autoRedeeming) return;
+    
+    setAutoRedeeming(true);
+    setProcessing(true);
+    api.portalRedeemVoucher(resellerId, { voucherCode: vCode, clientMac })
+      .then(res => {
+        setVoucher(res.voucher);
+        setStep('confirmed');
+      })
+      .catch(err => {
+        setError(err.message || "Invalid voucher code");
+        setAutoRedeeming(false);
+      })
+      .finally(() => setProcessing(false));
+  }, [clientMac, resellerId]);
+
   // Poll backend for confirmation (every 3s while waiting)
   useEffect(() => {
     if (step !== "waiting" || !pendingId) return;
@@ -446,9 +467,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 16 }}>{t(lang, "yourCredentials") || "Your internet is ready to activate."}</div>
               <div style={{ background: T.bg, borderRadius: 10, padding: 14, marginBottom: 14, textAlign: "left", fontSize: 13 }}>
                 <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "usernameLabel") || "Username"}</div>
-                <div style={{ fontFamily: "monospace", fontWeight: 700, marginBottom: 12, fontSize: 15 }}>{voucher.username}</div>
-                <div style={{ marginBottom: 6, color: T.sub, fontSize: 12 }}>{t(lang, "passwordLabel") || "Password"}</div>
-                <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 15 }}>{voucher.password}</div>
+                <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 18, textAlign: "center", padding: "10px 0" }}>{voucher.username}</div>
               </div>
               <Btn onClick={() => {
                 /* __directToDst — client is already online via MAC bypass;
