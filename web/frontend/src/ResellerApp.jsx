@@ -206,13 +206,13 @@ export default function ResellerApp({ session, onExit, notify }) {
   }
 
   function downloadVouchersCsv() {
-    if (!generatedVouchers || !generatedVouchers.length) return;
-    const header = "Username,Password,Plan,Expires At\n";
-    const rows = generatedVouchers.map(v => {
-      const plan = (plans.data || []).find(p => p.id === v.plan_id);
-      const planName = plan ? plan.name : v.plan_id;
+    const list = (generatedVouchers && generatedVouchers.length > 0) ? generatedVouchers : (vouchers.data || []);
+    if (!list.length) return;
+    const header = "Voucher Code,Password,Plan,Expires At\n";
+    const rows = list.map(v => {
+      const planName = v.plan_name || ((plans.data || []).find(p => p.id === v.plan_id)?.name) || 'Standard';
       const exp = v.expires_at ? new Date(Number(v.expires_at)).toISOString() : '';
-      return v.username + "," + v.password + "," + planName + "," + exp;
+      return v.username + "," + (v.password || "") + "," + planName + "," + exp;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -224,18 +224,19 @@ export default function ResellerApp({ session, onExit, notify }) {
   }
 
   function downloadQrCodes() {
-    if (!generatedVouchers || !generatedVouchers.length) return;
+    const list = (generatedVouchers && generatedVouchers.length > 0) ? generatedVouchers : (vouchers.data || []);
+    if (!list.length) return;
     const rid = session?.user?.id || session?.user?.resellerId || "";
-    const cards = generatedVouchers.map(function(v) {
+    const cards = list.map(function(v) {
       var url = "https://www.safelinks.name.ng/portal/" + encodeURIComponent(rid) + "?voucher=" + encodeURIComponent(v.username);
       var qr = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" + encodeURIComponent(url);
       var pi = (plans.data || []).find(function(p) { return p.id === v.plan_id; });
-      var pname = pi ? pi.name : 'Standard';
+      var planName = v.plan_name || (pi ? pi.name : 'Standard');
       var durHrs = pi ? (pi.duration_days * 24) : 720;
       return '<div class="card">' +
         '<img src="' + qr + '" alt="QR" />' +
         '<div class="cred" style="font-weight:bold;font-size:14px;margin:8px 0;">' + v.username + '</div>' +
-        '<div style="font-size:11px;color:#666;">' + pname + ' · ' + durHrs + 'h</div>' +
+        '<div style="font-size:11px;color:#666;">' + planName + ' \u00b7 ' + durHrs + 'h</div>' +
       '</div>';
     }).join("");
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Voucher QR Codes</title>' +
@@ -733,12 +734,19 @@ export default function ResellerApp({ session, onExit, notify }) {
         </Panel>
       )}
       {tab === "vouchers" && (
-        <Panel title="Vouchers" action={<Badge tone={T.primary}>{(vouchers.data || []).length} issued</Badge>}>
+        <Panel title="Vouchers" action={<Badge tone={T.primary}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ fontSize: 12.5, color: T.sub }}>Manage your issued vouchers. Click QR to view the code.</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={downloadVouchersCsv} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 500 }}>Download CSV</button>
+              <button onClick={downloadQrCodes} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 500 }}>Download QR Codes</button>
+            </div>
+          </div>{(vouchers.data || []).length} issued</Badge>}>
           {vouchers.loading ? <Loading /> : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: "left", color: T.sub, fontSize: 11.5, textTransform: "uppercase" }}>
-                  <th style={{ padding: "6px 8px" }}>Username</th><th>Password</th><th>Plan</th><th>Sessions</th><th>Expires</th><th>Status</th><th></th>
+                  <th style={{ padding: "6px 8px" }}>Voucher Code</th><th>Plan</th><th>Sessions</th><th>Expires</th><th>Status</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -749,11 +757,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                       <td style={{ padding: "10px 8px", fontWeight: 600, fontFamily: "monospace" }}>{v.username}
                         <div style={{ fontWeight: 400, color: T.sub, fontSize: 11.5, fontFamily: "inherit" }}>{v.business}</div>
                       </td>
-                      <td style={{ fontFamily: "monospace", fontSize: 12 }}>
-                        <span onClick={() => setRevealPw((p) => ({ ...p, [v.id]: !p[v.id] }))} style={{ cursor: "pointer" }}>
-                          {revealed ? v.password : "••••••••"}
-                        </span>
-                      </td>
+                      
                       <td>{v.plan_name || "—"} <span style={{ color: T.sub, fontSize: 11 }}>({v.device_limit} devices)</span></td>
                       <td>{v.session_count}</td>
                       <td style={{ color: Number(v.expires_at) < Date.now() ? T.danger : T.sub }}>{v.expires_at ? new Date(Number(v.expires_at)).toLocaleDateString() : '—'}</td>
@@ -765,6 +769,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                           ) : v.status === "paused" ? (
                             <Btn size="sm" variant="soft" tone={T.success} onClick={() => setVoucherStatus(v.id, "active")}><Play size={11} /></Btn>
                           ) : null}
+                          <Btn size="sm" variant="ghost" onClick={() => window.open('https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent('https://www.safelinks.name.ng/portal/' + (session?.user?.id || '') + '?voucher=' + v.username), '_blank')}>QR</Btn>
                           <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => deleteVoucher(v.id)}><Trash2 size={12} /></Btn>
                         </div>
                       </td>

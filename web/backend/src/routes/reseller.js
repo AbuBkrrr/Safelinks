@@ -127,9 +127,17 @@ router.get("/api/reseller/vouchers", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     const voucher = await db.prepare("SELECT username FROM vouchers WHERE id = ? AND reseller_id = ?").get(params.id, resellerId);
     if (!voucher) return json(res, 404, { error: "Voucher not found" });
-    await db.prepare("DELETE FROM vouchers WHERE id = ? AND reseller_id = ?").run(params.id, resellerId);
-    await enqueueCommandForReseller(resellerId, "delete_user", { username: voucher.username });
-    json(res, 200, { ok: true });
+    try {
+      await db.prepare("DELETE FROM sessions WHERE voucher_id = ?").run(params.id);
+      await db.prepare("DELETE FROM client_devices WHERE voucher_id = ?").run(params.id);
+      await db.prepare("DELETE FROM delivery_logs WHERE voucher_id = ?").run(params.id);
+      await db.prepare("DELETE FROM payments WHERE user_type = 'voucher' AND user_id = ?").run(params.id);
+      await db.prepare("DELETE FROM vouchers WHERE id = ? AND reseller_id = ?").run(params.id, resellerId);
+      await enqueueCommandForReseller(resellerId, "delete_user", { username: voucher.username });
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 500, { error: String(e.message || e) });
+    }
   });
 
   // --- Active sessions ---
@@ -598,10 +606,15 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       // Always create the hotspot user (fallback for clients without MAC)
       await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth });
       // Zero-click bypass — payload uses username key + ISO expiry in password slot
-      if (pending.client_mac) {
+      let targetMac = pending.client_mac;
+      if (!targetMac) {
+        const sess = await db.prepare("SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1").get(resellerId);
+        if (sess && sess.mac) targetMac = sess.mac;
+      }
+      if (targetMac) {
         const isoExpiry = new Date(voucherExpiresAt).toISOString().slice(0, 19);
         await enqueueCommandForReseller(resellerId, "bind_mac", {
-          username: pending.client_mac,
+          username: targetMac,
           password: isoExpiry
         });
       }
