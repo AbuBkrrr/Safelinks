@@ -188,6 +188,8 @@ export function registerAgentRoutes(router) {
           await db.prepare("UPDATE router_commands SET status='dropped' WHERE id=?").run(c.id);
           continue;
         }
+        // Tell the router to acknowledge the command so it doesn't stay stuck
+        lines.push(':do { /tool fetch url="' + base + '/api/agent/command/' + c.id + '/ack" http-method=post http-data="status=completed" output=none } on-error={}');
         await db.prepare("UPDATE router_commands SET status='sent' WHERE id=?").run(c.id);
       }
       return text(res, 200, lines.join("\n") + "\n");

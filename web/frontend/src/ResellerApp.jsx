@@ -647,7 +647,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                       </td>
                       <td>{v.plan_name || "—"} <span style={{ color: T.sub, fontSize: 11 }}>({v.device_limit} devices)</span></td>
                       <td>{v.session_count}</td>
-                      <td style={{ color: v.expires_at < Date.now() ? T.danger : T.sub }}>{new Date(v.expires_at).toLocaleDateString()}</td>
+                      <td style={{ color: Number(v.expires_at) < Date.now() ? T.danger : T.sub }}>{v.expires_at ? new Date(Number(v.expires_at)).toLocaleDateString() : '—'}</td>
                       <td><Badge tone={statusColor(v.status)}>{v.status}</Badge></td>
                       <td>
                         <div style={{ display: "flex", gap: 4 }}>
