@@ -717,19 +717,28 @@ document.getElementById('btn-signup').onclick = async () => {
 // ============ Success screen actions ============
 (function () {
   var b1 = document.getElementById('btn-success-dashboard');
-  if (b1) b1.onclick = async function () {
+  if (b1) b1.onclick = function () {
     var tok = localStorage.getItem('auth_token') || '';
-    try { await invoke('open_dashboard', { token: tok }); } catch (e) { alert('Could not open dashboard: ' + e); }
+    var frame = document.getElementById('dashboard-frame');
+    if (frame) {
+      frame.src = 'https://www.safelinks.name.ng/?token=' + encodeURIComponent(tok);
+    }
+    show('dashboard');
   };
   var b2 = document.getElementById('btn-success-portal');
   if (b2) b2.onclick = function () {
     var rid = localStorage.getItem('reseller_id') || '';
     var u = 'https://www.safelinks.name.ng/portal/' + encodeURIComponent(rid);
-    var d = 'safelinks-installer://open?url=' + encodeURIComponent(u);
-    var a = document.createElement('a');
-    a.href = d; a.style.display = 'none';
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
+    try {
+      // Use Tauri shell plugin to open the system browser safely
+      if (window.__TAURI__ && window.__TAURI__.shell) {
+        window.__TAURI__.shell.open(u);
+      } else {
+        window.open(u, '_blank');
+      }
+    } catch (e) {
+      alert('Could not open portal: ' + e);
+    }
   };
   var b3 = document.getElementById('btn-success-signout');
   if (b3) b3.onclick = async function () {
