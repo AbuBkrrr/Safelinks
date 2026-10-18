@@ -51,7 +51,26 @@ export function registerRouterRoutes(router) {
     ).run(body.status, Date.now(), params.id, rt.router_id);
     if (result.changes === 0) return json(res, 404, { error: "Command not found for this router" });
 
-    if (body.status === "failed") {
+    // ===== WHEN MAC BINDING EXECUTED: START VOUCHER EXPIRY CLOCK =====
+    if (body.status === "executed") {
+      const cmd = await db.prepare("SELECT type FROM router_commands WHERE id = ?").get(params.id);
+      if (cmd?.type === "bind_mac") {
+        try {
+          // Voucher expires 30 days from FIRST internet access (now)
+          const durationMs = 30 * 24 * 60 * 60 * 1000;
+          const now = Date.now();
+          const newExpiresAt = now + durationMs;
+          
+          // Update vouchers created recently for this reseller
+          const twoMinutesAgo = now - 2 * 60 * 1000;
+          await db.prepare(
+            "UPDATE vouchers SET expires_at = ? WHERE reseller_id = ? AND created_at > ? AND status = 'active' AND expires_at > ?"
+          ).run(newExpiresAt, rt.reseller_id, twoMinutesAgo, now);
+        } catch (e) {
+          console.error("[voucher-start-expiry] Error:", e.message);
+        }
+      }
+    }
       const reseller = await db.prepare("SELECT company_name FROM resellers WHERE id = ?").get(rt.reseller_id);
       const cmd = await db.prepare("SELECT type FROM router_commands WHERE id = ?").get(params.id);
       await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")

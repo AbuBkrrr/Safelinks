@@ -37,7 +37,9 @@ async function fulfillVoucherPayment(paymentRow, verified) {
     : null;
 
   const durationDays = plan?.duration_days || 30;
-  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+  // IMPORTANT: Expiry will be set when user FIRST accesses internet (router confirms MAC bypass)
+  // For now, set to far future; router will update when MAC binding confirmed
+  const expiresAt = now + (100 * 365 * 24 * 60 * 60 * 1000); // 100 years (placeholder)
 
   await db.prepare(
     `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at)

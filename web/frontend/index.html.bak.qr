@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SAFE_Links</title>
+
+    <!-- Installability: /install (reseller's router installer) and every
+         other route (Super Admin / Reseller dashboards) are each installable
+         as their own standalone app/webview, with their own icon and name.
+         This picks the right manifest + icons before paint so there's no
+         flash of the wrong one, and works whether it's a fresh load or a
+         client-side route already active. -->
+    <script>
+      (function () {
+        var isInstaller = window.location.pathname.replace(/\/$/, "") === "/install";
+        var manifest = isInstaller ? "/manifest-installer.webmanifest" : "/manifest-admin.webmanifest";
+        var icon = isInstaller ? "/icons/icon-installer-192.png" : "/icons/icon-192.png";
+        var theme = isInstaller ? "#667eea" : "#764ba2";
+        var title = isInstaller ? "SAFE_Links Installer" : "SAFE_Links Admin";
+
+        var link = document.createElement("link");
+        link.rel = "manifest";
+        link.href = manifest;
+        document.head.appendChild(link);
+
+        var appleIcon = document.createElement("link");
+        appleIcon.rel = "apple-touch-icon";
+        appleIcon.href = icon;
+        document.head.appendChild(appleIcon);
+
+        var themeMeta = document.createElement("meta");
+        themeMeta.name = "theme-color";
+        themeMeta.content = theme;
+        document.head.appendChild(themeMeta);
+
+        var capable = document.createElement("meta");
+        capable.name = "apple-mobile-web-app-capable";
+        capable.content = "yes";
+        document.head.appendChild(capable);
+
+        var statusBar = document.createElement("meta");
+        statusBar.name = "apple-mobile-web-app-status-bar-style";
+        statusBar.content = "black-translucent";
+        document.head.appendChild(statusBar);
+
+        var appleTitle = document.createElement("meta");
+        appleTitle.name = "apple-mobile-web-app-title";
+        appleTitle.content = title;
+        document.head.appendChild(appleTitle);
+      })();
+    </script>
+  </head>
+  <body style="margin:0">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

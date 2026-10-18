@@ -1,0 +1,513 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261011121633
+Username: DESKTOP-4DOU3HI\DELL
+RunAs User: DESKTOP-4DOU3HI\DELL
+Configuration Name: 
+Machine: DESKTOP-4DOU3HI (Microsoft Windows NT 10.0.22621.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 18460
+PSVersion: 5.1.22621.4249
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.4249
+BuildVersion: 10.0.22621.4249
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n=============================================================" -ForegroundColor Magenta
+
+=============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "  SAFE_Links COMPREHENSIVE SYSTEM AUDIT" -ForegroundColor Magenta
+  SAFE_Links COMPREHENSIVE SYSTEM AUDIT
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "  $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor Magenta
+  2026-10-11 12:16:35
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "  Report file: $out" -ForegroundColor Magenta
+  Report file: C:\Users\DELL\Downloads\safe-links-updated\AUDIT-20261011-121620.txt
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "=============================================================" -ForegroundColor Magenta
+=============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION A — INSTALLER (Tauri native app)
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION A: INSTALLER ################" -ForegroundColor Yellow
+
+
+################ SECTION A: INSTALLER ################
+PS C:\Users\DELL\Downloads\safe-links-updated> $inst = "$root\installer"
+PS C:\Users\DELL\Downloads\safe-links-updated> # A1. Rust module files
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A1. Rust modules ---" -ForegroundColor Cyan
+
+--- A1. Rust modules ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$inst\src-tauri\src" -Filter "*.rs" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-22} {1,6} bytes" -f $_.Name, $_.Length)
+}
+   auth.rs                   820 bytes
+   auto_config.rs          10127 bytes
+   commands.rs              5938 bytes
+   discover.rs              6928 bytes
+   fingerprint.rs          11891 bytes
+   lib.rs                   3670 bytes
+   main.rs                  1886 bytes
+   preflight.rs             4009 bytes
+   router.rs               16096 bytes
+   scanner.rs               2922 bytes
+   ssh.rs                   1255 bytes
+   ssh_client.rs            5158 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> # A2. Tauri commands DEFINED in Rust
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A2. Tauri commands DEFINED in Rust ---" -ForegroundColor Cyan
+
+--- A2. Tauri commands DEFINED in Rust ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $defined = @()
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$inst\src-tauri\src" -Filter "*.rs" | ForEach-Object {
+    $file = $_.Name
+    $lines = Get-Content $_.FullName
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        if ($lines[$i] -match '#\[tauri::command\]') {
+            for ($j = $i + 1; $j -lt [Math]::Min($i + 4, $lines.Length); $j++) {
+                if ($lines[$j] -match 'pub\s+(async\s+)?fn\s+([a-z_][a-z0-9_]*)') {
+                    $defined += $matches[2]
+                    Write-Host ("   {0,-22} :: {1}" -f $file, $matches[2])
+                    break
+                }
+            }
+        }
+    }
+}
+   commands.rs            :: local_info
+   commands.rs            :: scan_lan
+   commands.rs            :: probe_router
+   commands.rs            :: installer_auto_configure
+   preflight.rs           :: check_prerequisites
+   router.rs              :: installer_router_test_ssh
+   router.rs              :: installer_router_apply_config
+   router.rs              :: installer_router_check_status
+   router.rs              :: installer_save_rsc
+   ssh.rs                 :: scripts_info
+PS C:\Users\DELL\Downloads\safe-links-updated> # A3. Commands REGISTERED in lib.rs
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A3. Commands REGISTERED in lib.rs ---" -ForegroundColor Cyan
+
+--- A3. Commands REGISTERED in lib.rs ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $lib = Get-Content "$inst\src-tauri\src\lib.rs" -Raw
+PS C:\Users\DELL\Downloads\safe-links-updated> $regMatches = [regex]::Matches($lib, '(\w+)::(\w+),')
+PS C:\Users\DELL\Downloads\safe-links-updated> $registered = @()
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($m in $regMatches) {
+    $registered += $m.Groups[2].Value
+    Write-Host ("   {0}::{1}" -f $m.Groups[1].Value, $m.Groups[2].Value)
+}
+   commands::local_info
+   commands::scan_lan
+   commands::probe_router
+   commands::installer_auto_configure
+   preflight::check_prerequisites
+   router::installer_save_rsc
+   router::installer_router_test_ssh
+   router::installer_router_apply_config
+   router::installer_router_check_status
+   ssh::scripts_info
+   auth::store_credentials
+   auth::store_google_session
+   auth::load_credentials
+   auth::clear_credentials
+   auth::login_and_store
+   auth::try_auto_login
+   auth::open_dashboard
+   auth::open_google_signin
+   auth::open_forgot_password
+   auth::open_signup
+PS C:\Users\DELL\Downloads\safe-links-updated> # A4. Commands CALLED by ui/index.html
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A4. Commands INVOKED by ui/index.html ---" -ForegroundColor Cyan
+
+--- A4. Commands INVOKED by ui/index.html ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $html = [System.IO.File]::ReadAllText("$inst\ui\index.html", [System.Text.Encoding]::UTF8)
+PS C:\Users\DELL\Downloads\safe-links-updated> $calls = [regex]::Matches($html, "invoke\(\s*['""]([a-z_][a-z0-9_]*)['""]") | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($c in $calls) { Write-Host "   $c" }
+PS C:\Users\DELL\Downloads\safe-links-updated> # A5. Gap matrix
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A5. GAP MATRIX ---" -ForegroundColor Cyan
+
+--- A5. GAP MATRIX ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $orphanDefs = $defined | Where-Object { $registered -notcontains $_ }
+PS C:\Users\DELL\Downloads\safe-links-updated> $orphanRegs = $registered | Where-Object { $defined -notcontains $_ }
+PS C:\Users\DELL\Downloads\safe-links-updated> $missingCalls = $calls | Where-Object { $registered -notcontains $_ }
+>> CommandInvocation(Out-Null): "Out-Null"
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "   Defined but NOT registered (orphan Rust code):" -ForegroundColor Yellow
+   Defined but NOT registered (orphan Rust code):
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($orphanDefs) { $orphanDefs | ForEach-Object { Write-Host "      - $_" -ForegroundColor Red } } else { Write-Host "      (none)" -ForegroundColor Green }
+      (none)
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "   Registered but NOT defined (would crash if called):" -ForegroundColor Yellow
+   Registered but NOT defined (would crash if called):
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($orphanRegs) { $orphanRegs | ForEach-Object { Write-Host "      - $_" -ForegroundColor Red } } else { Write-Host "      (none)" -ForegroundColor Green }
+      - store_credentials
+      - store_google_session
+      - load_credentials
+      - clear_credentials
+      - login_and_store
+      - try_auto_login
+      - open_dashboard
+      - open_google_signin
+      - open_forgot_password
+      - open_signup
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "   UI calls but NOT registered (would error at runtime):" -ForegroundColor Yellow
+   UI calls but NOT registered (would error at runtime):
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($missingCalls) { $missingCalls | ForEach-Object { Write-Host "      - $_" -ForegroundColor Red } } else { Write-Host "      (none)" -ForegroundColor Green }
+      (none)
+PS C:\Users\DELL\Downloads\safe-links-updated> # A6. Buttons in installer UI
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A6. Buttons in ui/index.html ---" -ForegroundColor Cyan
+
+--- A6. Buttons in ui/index.html ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $btnMatches = [regex]::Matches($html, '<button[^>]*id="([^"]+)"[^>]*>([^<]*)</button>')
+PS C:\Users\DELL\Downloads\safe-links-updated> if ($btnMatches.Count -eq 0) { Write-Host "   (no buttons with id found)" -ForegroundColor DarkGray }
+   (no buttons with id found)
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($bm in $btnMatches) {
+    Write-Host ("   id={0,-24} label='{1}'" -f $bm.Groups[1].Value, $bm.Groups[2].Value.Trim())
+}
+PS C:\Users\DELL\Downloads\safe-links-updated> # A7. Modal/panel presence markers
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A7. UI sections present in ui/index.html ---" -ForegroundColor Cyan
+
+--- A7. UI sections present in ui/index.html ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $markers = @(
+    "installerLoginPanel","licensePanel","billingPanel","scanSection",
+    "configModal","cfg-modal","cfg-readiness","cfg-checks","cfg-check","cfg-repair",
+    "openCfgModal","installer_license_initiate","installer_save_rsc",
+    "installer_router_check_status","installer_router_test_ssh","autoConnectAndCheck"
+)
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($mk in $markers) {
+    $present = $html.Contains($mk)
+    Write-Host ("   [{0}] {1}" -f $(if($present){"OK  "}else{"MISS"}), $mk) -ForegroundColor $(if($present){"Green"}else{"Red"})
+}
+   [MISS] installerLoginPanel
+   [MISS] licensePanel
+   [MISS] billingPanel
+   [MISS] scanSection
+   [MISS] configModal
+   [MISS] cfg-modal
+   [MISS] cfg-readiness
+   [MISS] cfg-checks
+   [MISS] cfg-check
+   [MISS] cfg-repair
+   [MISS] openCfgModal
+   [MISS] installer_license_initiate
+   [MISS] installer_save_rsc
+   [MISS] installer_router_check_status
+   [MISS] installer_router_test_ssh
+   [MISS] autoConnectAndCheck
+PS C:\Users\DELL\Downloads\safe-links-updated> # A8. Router scripts (embedded in installer)
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- A8. Router scripts embedded in installer ---" -ForegroundColor Cyan
+
+--- A8. Router scripts embedded in installer ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$inst\src-tauri\resources" -Filter "*.rsc" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-32} {1,6} bytes" -f $_.Name, $_.Length)
+}
+   safelinks-agent.rsc               10659 bytes
+   safelinks-configure.rsc            9939 bytes
+   safelinks-configure.template.rsc   7217 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION B — WEB FRONTEND
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION B: WEB FRONTEND ################" -ForegroundColor Yellow
+
+
+################ SECTION B: WEB FRONTEND ################
+PS C:\Users\DELL\Downloads\safe-links-updated> $fe = "$root\web\frontend"
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- B1. Frontend src files ---" -ForegroundColor Cyan
+
+--- B1. Frontend src files ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$fe\src" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-32} {1,8} bytes" -f $_.Name, $_.Length)
+}
+   api.js                              11327 bytes
+   App.jsx                              8342 bytes
+   CaptivePortal.jsx                   13942 bytes
+   dashboardI18n.js                    27561 bytes
+   ErrorBoundary.jsx                    2314 bytes
+   ForgotPassword.jsx                   7591 bytes
+   GoogleAuthButton.jsx                 1151 bytes
+   hooks.js                             1043 bytes
+   i18n.js                             10491 bytes
+   InstallerWizard.jsx                 11494 bytes
+   LanAutoPair.jsx                      7679 bytes
+   Login.jsx                            3326 bytes
+   main.jsx                              608 bytes
+   PaymentButton.jsx                    3855 bytes
+   PaymentCallback.jsx                  3116 bytes
+   ResellerApp.jsx                     69874 bytes
+   Signup.jsx                           6094 bytes
+   StandaloneInstaller.jsx              2545 bytes
+   SuperAdminApp.jsx                   54143 bytes
+   ui.jsx                              27869 bytes
+   VerifyEmail.jsx                      4629 bytes
+   VoiceAssistant.jsx                   8442 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$fe\src" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-32} [directory]" -f $_.Name) -ForegroundColor DarkGray
+}
+   components                       [directory]
+   offline                          [directory]
+   pages                            [directory]
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- B2. API methods referenced in frontend ---" -ForegroundColor Cyan
+
+--- B2. API methods referenced in frontend ---
+PS C:\Users\DELL\Downloads\safe-links-updated> $apis = @()
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$fe\src" -Recurse -Include "*.jsx","*.js" -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch "node_modules" } |
+    ForEach-Object {
+        $content = Get-Content $_.FullName -Raw
+        $ms = [regex]::Matches($content, 'api\.(\w+)\.(\w+)')
+        foreach ($m in $ms) {
+            $apis += $m.Groups[1].Value + "." + $m.Groups[2].Value
+        }
+    }
+PS C:\Users\DELL\Downloads\safe-links-updated> $apis | Sort-Object -Unique | ForEach-Object { Write-Host "   api.$_" }
+   api.admin.decideLicensePayment
+   api.admin.downloadProductKeys
+   api.admin.generateProductKeys
+   api.admin.installations
+   api.admin.licensePayments
+   api.admin.markNotificationRead
+   api.admin.markNotificationsRead
+   api.admin.markReferralPaid
+   api.admin.monitoring
+   api.admin.notifications
+   api.admin.planPrices
+   api.admin.platformPlans
+   api.admin.productKeySummary
+   api.admin.referrals
+   api.admin.resellers
+   api.admin.revokeProductKeyBatch
+   api.admin.sendSupportMessage
+   api.admin.sessions
+   api.admin.setResellerStatus
+   api.admin.setSupportStatus
+   api.admin.settings
+   api.admin.support
+   api.admin.updatePlanPrice
+   api.admin.updatePlatformPlan
+   api.admin.updateReferralBonus
+   api.admin.updateSettings
+   api.admin.uploadSupportAttachment
+   api.reseller.billing
+   api.reseller.createPairingCode
+   api.reseller.createPlan
+   api.reseller.createReferral
+   api.reseller.createSupportTicket
+   api.reseller.customerSupport
+   api.reseller.decidePendingActivation
+   api.reseller.deletePlan
+   api.reseller.deleteReferral
+   api.reseller.deleteVoucher
+   api.reseller.deliveryLogs
+   api.reseller.disconnectSession
+   api.reseller.license
+   api.reseller.markNotificationRead
+   api.reseller.markNotificationsRead
+   api.reseller.notifications
+   api.reseller.pairingCodeStatus
+   api.reseller.pendingActivations
+   api.reseller.plans
+   api.reseller.platformBankInfo
+   api.reseller.platformPlans
+   api.reseller.portalSettings
+   api.reseller.redeemProductKey
+   api.reseller.referrals
+   api.reseller.registerRouter
+   api.reseller.renewLicense
+   api.reseller.retryDelivery
+   api.reseller.routers
+   api.reseller.sendCustomerSupportMessage
+   api.reseller.sendSupportMessage
+   api.reseller.sessions
+   api.reseller.setCustomerSupportStatus
+   api.reseller.setSupportStatus
+   api.reseller.setVoucherStatus
+   api.reseller.support
+   api.reseller.updatePlan
+   api.reseller.updatePortalSettings
+   api.reseller.uploadReceipt
+   api.reseller.uploadSupportAttachment
+   api.reseller.vouchers
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION C — WEB BACKEND
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION C: WEB BACKEND ################" -ForegroundColor Yellow
+
+
+################ SECTION C: WEB BACKEND ################
+PS C:\Users\DELL\Downloads\safe-links-updated> $be = "$root\web\backend"
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- C1. Backend route files ---" -ForegroundColor Cyan
+
+--- C1. Backend route files ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$be\src\routes" -Filter "*.js" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-32} {1,8} bytes" -f $_.Name, $_.Length)
+}
+   agent.js                             7866 bytes
+   auth.js                             23292 bytes
+   installer.js                         7086 bytes
+   installerPlanConfig.js               4621 bytes
+   payments.js                         11872 bytes
+   planPrices.js                        6455 bytes
+   portal.js                            7799 bytes
+   reseller.js                         40082 bytes
+   router.js                            4941 bytes
+   superAdmin.js                       25596 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- C2. Backend module files ---" -ForegroundColor Cyan
+
+--- C2. Backend module files ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$be\src\modules" -Filter "*.js" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-32} {1,8} bytes" -f $_.Name, $_.Length)
+}
+   license-manager.js                   2932 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- C3. Router scripts (server-side copies) ---" -ForegroundColor Cyan
+
+--- C3. Router scripts (server-side copies) ---
+PS C:\Users\DELL\Downloads\safe-links-updated> Get-ChildItem "$be\router-scripts" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host ("   {0,-40} {1,8} bytes" -f $_.Name, $_.Length)
+}
+   README.md                                    3263 bytes
+   safelinks-agent-linux.sh                     7122 bytes
+   safelinks-agent.rsc                         10659 bytes
+   safelinks-configure.rsc                      5675 bytes
+   safelinks-configure.sh                       1713 bytes
+   safelinks-detect.rsc                         1181 bytes
+   safelinks-detect.sh                           843 bytes
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION D — ROUTER SCRIPT CONTENT
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION D: ROUTER SCRIPT ################" -ForegroundColor Yellow
+
+
+################ SECTION D: ROUTER SCRIPT ################
+PS C:\Users\DELL\Downloads\safe-links-updated> $rscPath = "$inst\src-tauri\resources\safelinks-configure.rsc"
+PS C:\Users\DELL\Downloads\safe-links-updated> if (Test-Path $rscPath) {
+    $rsc = [System.IO.File]::ReadAllText($rscPath, [System.Text.Encoding]::UTF8)
+    Write-Host "`n--- D1. safelinks-configure.rsc — section markers ---" -ForegroundColor Cyan
+    $lines = $rsc -split "`r?`n"
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        if ($lines[$i] -match '^\s*#\s*---\s*\d+\.') {
+            Write-Host ("   line {0,4}: {1}" -f ($i+1), $lines[$i].Trim())
+        }
+    }
+
+    Write-Host "`n--- D2. Key variables & fallbacks ---" -ForegroundColor Cyan
+    $lines | Select-String -Pattern '^:global|^:if \(\[:typeof' | ForEach-Object { Write-Host "   $($_.Line)" }
+
+    Write-Host "`n--- D3. Walled garden entries ---" -ForegroundColor Cyan
+    $lines | Select-String -Pattern 'walled-garden' | ForEach-Object { Write-Host "   $($_.Line)" }
+
+    Write-Host "`n--- D4. File writes (hotspot HTML pages) ---" -ForegroundColor Cyan
+    $lines | Select-String -Pattern '/file add name=' | ForEach-Object { Write-Host "   $($_.Line)" }
+}
+
+--- D1. safelinks-configure.rsc — section markers ---
+   line   20: # --- 1. WAN (ether1) ---
+   line   32: # --- 2. LAN bridge (all LAN ports share the hotspot) ---
+   line   49: # --- 3. Add wireless to bridge IF the package is installed ---
+   line   68: # --- 4. LAN IP on the bridge ---
+   line   82: # --- 5. DHCP pool + server ---
+   line   94: # --- 6. WiFi security + SSID (guarded - only runs if wireless present) ---
+   line  113: # --- 7. Hotspot on the bridge (wired + wireless both land here) ---
+   line  136: # --- 8. Walled garden (pre-auth allowed) ---
+   line  173: # --- 9. Pairing code ---
+
+--- D2. Key variables & fallbacks ---
+   :global slWanMode
+   :global slWanUser
+   :global slWanPass
+   :global slLanIp
+   :global slSsid
+   :global slWifiPass
+   :global slPairCode
+   :global slApiUrl
+   :if ([:typeof $slWanMode] = "nothing") do={ :set slWanMode "dhcp" }
+   :if ([:typeof $slLanIp] = "nothing") do={ :set slLanIp "192.168.88.1" }
+   :if ([:typeof $slSsid] = "nothing") do={ :set slSsid "SafeLinks-WiFi" }
+   :if ([:typeof $slApiUrl] = "nothing") do={ :set slApiUrl "https://backend-services-production-78d8.up.railway.app" }
+   :if ([:typeof $slPairCode] != "nothing") do={
+
+--- D3. Walled garden entries ---
+   #   1) HTTP (port 80): host-based walled-garden matches on the Host header.
+   /ip hotspot walled-garden remove [find comment="SafeLinks portal"]
+   /ip hotspot walled-garden add dst-host="safelinks.name.ng" action=allow comment="SafeLinks portal"
+   /ip hotspot walled-garden add dst-host="www.safelinks.name.ng" action=allow comment="SafeLinks portal"
+   /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal"
+   /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
+   /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
+   # Step 8c. IP walled-garden: allow the whole portal address-list through HTTPS
+   /ip hotspot walled-garden ip remove [find comment~"SafeLinks"]
+   /ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" comment="SafeLinks portal IPs"
+   /ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS"
+   /ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS"
+   /ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS"
+   /ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin winbox"
+   /ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin ssh"
+   /ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic"
+
+--- D4. File writes (hotspot HTML pages) ---
+   /file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
+   /file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/login'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
+       /file add name="safelinks-pair.txt" contents=$slPairCode
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION E — GIT & DEPLOY STATE
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION E: GIT & DEPLOY ################" -ForegroundColor Yellow
+
+
+################ SECTION E: GIT & DEPLOY ################
+PS C:\Users\DELL\Downloads\safe-links-updated> Push-Location $root
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- E1. Git log (last 10) ---" -ForegroundColor Cyan
+
+--- E1. Git log (last 10) ---
+PS C:\Users\DELL\Downloads\safe-links-updated> git log --oneline -10
+
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- E2. Git status ---" -ForegroundColor Cyan
+
+--- E2. Git status ---
+PS C:\Users\DELL\Downloads\safe-links-updated> git status --short
+
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n--- E3. Current branch ---" -ForegroundColor Cyan
+
+--- E3. Current branch ---
+PS C:\Users\DELL\Downloads\safe-links-updated> git branch --show-current
+
+PS C:\Users\DELL\Downloads\safe-links-updated> Pop-Location
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # SECTION F — LIVE ENDPOINTS
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n################ SECTION F: LIVE ENDPOINTS ################" -ForegroundColor Yellow
+
+
+################ SECTION F: LIVE ENDPOINTS ################
+PS C:\Users\DELL\Downloads\safe-links-updated> $probes = @(
+    "https://www.safelinks.name.ng/",
+    "https://www.safelinks.name.ng/login",
+    "https://backend-services-production-78d8.up.railway.app/api/payments/providers"
+)
+PS C:\Users\DELL\Downloads\safe-links-updated> foreach ($url in $probes) {
+    try {
+        $r = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+        Write-Host ("   [OK  ] HTTP {0}  {1}" -f $r.StatusCode, $url) -ForegroundColor Green
+    } catch {
+        $code = $_.Exception.Response.StatusCode.value__
+        if ($code) { Write-Host ("   [FAIL] HTTP {0}  {1}" -f $code, $url) -ForegroundColor Yellow }
+        else { Write-Host ("   [FAIL] {0}  {1}" -f $_.Exception.Message, $url) -ForegroundColor Red }
+    }
+}
+   [OK  ] HTTP 200  https://www.safelinks.name.ng/
+   [OK  ] HTTP 200  https://www.safelinks.name.ng/login
+   [OK  ] HTTP 200  https://backend-services-production-78d8.up.railway.app/api/payments/providers
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> # DONE
+PS C:\Users\DELL\Downloads\safe-links-updated> # ============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "`n`n=============================================================" -ForegroundColor Magenta
+
+
+=============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "  AUDIT COMPLETE" -ForegroundColor Magenta
+  AUDIT COMPLETE
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "  Full report saved to: $out" -ForegroundColor Magenta
+  Full report saved to: C:\Users\DELL\Downloads\safe-links-updated\AUDIT-20261011-121620.txt
+PS C:\Users\DELL\Downloads\safe-links-updated> Write-Host "=============================================================" -ForegroundColor Magenta
+=============================================================
+PS C:\Users\DELL\Downloads\safe-links-updated> Stop-Transcript
+**********************
+Windows PowerShell transcript end
+End time: 20261011121756
+**********************

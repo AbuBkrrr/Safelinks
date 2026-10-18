@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: SAFELINKS
+      POSTGRES_PASSWORD: SafeLinks_Dev_2026
+      POSTGRES_DB: SAFELINKS
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U SAFELINKS"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./web/backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      JWT_SECRET: dev_secret_key_8f9c3d7e2a5b1f4c9e6a3d8b7c2f5e1a
+      DATABASE_URL: postgres://SAFELINKS:SafeLinks_Dev_2026@postgres:5432/SAFELINKS
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: ./web/frontend
+      args:
+        VITE_API_URL: http://localhost:4000
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pg_data:

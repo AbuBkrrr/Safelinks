@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SAFE_Links Installer</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:28px; min-height:100vh; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:18px; margin:0 0 8px; }
+  .sub { color:#94a3b8; font-size:13px; margin-bottom:20px; }
+  .screen { display:none; }
+  .screen.active { display:block; }
+  button { background:#667eea; color:#fff; border:none; padding:10px 20px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:600; transition:all 0.15s; }
+  button:hover { background:#5a67d8; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.secondary { background:#334155; }
+  button.secondary:hover { background:#475569; }
+  button.success { background:#22c55e; }
+  button.success:hover { background:#16a34a; }
+  button.google { background:#ffffff; color:#1f2937; display:flex; align-items:center; justify-content:center; gap:10px; }
+  button.google:hover { background:#f1f5f9; }
+  button.google svg { width:18px; height:18px; }
+  input[type=email], input[type=password], input[type=text] {
+    background:#1e293b; color:#e2e8f0; border:2px solid #334155;
+    padding:12px 14px; border-radius:10px; font-size:14px; width:100%;
+    transition: border-color 0.15s;
+  }
+  input:focus { outline:none; border-color:#667eea; }
+  label { display:block; font-size:12px; font-weight:600; color:#cbd5e1; margin-bottom:6px; margin-top:14px; }
+  .section { background:#1e293b44; border:1px solid #334155; border-radius:12px; padding:18px; margin-bottom:16px; }
+  .section h3 { font-size:14px; margin:0 0 14px; color:#cbd5e1; }
+  .check-item { display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid #1e293b; font-size:14px; }
+  .check-item:last-child { border-bottom:none; }
+  .check-item .icon { font-size:18px; line-height:1; margin-top:1px; min-width:22px; text-align:center; }
+  .check-item .body { flex:1; }
+  .check-item .name { font-weight:600; }
+  .check-item .detail { font-size:12px; color:#94a3b8; margin-top:2px; }
+  .check-item.ok .icon { color:#22c55e; }
+  .check-item.fail .icon { color:#ef4444; }
+  .check-item.warn .icon { color:#f59e0b; }
+  .login-card { max-width:420px; margin:0 auto; }
+  .error { background:#7f1d1d; border:1px solid #991b1b; color:#fecaca; padding:10px 14px; border-radius:8px; font-size:13px; margin-top:14px; display:none; }
+  .error.show { display:block; }
+  .info { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:10px 14px; border-radius:8px; font-size:12px; margin-top:14px; }
+  .divider { display:flex; align-items:center; gap:12px; color:#64748b; font-size:12px; margin:16px 0 4px; }
+  .divider::before, .divider::after { content:""; flex:1; height:1px; background:#334155; }
+  .small-link { color:#94a3b8; font-size:12px; cursor:pointer; text-decoration:underline; background:none; border:none; padding:0; font-weight:500; }
+  .small-link:hover { color:#cbd5e1; background:none; }
+  .footer-links { display:flex; justify-content:space-between; margin-top:14px; }
+  table { width:100%; border-collapse:collapse; margin-top:16px; font-size:13px; }
+  th { text-align:left; padding:8px; background:#1e293b; color:#94a3b8; font-weight:600; }
+  td { padding:8px; border-bottom:1px solid #1e293b; vertical-align:top; }
+  tr.gateway-row { background:#667eea0f; }
+  tr.gateway-row td:first-child::before { content:"★ "; color:#667eea; font-weight:700; }
+  .tag { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .router-mikrotik { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b55; }
+  .router-openwrt  { background:#22c55e22; color:#22c55e; border:1px solid #22c55e55; }
+  .router-ubiquiti { background:#3b82f622; color:#3b82f6; border:1px solid #3b82f655; }
+  .router-tplink   { background:#a855f722; color:#a855f7; border:1px solid #a855f755; }
+  .router          { background:#22c55e22; color:#22c55e; border:1px solid #22c55e55; }
+  .router-likely   { background:#3b82f622; color:#3b82f6; border:1px solid #3b82f655; }
+  .unknown-with-ports { background:#64748b22; color:#94a3b8; border:1px solid #64748b55; }
+  .gw-tag { background:#667eea; color:#fff; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; margin-left:6px; }
+  .mono { font-family: ui-monospace, 'Cascadia Mono', monospace; }
+  .status { margin:16px 0; font-size:13px; color:#94a3b8; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .btn-row { display:flex; gap:10px; margin-top:20px; }
+
+  /* Router config modal */
+  .cfg-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .cfg-modal { background:#0f172a; border:1px solid #334155; border-radius:12px; padding:24px; max-width:560px; width:100%; max-height:90vh; overflow-y:auto; position:relative; }
+  .cfg-modal h3 { margin:0 0 6px; font-size:16px; color:#fff; }
+  .cfg-modal .sub { color:#94a3b8; font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  .cfg-modal .field { margin-bottom:12px; }
+  .cfg-modal .field label { display:block; font-size:12.5px; color:#cbd5e1; font-weight:600; margin-bottom:4px; }
+  .cfg-modal .field input { width:100%; background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:10px 12px; border-radius:8px; font-size:13px; box-sizing:border-box; }
+  .cfg-modal .field input:focus { outline:none; border-color:#667eea; }
+  .cfg-modal .btn-row { display:flex; gap:8px; margin-top:16px; }
+  .cfg-modal .btn-row button { flex:1; padding:10px; }
+  .cfg-modal .status { margin-top:12px; font-size:12.5px; color:#cbd5e1; white-space:pre-wrap; max-height:200px; overflow-y:auto; background:#1e293b; padding:10px; border-radius:8px; font-family:ui-monospace,monospace; }
+  .cfg-modal .btn-close { position:absolute; top:10px; right:10px; background:transparent; border:none; color:#94a3b8; font-size:22px; cursor:pointer; padding:0 8px; line-height:1; }
+  .cfg-modal .btn-close:hover { color:#fff; }
+
+  /* Readiness panel */
+  .readiness-panel { margin-top:16px; padding-top:16px; border-top:1px solid #334155; }
+  .readiness-panel .title { font-size:13px; font-weight:600; color:#cbd5e1; margin-bottom:8px; }
+  .readiness-panel .overall { font-size:12.5px; margin-bottom:10px; font-weight:600; }
+  .readiness-panel .check-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12.5px; border-bottom:1px solid #1e293b; }
+  .readiness-panel .check-icon { width:16px; text-align:center; font-weight:700; flex-shrink:0; }
+  .readiness-panel .check-label { color:#e2e8f0; font-weight:600; min-width:130px; flex-shrink:0; }
+  .readiness-panel .check-detail { color:#94a3b8; flex:1; }
+  .readiness-panel .btn-row { margin-top:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="s-preflight" class="screen active">
+    <h1>SAFE_Links Installer</h1>
+    <div class="sub">Checking your device…</div>
+    <div class="section">
+      <h3>System checks</h3>
+      <div id="preflight-list"></div>
+    </div>
+    <div class="btn-row">
+      <button id="btn-recheck" class="secondary">Re-check</button>
+      <button id="btn-continue" disabled>Continue</button>
+    </div>
+    <div id="preflight-note" class="info" style="display:none;"></div>
+  </div>
+
+  <div id="s-login" class="screen">
+    <div class="login-card">
+      <h2>Sign in to SAFE_Links</h2>
+      <div class="sub">Use the reseller account you created at safelinks.name.ng</div>
+      <div class="section">
+        <button id="btn-google" class="google" style="width:100%;">
+          <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34 6.3 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.1 7.9 3l5.7-5.7C34 6.3 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+            <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.3 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+            <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.4-.4-3.5z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="divider">or sign in with email</div>
+
+        <label for="in-email">Email</label>
+        <input id="in-email" type="email" placeholder="you@example.com" autocomplete="username" />
+        <label for="in-password">Password</label>
+        <input id="in-password" type="password" placeholder="Your password" autocomplete="current-password" />
+        <div id="login-error" class="error"></div>
+      </div>
+      <div class="btn-row">
+        <button id="btn-login" class="success" style="flex:1;">Sign in &amp; continue</button>
+      </div>
+
+      <div class="footer-links">
+        <button id="btn-forgot" class="small-link">Forgot password?</button>
+        <button id="btn-signup" class="small-link">Create an account</button>
+      </div>
+
+      <div class="info">Your credentials are stored securely by Windows Credential Manager. Next time you open the installer, you will be signed in automatically.</div>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen (iframe wrapper) -->
+  <div id="s-dashboard" class="screen" style="height: 100vh;">
+    <iframe id="dashboard-frame" style="border: none; width: 100%; height: 100%;" src="about:blank" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>
+  </div>
+
+  <div id="s-scan" class="screen">
+    <div class="row" style="justify-content:space-between; margin-bottom:8px;">
+      <div>
+        <h2 style="margin:0;">Router setup</h2>
+        <div class="sub" id="scan-user" style="margin:4px 0 0;"></div>
+      </div>
+      <div class="row">
+        <button id="btn-logout" class="secondary">Sign out</button>
+        <button id="btn-dashboard" class="secondary" style="display:none;">Open dashboard</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Step 1 — Is this a new or a used router?</h3>
+      <div class="row">
+        <button class="choice-btn secondary" data-state="new" onclick="pickRouterState('new')">📦 New (out of the box)</button>
+        <button class="choice-btn secondary" data-state="used" onclick="pickRouterState('used')">🔧 Used (has existing config)</button>
+      </div>
+      <div id="stateNote" class="info" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+      <h3>Step 2 — Connect your PC to the router's LAN port</h3>
+      <div class="info">
+        Plug an Ethernet cable from your PC into any <strong>LAN</strong> port (not WAN) on the router you want to configure. Wait 20 seconds for DHCP.
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Step 3 — Scan the network</h3>
+      <div class="row">
+        <button id="btnLocal" class="secondary">Get Local Info</button>
+        <button id="btnScan">Scan LAN</button>
+        <button id="btnClear" class="secondary">Clear</button>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <span style="font-size:12px; color:#94a3b8;">Extra subnets (optional):</span>
+        <input id="extraSubnets" type="text" placeholder="192.168.88.0/24, 10.0.0.0/24" style="min-width:260px; flex:1;" />
+      </div>
+      <div class="status" id="status">Idle.</div>
+      <div id="localInfo"></div>
+      <table id="results" style="display:none;">
+        <thead><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Web Title</th><th>Kind</th><th>Open Ports</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Success screen — shown after the router is configured -->
+<div id="s-success" class="screen">
+  <div style="text-align: center; padding: 30px 0; max-width: 380px; margin: 0 auto;">
+    <div style="font-size: 60px; margin-bottom: 10px;">✅</div>
+    <h2 style="margin-bottom: 8px;">Router configured</h2>
+    <div class="sub" style="margin-bottom: 6px;">
+      <b id="success-ssid">SAFE_Links-WiFi</b> is now broadcasting.
+    </div>
+    <div style="font-size: 12.5px; color: #94a3b8; margin-bottom: 30px;">
+      <span id="success-router">Ready to serve</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <button id="btn-success-dashboard" class="primary" style="padding: 12px 0; font-size: 14px;">📊 Open dashboard</button>
+      <button id="btn-success-portal" class="secondary" style="padding: 12px 0; font-size: 14px;">🌐 Open portal</button>
+      <button id="btn-success-signout" class="secondary" style="padding: 12px 0; font-size: 14px;">↪ Sign out</button>
+    </div>
+  </div>
+</div>
+
+<div id="cfg-modal" class="cfg-modal-backdrop" style="display:none;">
+  <div class="cfg-modal">
+    <button class="btn-close" onclick="closeCfgModal()">&#215;</button>
+    <h3>Configure router <span id="cfg-ip" class="mono">-</span></h3>
+    <div class="sub">Enter the router admin credentials, then set your WiFi network name and password. Click <b>Apply configuration</b> to push the SAFE_Links captive-portal setup.</div>
+
+    <div id="cfg-admin-fields" style="display:none;">
+      <div class="field">
+        <label>Router admin username</label>
+        <input id="cfg-user" type="text" value="admin" />
+      </div>
+      <div class="field">
+        <label>Router admin password</label>
+        <input id="cfg-pass" type="password" placeholder="(blank for factory-default MikroTik)" />
+      </div>
+    </div>
+    <div style="margin-bottom:14px; text-align:right;">
+      <a id="cfg-admin-toggle" style="color:#667eea; font-size:12px; cursor:pointer;">Advanced: enter router admin credentials</a>
+    </div>
+    <div class="field">
+      <label>WiFi network name (SSID)</label>
+      <input id="cfg-ssid" type="text" placeholder="SAFE_Links-WiFi" />
+    </div>
+    <div class="field">
+      <label>WiFi password (min 8 characters)</label>
+      <input id="cfg-wifi-pass" type="text" placeholder="e.g. MyBusiness2026" />
+    </div>
+
+    <div class="btn-row">
+      <button id="cfg-test" class="secondary">Test SSH</button>
+      <button id="cfg-apply" class="success">Configure Router Now</button>
+    </div>
+    <div id="cfg-status" class="status" style="display:none;"></div>
+
+    <div id="cfg-readiness" class="readiness-panel" style="display:none;">
+      <div class="title">Router readiness</div>
+      <div id="cfg-overall" class="overall"></div>
+      <div id="cfg-checks"></div>
+      <div class="btn-row">
+        <button id="cfg-check" class="secondary">Check status</button>
+        <button id="cfg-repair" class="secondary" style="display:none;">Repair missing items</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+let routerState = null;
+let currentSession = null;
+
+function show(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 's-' + screen));
+}
+
+function fmtItem(it) {
+  const cls = it.ok ? 'ok' : (it.required ? 'fail' : 'warn');
+  const icon = it.ok ? '✓' : (it.required ? '✕' : '⚠');
+  return `<div class="check-item ${cls}">
+    <div class="icon">${icon}</div>
+    <div class="body">
+      <div class="name">${it.name}</div>
+      <div class="detail">${it.detail}</div>
+    </div>
+  </div>`;
+}
+
+async function runPreflight() {
+  const listEl = document.getElementById('preflight-list');
+  const btn = document.getElementById('btn-continue');
+  const note = document.getElementById('preflight-note');
+  listEl.innerHTML = '<div style="color:#94a3b8; font-size:13px;">Running checks…</div>';
+  btn.disabled = true;
+  try {
+    const rep = await invoke('check_prerequisites');
+    listEl.innerHTML = rep.items.map(fmtItem).join('');
+    if (rep.all_required_ok) {
+      btn.disabled = false;
+      note.style.display = 'none';
+    } else {
+      btn.disabled = true;
+      note.style.display = 'block';
+      note.textContent = 'Fix the required items above and click "Re-check".';
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:#ef4444; font-size:13px;">Preflight error: ${e}</div>`;
+    note.style.display = 'block';
+    note.textContent = 'Could not run preflight checks.';
+  }
+}
+
+function renderSession(sess) {
+  currentSession = sess;
+  // Persist the reseller ID + email so Save setup file can bake the correct
+  // portal URL (/portal/<reseller_id>) into the .rsc.
+  try {
+    const u = sess.user || {};
+    let rid = u.id || u.reseller_id || u.resellerId || u.resellerID || '';
+    if (!rid) {
+      rid = __decodeJwtResellerId(sess.token || localStorage.getItem('auth_token') || '');
+    }
+    if (rid) localStorage.setItem('reseller_id', String(rid));
+    if (u.email) localStorage.setItem('user_email', String(u.email));
+    if (sess.token) localStorage.setItem('auth_token', String(sess.token));
+    console.log('[renderSession] persisted reseller_id =', rid, 'email =', u.email);
+  } catch (e) {
+    console.warn('[renderSession] could not persist session:', e);
+  }
+  document.getElementById('scan-user').textContent =
+    `Signed in as ${sess.user?.companyName || sess.user?.email || 'reseller'} (${sess.auth_method === 'google' ? 'Google' : 'Email'})`;
+  
+  // Load the React dashboard in the iframe, passing the token
+  try {
+    var tok = localStorage.getItem('auth_token') || '';
+    var frame = document.getElementById('dashboard-frame');
+    if (frame) {
+      frame.src = 'https://www.safelinks.name.ng/?token=' + encodeURIComponent(tok);
+    }
+  } catch (e) { console.warn('iframe load failed', e); }
+  
+  show('dashboard');
+}
+
+async function tryAutoLogin() {
+  try {
+    const sess = await invoke('try_auto_login');
+    if (sess) { renderSession(sess); return true; }
+  } catch (_) {}
+  return false;
+}
+
+async function doLogin() {
+  const email = document.getElementById('in-email').value.trim();
+  const password = document.getElementById('in-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+  errEl.classList.remove('show');
+  if (!email || !password) {
+    errEl.textContent = 'Enter both email and password.';
+    errEl.classList.add('show');
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const res = await invoke('login_and_store', { email, password });
+    renderSession(res);
+  } catch (e) {
+    errEl.textContent = String(e);
+    errEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in & continue';
+  }
+}
+
+// Deep-link callback from web after Google sign-in
+listen('deep-link-auth', async (event) => {
+  const { token, role, email, companyName } = event.payload || {};
+  if (!token || !email) return;
+  try {
+    const res = await invoke('store_google_session', {
+      email,
+      token,
+      role: role || 'reseller',
+      user: { email, companyName: companyName || '', companyNameRaw: companyName },
+    });
+    renderSession(res);
+  } catch (e) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = String(e);
+    errEl.classList.add('show');
+    show('login');
+  }
+});
+
+function pickRouterState(state) {
+  routerState = state;
+  document.querySelectorAll('.choice-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.state === state));
+  const note = document.getElementById('stateNote');
+  note.style.display = 'block';
+  if (state === 'new') {
+    note.innerHTML = '<strong>New router:</strong> should be at factory defaults. Scan → configure.';
+  } else {
+    note.innerHTML = '<strong>Used router:</strong> must be reset to factory defaults first. Hold the Reset button 10 sec while powered, wait 60 sec, replug Ethernet, then scan again.';
+  }
+  _slAutoScan();
+}
+
+const statusEl = document.getElementById('status');
+const localEl  = document.getElementById('localInfo');
+const tbl      = document.getElementById('results');
+const tbody    = tbl.querySelector('tbody');
+const extraEl  = document.getElementById('extraSubnets');
+
+document.getElementById('btnLocal').onclick = async () => {
+  try {
+    const info = await invoke('local_info');
+    const gw = info.gateway ? `\nGateway:     ${info.gateway}` : '';
+    localEl.innerHTML = `<pre class="mono" style="background:#1e293b; padding:14px; border-radius:8px; font-size:12px;">Primary IP:  ${info.ip}\nAll subnets:  ${info.subnet}${gw}</pre>`;
+  } catch (e) { statusEl.textContent = 'Error: ' + e; }
+};
+
+document.getElementById('btnClear').onclick = () => {
+  tbody.innerHTML=''; tbl.style.display='none'; localEl.innerHTML=''; statusEl.textContent='Idle.';
+};
+
+document.getElementById('btnScan').onclick = async () => {
+  if (!routerState) { statusEl.textContent = 'Pick "New" or "Used" first.'; return; }
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true;
+  statusEl.textContent = 'Scanning… (~20s)';
+  tbody.innerHTML=''; tbl.style.display='none';
+  const extras = (extraEl.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    const devices = await invoke('scan_lan', { extraSubnets: extras.length ? extras : null });
+    const gwCount = devices.filter(d => d.is_gateway).length;
+    statusEl.textContent = `Found ${devices.length} device(s). ` +
+      (gwCount ? `★ = your immediate router.` : 'No gateway detected.');
+    for (const d of devices) {
+      const tr = document.createElement('tr');
+      if (d.is_gateway) tr.classList.add('gateway-row');
+      const gwTag = d.is_gateway ? '<span class="gw-tag">★ IMMEDIATE ROUTER</span>' : '';
+      tr.innerHTML = `
+        <td class="mono">${d.ip}</td>
+        <td class="mono">${d.mac || '—'}</td>
+        <td>${d.vendor || '—'}${gwTag}</td>
+        <td style="font-size:11px; color:#64748b;">${d.web_title || '—'}</td>
+        <td><span class="tag ${d.kind}">${d.kind}</span></td>
+        <td class="mono">${d.open_ports.join(', ') || '—'}</td>`;
+      tbody.appendChild(tr);
+      {
+        const cfgTd = document.createElement('td');
+        const cfgBtn = document.createElement('button');
+        cfgBtn.className = 'secondary';
+        cfgBtn.style.cssText = 'padding:4px 10px; font-size:12px;';
+        cfgBtn.textContent = 'Configure';
+        cfgBtn.onclick = () => openCfgModal(d);
+        cfgTd.appendChild(cfgBtn);
+        tr.appendChild(cfgTd);
+      }
+    }
+    tbl.style.display = devices.length ? '' : 'none';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + e;
+  } finally { btn.disabled = false; }
+};
+
+// ---------- Router configuration modal ----------
+function openCfgModal(device) {
+  document.getElementById('cfg-ip').textContent = device.ip;
+  var st = document.getElementById('cfg-status');
+  st.style.display = 'none';
+  st.textContent = '';
+  var ssidInput = document.getElementById('cfg-ssid');
+  if (!ssidInput.value) ssidInput.value = 'SAFE_Links-WiFi';
+  document.getElementById('cfg-modal').style.display = 'flex';
+
+  // Show readiness panel by default and auto-run status check.
+  var panel = document.getElementById('cfg-readiness');
+  if (panel) panel.style.display = 'block';
+  var checksEl = document.getElementById('cfg-checks');
+  if (checksEl) checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
+  setTimeout(function() { runCheckStatus(); }, 400);
+  setTimeout(function() { runTestSsh(); }, 250);
+}
+
+function closeCfgModal() {
+  document.getElementById('cfg-modal').style.display = 'none';
+}
+
+function cfgSetStatus(msg, color) {
+  var el = document.getElementById('cfg-status');
+  el.style.display = 'block';
+  el.style.color = color || '#cbd5e1';
+  el.textContent = msg;
+}
+
+// ---------- Readiness panel ----------
+function __decodeJwtResellerId(tok) {
+  try {
+    if (!tok) return '';
+    var parts = String(tok).split('.');
+    if (parts.length < 2) return '';
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var payload = JSON.parse(atob(b64));
+    return String(payload.resellerId || payload.reseller_id || payload.sub || payload.id || '');
+  } catch (e) {
+    console.warn('[__decodeJwtResellerId] failed:', e);
+    return '';
+  }
+}
+
+async function runCheckStatus() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  if (!ip) return;
+  var panel = document.getElementById('cfg-readiness');
+  if (!panel) return;
+  panel.style.display = 'block';
+  var checksEl = document.getElementById('cfg-checks');
+  checksEl.innerHTML = '<div style="color:#94a3b8; font-size:12.5px;">Checking router status...</div>';
+  try {
+    var r = await invoke('installer_router_check_status', { ip: ip, user: user, password: pass });
+    renderChecks(r);
+    if (r.overall_ok) {
+      var topDash = document.getElementById('btn-dashboard');
+      if (topDash) topDash.style.display = '';
+      try { closeCfgModal(); } catch (_) {}
+      try {
+        var ssidEl = document.getElementById('success-ssid');
+        var cfgSsidEl = document.getElementById('cfg-ssid');
+        if (ssidEl && cfgSsidEl && cfgSsidEl.value) ssidEl.textContent = cfgSsidEl.value;
+        var rEl = document.getElementById('success-router');
+        if (rEl) rEl.textContent = 'RB750GL ready — ' + (ip || '192.168.88.1');
+        show('success');
+      } catch (_) {}
+    }
+  } catch (e) {
+    checksEl.innerHTML = '<div style="color:#fc8181; font-size:12.5px;">Check failed: ' + e + '</div>';
+    var eStr = String(e).toLowerCase();
+    if (eStr.indexOf('auth') !== -1 || eStr.indexOf('password') !== -1 || eStr.indexOf('login') !== -1 || eStr.indexOf('credential') !== -1) {
+      var af = document.getElementById('cfg-admin-fields');
+      var at = document.getElementById('cfg-admin-toggle');
+      if (af && af.style.display === 'none') {
+        af.style.display = 'block';
+        if (at) at.textContent = 'Hide advanced credentials';
+      }
+    }
+  }
+}
+
+function showSuccessPanel(ip) {
+  var inner = document.getElementById('configModalInner');
+  if (!inner) return;
+  inner.innerHTML = [
+    '<button class="btn-close" onclick="closeCfgModal()">&#215;</button>',
+    '<h3 style="color:#7ae0b0;">Router is live</h3>',
+    '<div class="sub">Captive portal is running. Wi-Fi and portal are ready for customers on <b>' + (ip || '') + '</b>.</div>',
+    '<div style="display:flex; gap:10px; margin-top:22px; flex-wrap:wrap;">',
+    '  <button onclick="dashboardWithToken()" style="flex:1; min-width:180px; padding:14px; border:none; border-radius:10px; background:#667eea; color:white; font-weight:600; cursor:pointer;">Open dashboard</button>',
+    '  <button onclick="configureAnother()" style="flex:1; min-width:180px; padding:14px; border:1px solid #334155; border-radius:10px; background:#1e293b; color:#e2e8f0; font-weight:600; cursor:pointer;">Configure another router</button>',
+    '</div>'
+  ].join('');
+}
+
+function dashboardWithToken() {
+  var token = localStorage.getItem('auth_token') || '';
+  try {
+    invoke('open_dashboard', { token: token }).catch(function(e) { alert('Could not open dashboard: ' + e); });
+  } catch (e) {
+    alert('Could not open dashboard: ' + e);
+  }
+  try { closeCfgModal(); } catch (_) {}
+}
+
+function configureAnother() {
+  try { document.getElementById('btnClear').click(); } catch (_) {}
+  routerState = null;
+  try {
+    document.querySelectorAll('.choice-btn').forEach(function(b) { b.classList.remove('active'); });
+    var sn = document.getElementById('stateNote');
+    if (sn) sn.style.display = 'none';
+  } catch (_) {}
+  try { closeCfgModal(); } catch (_) {}
+}
+
+function _slAutoScan() {
+  setTimeout(function() {
+    var b = document.getElementById('btnScan');
+    if (b && !b.disabled) b.click();
+  }, 600);
+}
+
+function renderChecks(status) {
+  var checksEl = document.getElementById('cfg-checks');
+  var html = '';
+  for (var i = 0; i < status.checks.length; i++) {
+    var c = status.checks[i];
+    var icon, color;
+    if (c.ok) { icon = '\u2713'; color = '#22c55e'; }
+    else if (c.warn_only) { icon = '!'; color = '#fbbf24'; }
+    else { icon = '\u2715'; color = '#fc8181'; }
+    html += '<div class="check-row">';
+    html += '<span class="check-icon" style="color:' + color + ';">' + icon + '</span>';
+    html += '<span class="check-label">' + c.label + '</span>';
+    html += '<span class="check-detail">' + c.detail + '</span>';
+    html += '</div>';
+  }
+  checksEl.innerHTML = html;
+  var needsRepair = status.checks.some(function(c) { return !c.ok && !c.warn_only; });
+  document.getElementById('cfg-repair').style.display = needsRepair ? 'inline-block' : 'none';
+  var overall = document.getElementById('cfg-overall');
+  if (status.overall_ok) {
+    overall.innerHTML = '<span style="color:#22c55e;">Overall: READY</span>';
+  } else {
+    overall.innerHTML = '<span style="color:#fc8181;">Overall: NOT READY</span>';
+  }
+}
+
+document.getElementById('cfg-check').onclick = runCheckStatus;
+document.getElementById('cfg-repair').onclick = function() {
+  var applyBtn = document.getElementById('cfg-apply');
+  if (applyBtn) applyBtn.click();
+};
+// ---------- end readiness panel ----------
+async function runTestSsh() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  if (!ip) return;
+  cfgSetStatus('Testing SSH to ' + ip + '...', '#fbbf24');
+  try {
+    var r = await invoke('installer_router_test_ssh', { ip: ip, user: user, password: pass });
+    cfgSetStatus('SUCCESS\n' + r.identity + '\n' + r.resource, '#22c55e');
+  } catch (e) {
+    cfgSetStatus('FAILED: ' + e, '#fc8181');
+  }
+}
+document.getElementById('cfg-test').onclick = runTestSsh;
+
+document.getElementById('cfg-apply').onclick = async function() {
+  var ip = document.getElementById('cfg-ip').textContent;
+  var user = document.getElementById('cfg-user').value || 'admin';
+  var pass = document.getElementById('cfg-pass').value;
+  var ssid = document.getElementById('cfg-ssid').value.trim();
+  var wifiPassword = document.getElementById('cfg-wifi-pass').value;
+  if (!ip) return;
+  if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
+  if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
+  var __rid = localStorage.getItem('reseller_id') || '';
+  if (!__rid) {
+    __rid = __decodeJwtResellerId(localStorage.getItem('auth_token') || '');
+    if (__rid) {
+      localStorage.setItem('reseller_id', __rid);
+      console.log('[cfg-apply] recovered reseller_id from JWT:', __rid);
+    }
+  }
+  if (!__rid) {
+    var __t = (localStorage.getItem('auth_token') || '').slice(0, 30);
+    cfgSetStatus('ERROR: reseller_id missing.\n' +
+      'auth_token present: ' + (__t ? 'yes (' + __t + '...)' : 'NO') + '\n' +
+      'JWT has no resellerId claim. Sign out, sign in again.', '#fc8181');
+    return;
+  }
+  console.log('[cfg-apply] using reseller_id:', __rid);
+  cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
+  try {
+    var r = await invoke('installer_router_apply_config', {
+      ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword,
+      resellerId: __rid,
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; }),
+      authToken: localStorage.getItem('auth_token') || ''
+    });
+    var tail = r.log.slice(-12).join('\n');
+    cfgSetStatus(
+      (r.ok ? 'SUCCESS' : 'PARTIAL') + ' -- applied ' + r.applied + ', failed ' + r.failed + '\n\n' + tail,
+      r.ok ? '#22c55e' : '#fbbf24'
+    );
+    // Auto-run readiness check after Apply
+    runCheckStatus();
+  } catch (e) {
+    cfgSetStatus('FAILED: ' + e, '#fc8181');
+  }
+};
+// ---------- end modal ----------
+document.getElementById('btn-dashboard').onclick = async () => {
+  var token = localStorage.getItem('auth_token') || '';
+  try { await invoke('open_dashboard', { token: token }); } catch (e) { alert('Could not open dashboard: ' + e); }
+};
+document.getElementById('cfg-admin-toggle').onclick = function() {
+  var f = document.getElementById('cfg-admin-fields');
+  if (!f) return;
+  var shown = f.style.display !== 'none';
+  f.style.display = shown ? 'none' : 'block';
+  this.textContent = shown ? 'Advanced: enter router admin credentials' : 'Hide advanced credentials';
+};
+
+document.getElementById('btn-google').onclick = async () => {
+  try { await invoke('open_google_signin'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+document.getElementById('btn-forgot').onclick = async () => {
+  try { await invoke('open_forgot_password'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+document.getElementById('btn-signup').onclick = async () => {
+  try { await invoke('open_signup'); } catch (e) { alert('Could not open browser: ' + e); }
+};
+
+// ============ Success screen actions ============
+(function () {
+  var b1 = document.getElementById('btn-success-dashboard');
+  if (b1) b1.onclick = function () {
+    var tok = localStorage.getItem('auth_token') || '';
+    var frame = document.getElementById('dashboard-frame');
+    if (frame) {
+      frame.src = 'https://www.safelinks.name.ng/?token=' + encodeURIComponent(tok);
+    }
+    show('dashboard');
+  };
+  var b2 = document.getElementById('btn-success-portal');
+  if (b2) b2.onclick = function () {
+    var rid = localStorage.getItem('reseller_id') || '';
+    var u = 'https://www.safelinks.name.ng/portal/' + encodeURIComponent(rid);
+    try {
+      // Use Tauri shell plugin to open the system browser safely
+      if (window.__TAURI__ && window.__TAURI__.shell) {
+        window.__TAURI__.shell.open(u);
+      } else {
+        window.open(u, '_blank');
+      }
+    } catch (e) {
+      alert('Could not open portal: ' + e);
+    }
+  };
+  var b3 = document.getElementById('btn-success-signout');
+  if (b3) b3.onclick = async function () {
+    try { await invoke('clear_credentials'); } catch (_) {}
+    try {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('reseller_id');
+      localStorage.removeItem('user_email');
+    } catch (_) {}
+    show('login');
+  };
+})();
+
+document.getElementById('btn-logout').onclick = async () => {
+  try {
+    await invoke('clear_credentials');
+    currentSession = null;
+    show('login');
+  } catch (e) { alert('Logout error: ' + e); }
+};
+
+document.getElementById('btn-recheck').onclick = runPreflight;
+document.getElementById('btn-continue').onclick = async () => {
+  const ok = await tryAutoLogin();
+  if (!ok) show('login');
+};
+document.getElementById('btn-login').onclick = doLogin;
+document.getElementById('in-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+(async () => {
+  await runPreflight();
+  const rep = await invoke('check_prerequisites').catch(() => null);
+  if (rep && rep.all_required_ok) {
+    const ok = await tryAutoLogin();
+    if (!ok) {
+      show('login');
+    }
+  }
+})();
+
+// ============ Option B override: Save setup file ============
+async function _optBSaveSetupFile() {
+  var ssid = document.getElementById('cfg-ssid').value.trim();
+  var wifiPassword = document.getElementById('cfg-wifi-pass').value;
+  if (!ssid) { cfgSetStatus('SSID is required', '#fc8181'); return; }
+  if (wifiPassword.length < 8) { cfgSetStatus('WiFi password must be at least 8 characters', '#fc8181'); return; }
+
+  cfgSetStatus('Saving setup file...', '#fbbf24');
+  invoke('installer_save_rsc', {
+      ssid: ssid,
+      wifiPassword: wifiPassword,
+      resellerId: localStorage.getItem('reseller_id') || 'default',
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; })
+    })
+    .then(function(path) {
+      var msg =
+        'Setup file saved to:\n  ' + path + '\n\n' +
+        'Next steps:\n' +
+        '  1. Open Winbox and connect to ' + document.getElementById('cfg-ip').textContent + '\n' +
+        '  2. In Winbox: Files - drag the .rsc file above into the router\n' +
+        '  3. In Winbox: New Terminal - run:\n' +
+        '       /import file=safelinks-configure.rsc\n' +
+        '  4. Come back here and click Check status.';
+      cfgSetStatus(msg, '#22c55e');
+    })
+    .catch(function(e) {
+      cfgSetStatus('Save failed: ' + e, '#fc8181');
+    });
+}
+
+// Replace any existing cfg-apply onclick with our new handler.
+// Runs after the original script block has attached its handler.
+// __disabled_override (see git history) — this line hijacked cfg-apply, disabled to let the SSH push handler at L586 take over
+// ============ end Option B override ============
+// ============ Iframe PostMessage Bridge ============
+// The React dashboard (inside the iframe) cannot call Tauri directly.
+// It uses postMessage to trigger native flows.
+window.addEventListener('message', function(ev) {
+  console.log('[shell] Message received from:', ev.origin, ev.data);
+  // SECURITY: Only accept messages from our dashboard
+  if (!ev.origin.includes('safelinks.name.ng') && !ev.origin.includes('localhost')) {
+    console.warn('[shell] Blocked message from untrusted origin:', ev.origin);
+    return;
+  }
+
+  var msg = ev.data || {};
+
+  if (msg.type === 'SAFELINKS_CONFIGURE') {
+    console.log('[shell] SAFELINKS_CONFIGURE received, jumping to scan');
+    if (msg.ssid) {
+      var ssidEl = document.getElementById('cfg-ssid');
+      if (ssidEl) ssidEl.value = msg.ssid;
+    }
+    if (msg.pass) {
+      var passEl = document.getElementById('cfg-wifi-pass');
+      if (passEl) passEl.value = msg.pass;
+    }
+    show('scan');
+  }
+
+  if (msg.type === 'SAFELINKS_LOGOUT') {
+    invoke('clear_credentials').catch(function(){});
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('reseller_id');
+    localStorage.removeItem('user_email');
+    show('login');
+  }
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+=== 1. INSTALLER BUTTONS (id + onclick attr) ===
+  id=btn-recheck  class="secondary"  onclick=""  label="Re-check"
+  id=btn-continue  class=""  onclick=""  label="Continue"
+  id=btn-google  class="google"  onclick=""  label="Continue with Google"
+  id=btn-login  class="success"  onclick=""  label="Sign in &amp; continue"
+  id=btn-forgot  class="small-link"  onclick=""  label="Forgot password?"
+  id=btn-signup  class="small-link"  onclick=""  label="Create an account"
+  id=btn-logout  class="secondary"  onclick=""  label="Sign out"
+  id=btn-dashboard  class="secondary"  onclick=""  label="Open dashboard"
+  id=(no-id)  class="choice-btn secondary"  onclick="pickRouterState('new')"  label="📦 New (out of the box)"
+  id=(no-id)  class="choice-btn secondary"  onclick="pickRouterState('used')"  label="🔧 Used (has existing config)"
+  id=btnLocal  class="secondary"  onclick=""  label="Get Local Info"
+  id=btnScan  class=""  onclick=""  label="Scan LAN"
+  id=btnClear  class="secondary"  onclick=""  label="Clear"
+  id=(no-id)  class="btn-close"  onclick="closeCfgModal()"  label="&#215;"
+  id=cfg-test  class="secondary"  onclick=""  label="Test SSH"
+  id=cfg-apply  class="success"  onclick=""  label="Save setup file"
+  id=cfg-check  class="secondary"  onclick=""  label="Check status"
+  id=cfg-repair  class="secondary"  onclick=""  label="Repair missing items"
+  id=(no-id)  class="btn-close"  onclick="closeCfgModal()"  label="&#215;"
+  id=(no-id)  class=""  onclick="dashboardWithToken()"  label="Open dashboard"
+  id=(no-id)  class=""  onclick="configureAnother()"  label="Configure another router"
+
+=== 2. JS onclick HANDLERS ===
+  btnLocal
+  btnClear
+  btnScan
+  cfg-check
+  cfg-repair
+  cfg-test
+  cfg-apply
+  btn-dashboard
+  cfg-admin-toggle
+  btn-google
+  btn-forgot
+  btn-signup
+  btn-logout
+  btn-recheck
+  btn-continue
+  btn-login
+
+=== 3. invoke() CALLS (command name + arg keys) ===
+  check_prerequisites  ->  args: []
+  try_auto_login  ->  args: []
+  login_and_store  ->  args: []
+  store_google_session  ->  args: [role, user, companyName, companyNameRaw]
+  local_info  ->  args: []
+  scan_lan  ->  args: [extraSubnets, extras]
+  installer_router_check_status  ->  args: [ip, user, password]
+  open_dashboard  ->  args: [token]
+  installer_router_test_ssh  ->  args: [ip, user, password]
+  installer_router_apply_config  ->  args: [ip, user, password, ssid, wifiPassword]
+  open_google_signin  ->  args: []
+  open_forgot_password  ->  args: []
+  open_signup  ->  args: []
+  clear_credentials  ->  args: []
+  installer_save_rsc  ->  args: [ssid, wifiPassword, resellerId, adminMac]
+
+=== 4. listen() EVENTS ===
+  deep-link-auth
+
+=== 5. RUST #[tauri::command] FUNCTIONS ===
+  auth.rs:40  store_credentials  (email, password)
+  auth.rs:49  store_google_session  (email, token, user, serde_json, role)
+  auth.rs:72  clear_credentials  ()
+  auth.rs:82  load_credentials  ()
+  auth.rs:119  login_and_store  (email, password)
+  auth.rs:132  try_auto_login  ()
+  auth.rs:193  open_dashboard  (app, tauri, token)
+  auth.rs:223  open_google_signin  ()
+  auth.rs:230  open_forgot_password  ()
+  auth.rs:235  open_signup  ()
+  commands.rs:24  local_info  ()
+  commands.rs:69  scan_lan  (extra_subnets)
+  commands.rs:158  probe_router  (ip)
+  commands.rs:168  get_local_mac  ()
+  preflight.rs:19  check_prerequisites  ()
+  router.rs:278  installer_router_test_ssh  (ip, user, password)
+  router.rs:298  installer_router_apply_config  (ip, user, password, ssid, wifi_password)
+  router.rs:450  installer_router_check_status  (ip, user, password)
+  router.rs:469  installer_save_rsc  (ssid, wifi_password, reseller_id, admin_mac)
+  ssh.rs:26  scripts_info  ()
+
+=== 6. generate_handler[] REGISTERED ===
+  commands::local_info
+  commands::get_local_mac
+  commands::scan_lan
+  commands::probe_router
+  preflight::check_prerequisites
+  router::installer_save_rsc
+  router::installer_router_test_ssh
+  router::installer_router_apply_config
+  router::installer_router_check_status
+  ssh::scripts_info
+  auth::store_credentials
+  auth::store_google_session
+  auth::load_credentials
+  auth::clear_credentials
+  auth::login_and_store
+  auth::try_auto_login
+  auth::open_dashboard
+  auth::open_google_signin
+  auth::open_forgot_password
+  auth::open_signup
+
+=== 7. CROSS-CHECK: HTML invoke vs Rust registered ===
+  [+] check_prerequisites
+  [+] try_auto_login
+  [+] login_and_store
+  [+] store_google_session
+  [+] local_info
+  [+] scan_lan
+  [+] installer_router_check_status
+  [+] open_dashboard
+  [+] installer_router_test_ssh
+  [+] installer_router_apply_config
+  [+] open_google_signin
+  [+] open_forgot_password
+  [+] open_signup
+  [+] clear_credentials
+  [+] installer_save_rsc
+
+=== 8. BUTTONS WITHOUT onclick + BUTTONS WITH onclick attr ===
+  Button IDs in HTML: btn-recheck, btn-continue, btn-google, btn-login, btn-forgot, btn-signup, btn-logout, btn-dashboard, btnLocal, btnScan, btnClear, cfg-test, cfg-apply, cfg-check, cfg-repair
+
+=== 9. ORPHAN .RS — declared in lib.rs? ===
+  [X] mod auto_config;
+  [X] mod scanner;
+  [X] mod ssh_client;
+
+=== 10. router.rs apply_config FULL SIGNATURE ===
+  
+  ip: String,
+  user: String,
+  password: String,
+  ssid: String,
+  wifi_password: String,
+  
+
+=== 11. apply_config ARGS PASSED FROM HTML ===
+  ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword
+
+=== 12. WEB FRONTEND STAGES/ROUTES (App.jsx) ===
+  landing
+  login_super_admin
+  login_reseller
+  signup_reseller
+  forgot_password_reseller
+  super_admin
+  reseller
+
+=== 13. BACKEND API ROUTES ===
+  -- agent.js --
+    GET    /api/agent/install/:code
+    POST   /api/agent/register
+    POST   /api/agent/checkin
+    POST   /api/agent/commands/:id/ack
+    POST   /api/agent/report
+  -- auth.js --
+    POST   /api/auth/login
+    POST   /api/auth/signup
+    POST   /api/auth/verify-email/send
+    GET    /api/auth/verify-email/:token
+    POST   /api/auth/google
+    POST   /api/auth/password-reset/question
+    POST   /api/auth/password-reset/verify-answer
+    POST   /api/auth/password-reset/confirm
+  -- installer.js --
+    POST   /api/installer/session
+    POST   /api/installer/license/initiate
+    POST   /api/installer/complete
+  -- payments.js --
+    GET    /api/payments/providers
+    POST   /api/payments/initiate
+    GET    /api/payments/verify/:provider/:reference
+    POST   /api/payments/webhook/paystack
+    POST   /api/payments/webhook/flutterwave
+    POST   /api/payments/webhook/stripe
+  -- planPrices.js --
+    GET    /api/admin/plans/:planId/prices
+    PUT    /api/admin/plans/:planId/prices/:currency
+    DELETE /api/admin/plans/:planId/prices/:currency
+    GET    /api/plans/public
+  -- portal.js --
+    GET    /api/portal/:resellerId/info
+    GET    /api/portal/:resellerId/plans
+    POST   /api/portal/:resellerId/upload-receipt
+    POST   /api/portal/:resellerId/support/upload
+    POST   /api/portal/:resellerId/signup
+    POST   /api/portal/:resellerId/support
+    GET    /api/portal/:resellerId/activation-status/:pendingId
+    POST   /api/portal/:resellerId/card-checkout
+  -- reseller.js --
+    GET    /api/reseller/vouchers
+    PUT    /api/reseller/vouchers/:id/status
+    DELETE /api/reseller/vouchers/:id
+    GET    /api/reseller/sessions
+    DELETE /api/reseller/sessions/:id
+    GET    /api/reseller/routers
+    POST   /api/reseller/pairing-codes
+    GET    /api/reseller/pairing-codes/:code
+    POST   /api/reseller/routers
+    GET    /api/reseller/commands
+    GET    /api/reseller/delivery-logs
+    POST   /api/reseller/delivery-logs/:id/retry
+    GET    /api/reseller/plans
+    POST   /api/reseller/plans
+    PUT    /api/reseller/plans/:id
+    DELETE /api/reseller/plans/:id
+    GET    /api/reseller/portal-settings
+    PUT    /api/reseller/portal-settings
+    GET    /api/reseller/pending-activations
+    PUT    /api/reseller/pending-activations/:id
+    GET    /api/reseller/platform-plans
+    GET    /api/reseller/billing
+    GET    /api/reseller/platform-bank-info
+    GET    /api/reseller/license
+    POST   /api/reseller/license/renew
+    POST   /api/reseller/upload-receipt
+    POST   /api/reseller/product-key/redeem
+    GET    /api/reseller/referrals
+    POST   /api/reseller/referrals
+    DELETE /api/reseller/referrals/:id
+    GET    /api/reseller/notifications
+    PUT    /api/reseller/notifications/read-all
+    GET    /api/reseller/support
+    POST   /api/reseller/support
+    POST   /api/reseller/support/:id/messages
+    PUT    /api/reseller/support/:id/status
+    POST   /api/reseller/support/upload
+    GET    /api/reseller/customer-support
+    POST   /api/reseller/customer-support/:id/messages
+    PUT    /api/reseller/customer-support/:id/status
+    PUT    /api/reseller/notifications/:id/read
+    GET    /api/reseller/active-sessions
+  -- router.js --
+    POST   /api/router/checkin
+    POST   /api/router/commands/:id/ack
+  -- superAdmin.js --
+    GET    /api/admin/resellers
+    PUT    /api/admin/resellers/:id/status
+    GET    /api/admin/platform-plans
+    PUT    /api/admin/platform-plans/:id
+    GET    /api/admin/installations
+    GET    /api/admin/sessions
+    GET    /api/admin/monitoring
+    GET    /api/admin/license-payments
+    PUT    /api/admin/license-payments/:id
+    GET    /api/admin/referrals
+    PUT    /api/admin/referrals/:id
+    PUT    /api/admin/referrals/:id/mark-paid
+    POST   /api/admin/product-keys/generate
+    GET    /api/admin/product-keys/summary
+    GET    /api/admin/product-keys
+    GET    /api/admin/product-keys/export
+    PUT    /api/admin/product-keys/:id/revoke
+    PUT    /api/admin/product-keys/revoke-batch
+    GET    /api/admin/settings
+    PUT    /api/admin/settings
+    GET    /api/admin/support
+    POST   /api/admin/support/:id/messages
+    POST   /api/admin/support/upload
+    PUT    /api/admin/support/:id/status
+    GET    /api/admin/notifications
+    PUT    /api/admin/notifications/read-all
+    PUT    /api/admin/notifications/:id/read
+    GET    /api/admin/active-sessions
