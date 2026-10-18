@@ -35,6 +35,7 @@ const LICENSE_EXEMPT_PREFIXES = [
   "/api/auth/",
   "/api/portal/",
   "/uploads/",
+  "/downloads/",
 ];
 
 function isLicenseExempt(pathname) {
@@ -139,6 +140,31 @@ registerRadiusRoutes(router);
     // Static uploads bypass both the JSON router and the licence check.
     if (req.method === "GET" && pathname.startsWith("/uploads/")) {
       return serveUpload(req, res, pathname);
+    }
+
+    // Static downloads (installer exe) bypass both the JSON router and the licence check.
+    if (req.method === "GET" && pathname.startsWith("/downloads/")) {
+      const requested = decodeURIComponent(pathname.replace(/^\/downloads\//, ""));
+      const downloadsDir = path.join(process.cwd(), "downloads");
+      const resolved = path.join(downloadsDir, requested);
+      if (!resolved.startsWith(downloadsDir + path.sep)) {
+        json(res, 400, { error: "Invalid path" });
+        return;
+      }
+      try {
+        const info = await stat(resolved);
+        if (!info.isFile()) throw new Error("not a file");
+        res.writeHead(200, {
+          "Content-Type": "application/octet-stream",
+          "Content-Length": info.size,
+          "Content-Disposition": `attachment; filename="${requested}"`,
+          "Cache-Control": "public, max-age=86400",
+        });
+        createReadStream(resolved).pipe(res);
+      } catch {
+        json(res, 404, { error: "File not found" });
+      }
+      return;
     }
 
     // Public / unauthenticated routes bypass the licence check entirely.

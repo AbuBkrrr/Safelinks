@@ -50,6 +50,7 @@ services:
       - SMTP_FROM=${SMTP_FROM:-}
     volumes:
       - SAFELINKS_uploads:/app/uploads
+      - SAFELINKS_downloads:/app/downloads
     expose:
       - "4000"
 
@@ -77,5 +78,6 @@ services:
 volumes:
   SAFELINKS_pgdata:
   SAFELINKS_uploads:
+  SAFELINKS_downloads:
   caddy_data:
   caddy_config:
