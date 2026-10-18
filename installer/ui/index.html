@@ -378,12 +378,18 @@ async function doLogin() {
 }
 
 // Deep-link callback from web after Google sign-in
+// Deep-link callback from web after Google sign-in
 listen('deep-link-configure', async (event) => {
   try {
     const p = event.payload || {};
     if (p.ssid) document.getElementById('cfg-ssid').value = p.ssid;
     if (p.pass) document.getElementById('cfg-wifi-pass').value = p.pass;
     if (p.ip) document.getElementById('cfg-ip').textContent = p.ip;
+    if (p.pairingCode) {
+      // Auto-fill pairing code if part of flow
+      console.log('[deep-link-configure] pairing code:', p.pairingCode);
+    }
+    // Jump to scan screen where user can see pre-filled SSID/pass
     show('scan');
   } catch (e) { console.warn('configure event error', e); }
 });
