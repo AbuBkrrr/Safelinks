@@ -73,14 +73,31 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
           <LogIn size={15} /> Log in
         </Btn>
       </div>
-      <div style={{ marginTop: 30, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.sub }}>
-        <Wifi size={13} /> End-users never log in here — they reach your Captive Portal at a URL like <code>/portal/&lt;resellerId&gt;</code> after connecting to WiFi.
-      </div>
-      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.sub }}>
-        <Smartphone size={13} /> Installing a router? Go straight to <code>/install</code> on your phone instead.
-      </div>
-      <div style={{ marginTop: 22, fontSize: 11.5, color: T.sub, textAlign: "center" }}>
-        A I Brains Ventures · +234 803 254 0215 · aibrainsventures@gmail.com
+      <div style={{ marginTop: 30, width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 12, fontSize: 12, color: T.sub }}>
+        {/* Captive Portal Info */}
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <Wifi size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
+          <div style={{ lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>End-users Portal</div>
+            <div>They reach your Captive Portal at<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}>/portal/&lt;resellerId&gt;</code><br />after connecting to WiFi.</div>
+          </div>
+        </div>
+        
+        {/* Router Installation Info */}
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <Smartphone size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
+          <div style={{ lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>Router Setup</div>
+            <div>Installing a router? Go straight to<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}>/install</code><br />on your phone.</div>
+          </div>
+        </div>
+        
+        {/* Footer Contact */}
+        <div style={{ textAlign: "center", paddingTop: 8, borderTop: `1px solid ${T.border}`, marginTop: 4 }}>
+          <div style={{ fontSize: 11.5, color: T.sub }}>A I Brains Ventures</div>
+          <div style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>📞 +234 803 254 0215</div>
+          <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>✉️ aibrainsventures@gmail.com</div>
+        </div>
       </div>
         <DownloadPrompt />
       </div>
