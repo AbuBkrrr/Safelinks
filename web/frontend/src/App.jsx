@@ -99,6 +99,7 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
           <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>✉️ aibrainsventures@gmail.com</div>
         </div>
       </div>
+      </div>
     </div>
   );
 }
