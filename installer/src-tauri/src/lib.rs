@@ -62,7 +62,7 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            register_protocol_handler();
+            // register_protocol_handler(); // removed: Tauri deep-link plugin + NSIS handles protocol registration
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for url in event.urls() {
