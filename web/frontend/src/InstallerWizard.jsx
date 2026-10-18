@@ -163,13 +163,13 @@ function PairingFlow({ onComplete, onBack }) {
     a.click();
     document.body.removeChild(a);
     
-    // Fallback: if installer doesn't respond in 3s, show download/manual guide
+    // Fallback: if installer doesn't respond in 500ms, show download/manual guide
     var launchTimeout = setTimeout(() => {
       if (configuringRouter) {
         setShowFallback(true);
         setShowDownloadGuide(true);
       }
-    }, 3000);
+    }, 500);
     var clickTime = Date.now();
     var t = setInterval(async function() {
       try {

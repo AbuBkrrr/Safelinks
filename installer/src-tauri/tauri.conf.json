@@ -34,7 +34,13 @@
     "windows": {
       "nsis": {
         "installMode": "perMachine",
-        "languages": ["English"]
+        "languages": ["English"],
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutLanguage": "English",
+        "script": "nsis-hook.nsh"
       }
     }
   },
