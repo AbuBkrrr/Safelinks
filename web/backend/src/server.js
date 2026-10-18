@@ -151,19 +151,21 @@ registerRadiusRoutes(router);
         json(res, 400, { error: "Invalid path" });
         return;
       }
-      try {
-        const info = await stat(resolved);
-        if (!info.isFile()) throw new Error("not a file");
-        res.writeHead(200, {
-          "Content-Type": "application/octet-stream",
-          "Content-Length": info.size,
-          "Content-Disposition": `attachment; filename="${requested}"`,
-          "Cache-Control": "public, max-age=86400",
-        });
-        createReadStream(resolved).pipe(res);
-      } catch {
-        json(res, 404, { error: "File not found" });
-      }
+      (async () => {
+        try {
+          const info = await stat(resolved);
+          if (!info.isFile()) throw new Error("not a file");
+          res.writeHead(200, {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": info.size,
+            "Content-Disposition": `attachment; filename="${requested}"`,
+            "Cache-Control": "public, max-age=86400",
+          });
+          createReadStream(resolved).pipe(res);
+        } catch {
+          json(res, 404, { error: "File not found" });
+        }
+      })();
       return;
     }
 
