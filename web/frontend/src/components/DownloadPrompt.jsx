@@ -4,6 +4,7 @@ const DownloadPrompt = () => {
   const [os, setOs] = useState(null);
   const [dismissed, setDismissed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -11,9 +12,9 @@ const DownloadPrompt = () => {
     else if (userAgent.includes('windows')) setOs('windows');
     else setOs('other');
 
-    // Check if user already dismissed
-    const dismissedFlag = localStorage.getItem('downloadPromptDismissed');
-    if (dismissedFlag === 'true') setDismissed(true);
+    // Check if user already dismissed **during this session** (NOT from localStorage)
+    // This ensures it shows on FIRST load of the landing page
+    setHasLoaded(true);
 
     // Handle resize
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -23,10 +24,12 @@ const DownloadPrompt = () => {
 
   const handleDismiss = () => {
     setDismissed(true);
-    localStorage.setItem('downloadPromptDismissed', 'true');
+    // Store in sessionStorage (cleared when browser closes)
+    sessionStorage.setItem('downloadPromptDismissed', 'true');
   };
 
-  if (dismissed || os === 'other' || os === 'android') return null;
+  // Show on first load (hasLoaded guarantees OS detection complete)
+  if (!hasLoaded || dismissed || os === 'other' || os === 'android') return null;
 
   const downloadUrl = '/downloads/safelinks-installer.exe';
 

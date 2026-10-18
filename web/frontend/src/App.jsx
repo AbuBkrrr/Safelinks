@@ -75,20 +75,20 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
       </div>
       <div style={{ marginTop: 30, width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 12, fontSize: 12, color: T.sub }}>
         {/* Captive Portal Info */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", transition: "all 0.2s", position: "relative" }} onClick={() => window.open('window.location.origin + /portal/r_demo', '_blank')} onMouseEnter={(e) => e.currentTarget.style.background = T.border} onMouseLeave={(e) => e.currentTarget.style.background = T.card}>
           <Wifi size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
-          <div style={{ lineHeight: 1.5 }}>
+          <div style={{ lineHeight: 1.5, flex: 1 }}>
             <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>End-users Portal</div>
-            <div>They reach your Captive Portal at<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}>/portal/&lt;resellerId&gt;</code><br />after connecting to WiFi.</div>
+            <div>They reach your Captive Portal at<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11, cursor: "pointer", textDecoration: "underline", color: T.primary }}>/portal/&lt;resellerId&gt;</code><br />after connecting to WiFi. <span style={{ fontSize: 10, color: T.sub }}>(Click to demo)</span></div>
           </div>
         </div>
         
         {/* Router Installation Info */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", transition: "all 0.2s" }} onClick={() => window.location.href = '/install'} onMouseEnter={(e) => e.currentTarget.style.background = T.border} onMouseLeave={(e) => e.currentTarget.style.background = T.card}>
           <Smartphone size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
-          <div style={{ lineHeight: 1.5 }}>
+          <div style={{ lineHeight: 1.5, flex: 1 }}>
             <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>Router Setup</div>
-            <div>Installing a router? Go straight to<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11 }}>/install</code><br />on your phone.</div>
+            <div>Installing a router? Go straight to<br /><code style={{ background: T.bg, padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 11, cursor: "pointer", textDecoration: "underline", color: T.primary }}>/install</code><br />on your phone. <span style={{ fontSize: 10, color: T.sub }}>(Click to go)</span></div>
           </div>
         </div>
         
