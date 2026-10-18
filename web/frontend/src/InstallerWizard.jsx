@@ -125,16 +125,14 @@ function PairingFlow({ onComplete, onBack }) {
     var rid = resolveResellerId();
     var params = new URLSearchParams({
       resellerId: rid,
-      ip: routerIp || "192.168.88.1",
       pairingCode: code,
-      ssid: ssid,
-      pass: wifiPass,
       token: session.token,
       role: session.role || 'reseller',
       email: session.email || '',
       companyName: session.companyName || '',
     });
     var deeplink = "safelinks-installer://configure?" + params.toString();
+    console.log('[InstallerWizard] Firing deeplink:', deeplink);
 
     // Inside the Tauri desktop app → postMessage to the native shell
     if (window.parent !== window) {
@@ -142,10 +140,7 @@ function PairingFlow({ onComplete, onBack }) {
       window.parent.postMessage({
         type: 'SAFELINKS_CONFIGURE',
         resellerId: rid,
-        ip: routerIp || "192.168.88.1",
         pairingCode: code,
-        ssid: ssid,
-        pass: wifiPass,
         token: session.token,
         role: session.role || 'reseller',
         email: session.email || '',
@@ -156,11 +151,14 @@ function PairingFlow({ onComplete, onBack }) {
     }
 
     // Standard browser → fire the OS deep-link
+    console.log('[InstallerWizard] Standard browser mode, attempting to launch deep-link');
     var a = document.createElement("a");
     a.href = deeplink;
     a.style.display = "none";
     document.body.appendChild(a);
+    console.log('[InstallerWizard] Created anchor with href:', a.href);
     a.click();
+    console.log('[InstallerWizard] Clicked anchor');
     document.body.removeChild(a);
     
     // Fallback: if installer doesn't respond in 500ms, show download/manual guide
