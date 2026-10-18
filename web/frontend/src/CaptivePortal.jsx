@@ -48,6 +48,8 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [countdown, setCountdown] = useState(0);
   const [showScanner, setShowScanner] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 480);
+  const [isExpired, setIsExpired] = useState(false);
   const [helpForm, setHelpForm] = useState({ name: "", email: "", phone: "", subject: "", message: "" });
   const [helpAttachmentUrl, setHelpAttachmentUrl] = useState(null);
   const [helpSubmitting, setHelpSubmitting] = useState(false);
@@ -64,36 +66,27 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       const params = new URLSearchParams(window.location.search);
       setClientMac(params.get("mac") || null);
       setClientIp(params.get("ip") || null);
-      setSuspended(params.get("suspended") === "1");
     } catch (_) {}
   }, []);
 
-  // ===== FAVICON INJECTION =====
+  // ===== RESPONSIVE HANDLER =====
   useEffect(() => {
-    const url = info?.data?.favicon_url || info?.data?.faviconUrl;
-    if (!url) return;
-    let link = document.querySelector('link[rel="icon"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = url;
-  }, [info?.data?.favicon_url, info?.data?.faviconUrl]);
+    const handleResize = () => setIsMobile(window.innerWidth < 480);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
-  // ===== CHECK SUSPENSION STATUS =====
+  // ===== CHECK VOUCHER EXPIRY & REDIRECT =====
   useEffect(() => {
-    if (suspended || !clientMac || !resellerId) return;
-    let alive = true;
-    api.portalStatus(resellerId, clientMac)
-      .then((r) => {
-        if (alive && r && (r.status === "suspended" || r.status === "expired")) {
-          setSuspended(true);
-        }
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [clientMac, resellerId, suspended]);
+    if (!voucher || !voucher.expires_at) return;
+    const now = Date.now();
+    const expiry = Number(voucher.expires_at);
+    if (expiry < now) {
+      setIsExpired(true);
+      setError("Subscription expired. Renew to continue.");
+      setStep("connect");
+    }
+  }, [voucher]);
 
   // ===== WEBSOCKET SYNC (Desktop App <-> Web Browser) =====
   useEffect(() => {
@@ -545,8 +538,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
         )}
 
         {/* CONTENT */}
-        <div style={{ padding: 24 }}>
-          {/* CONNECT - Voucher Entry or Subscribe */}
+        <div style={{ padding: isMobile ? "14px 12px" : "24px 16px" }}>
           {step === "connect" && (
             <div>
               <div style={{ fontSize: 14, color: T.sub, marginBottom: 16, textAlign: "center" }}>
@@ -743,12 +735,26 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
             </div>
           )}
 
+          {/* EXPIRED - Subscription Expired */}
+          {isExpired && (
+            <div style={{ textAlign: "center" }}>
+              <AlertCircle size={44} color={T.danger} style={{ marginBottom: 12 }} />
+              <div style={{ fontWeight: 700, fontSize: isMobile ? 16 : 18, marginBottom: 8, color: T.ink }}>Subscription Expired</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color: T.sub, marginBottom: 16, lineHeight: 1.5 }}>
+                Your subscription has expired. Please renew to continue using the internet.
+              </div>
+              <Btn onClick={() => { setIsExpired(false); setStep("plans"); }} style={{ width: "100%", justifyContent: "center", padding: "12px 0" }}>
+                Renew Subscription
+              </Btn>
+            </div>
+          )}
+
           {/* CONFIRMED - Payment Approved, Internet Access Granted */}
-          {step === "confirmed" && voucher && (
+          {step === "confirmed" && voucher && !isExpired && (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 56, height: 56, margin: "0 auto 12px", borderRadius: "50%", background: "#d5f0e4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>✓</div>
-              <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 6, color: T.success }}>Connected!</div>
-              <div style={{ fontSize: 13, color: T.sub, marginBottom: 16, lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 700, fontSize: isMobile ? 16 : 17, marginBottom: 6, color: T.success }}>Connected!</div>
+              <div style={{ fontSize: isMobile ? 12 : 13, color: T.sub, marginBottom: 16, lineHeight: 1.5 }}>
                 Your internet access is active. You can now browse freely.
               </div>
 
@@ -769,7 +775,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   }
                 }}
                 disabled={countdown > 0}
-                style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: 15 }}
+                style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: isMobile ? 14 : 15 }}
               >
                 🚀 Start Browsing
               </Btn>
