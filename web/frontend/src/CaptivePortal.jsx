@@ -376,6 +376,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   if (info.loading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg }}>
+        <a href={"mailto:" + (info.data?.contactEmail || "support@safelinks.name.ng")} style={{ position: "fixed", bottom: 20, right: 20, background: "#1e293b", color: "#fff", padding: "12px 16px", borderRadius: "50px", textDecoration: "none", fontWeight: 600, boxShadow: "0 4px 12px rgba(0,0,0,0.2)", zIndex: 999 }}>💬 Support</a>
         <Loading text="Loading portal…" />
       </div>
     );
