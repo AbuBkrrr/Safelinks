@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
 import { Router, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Zap, Keyboard, Clock, Copy } from "lucide-react";
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
-import { api } from "./api.js";
+import { api, getSession } from "./api.js";
 import LanAutoPair from "./LanAutoPair.jsx";
 
 const MODELS = ["MikroTik hAP ac2", "MikroTik hAP ac3", "Ubiquiti EdgeRouter X", "TP-Link ER605", "Generic OpenWRT device"];
