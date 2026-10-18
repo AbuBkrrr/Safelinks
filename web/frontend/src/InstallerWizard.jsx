@@ -212,34 +212,23 @@ function PairingFlow({ onComplete, onBack }) {
 
       {status === "pending" && (
         <div>
-          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12, textAlign: "center" }}>
-            Fill in the WiFi details, then click <b>Configure router now</b>. The desktop installer runs the SSH config automatically.
+          <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 20, textAlign: "center" }}>
+            Click <b>Pair automatically</b> below. The desktop installer will launch and pair your router in seconds.
           </div>
 
-          <Field label="WiFi network name (SSID)">
-            <input style={inputStyle} value={ssid} onChange={(e) => setSsid(e.target.value)} />
-          </Field>
-          <Field label="WiFi password (min 8 characters)">
-            <input style={inputStyle} type="text" value={wifiPass} onChange={(e) => setWifiPass(e.target.value)} placeholder="e.g. MyShop2026" />
-          </Field>
-          <Field label="Router IP">
-            <input style={inputStyle} value={routerIp} onChange={(e) => setRouterIp(e.target.value)} />
-          </Field>
-
           <Btn
-            disabled={configuringRouter || !ssid || wifiPass.length < 8}
+            disabled={configuringRouter}
             onClick={fireInstallerDeepLink}
-            style={{ width: "100%", justifyContent: "center", padding: "12px 0", marginTop: 6 }}
+            style={{ width: "100%", justifyContent: "center", padding: "12px 0", marginBottom: 14 }}
           >
-            {configuringRouter ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Launching installer…</> : "Configure router now"}
+            {configuringRouter ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Launching installer…</> : "Pair automatically (MikroTik)"}
           </Btn>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.sub, fontSize: 11.5, marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.sub, fontSize: 11.5, marginBottom: 16 }}>
             <Clock size={11} /> Pairing code {code} · expires {minutesLeft} min
           </div>
 
-          <div style={{ textAlign: "center", marginTop: 12, fontSize: 11.5, color: T.sub }}>
-            First time on this PC?{" "}
+          <div style={{ textAlign: "center", fontSize: 11.5, color: T.sub, marginBottom: 12 }}>
             <a onClick={() => setShowDownloadGuide(!showDownloadGuide)} style={{ color: T.primary, cursor: "pointer", textDecoration: "underline" }}>
               {showDownloadGuide ? "Hide install guide" : "Download the installer"}
             </a>
