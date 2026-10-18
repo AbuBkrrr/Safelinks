@@ -307,7 +307,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   useEffect(() => {
     if (step !== "confirmed" || !clientMac || countdown > 0) return;
     const params = new URLSearchParams(window.location.search);
-    const dst = params.get("dst") || "https://www.safelinks.name.ng";
+    const dst = params.get("dst") || "https://www.budgetpro.com.ng";
     const isTauri = typeof window !== "undefined" && (window.__TAURI__ || window.__TAURI_INTERNALS__);
     
     const t = setTimeout(async () => {
@@ -761,7 +761,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <Btn
                 onClick={() => {
                   const params = new URLSearchParams(window.location.search);
-                  const dst = params.get("dst") || "https://www.safelinks.name.ng";
+                  const dst = params.get("dst") || "https://www.budgetpro.com.ng";
                   if (window.__TAURI__?.window?.getCurrentWindow) {
                     window.__TAURI__.window.getCurrentWindow().close().catch(() => {});
                   } else {
