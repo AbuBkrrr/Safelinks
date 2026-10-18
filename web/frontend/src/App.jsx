@@ -79,7 +79,7 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
           <Wifi size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
           <div style={{ lineHeight: 1.5, flex: 1 }}>
             <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>End-users Portal</div>
-            <div style={{ fontSize: 11.5 }}>Your customers connect to WiFi and access a branded portal where they can purchase data plans with vouchers. <span style={{ fontWeight: 600, color: T.primary, cursor: "pointer", textDecoration: "underline" }}>View demo portal</span> or <span style={{ fontWeight: 600, color: T.primary }}>create an account to get started.</span></div>
+            <div style={{ fontSize: 11.5 }}>Resell your internet through your Captive Portal after connecting via WiFi. Sign up or log in to get started. <span style={{ fontWeight: 600, color: T.primary, cursor: "pointer", textDecoration: "underline" }}>View demo portal.</span></div>
           </div>
         </div>
         
@@ -88,7 +88,7 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
           <Smartphone size={16} style={{ flexShrink: 0, marginTop: 2, color: T.primary }} />
           <div style={{ lineHeight: 1.5, flex: 1 }}>
             <div style={{ fontWeight: 600, color: T.ink, marginBottom: 4 }}>Router Setup</div>
-            <div style={{ fontSize: 11.5 }}>Configure your MikroTik router to run SafeLinks in minutes. Download the desktop installer, scan your network, and auto-configure your router—no manual SSH needed. <span style={{ fontWeight: 600, color: T.primary, cursor: "pointer", textDecoration: "underline" }}>Get started with the installer.</span></div>
+            <div style={{ fontSize: 11.5 }}>Installing a router? Click the Download button to continue the app. Scan your network, and auto-configure your router—no manual SSH needed. <span style={{ fontWeight: 600, color: T.primary, cursor: "pointer", textDecoration: "underline" }}>Get started.</span></div>
           </div>
         </div>
         
@@ -98,8 +98,6 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
           <div style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>📞 +234 803 254 0215</div>
           <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>✉️ aibrainsventures@gmail.com</div>
         </div>
-      </div>
-        <DownloadPrompt />
       </div>
     </div>
   );

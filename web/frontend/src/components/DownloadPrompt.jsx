@@ -89,7 +89,7 @@ const DownloadPrompt = () => {
           📱 Download SAFE_Links Installer
         </div>
         <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4' }}>
-          Configure your MikroTik router in one click. Windows may warn — click "More info" → "Run anyway" (normal for new apps).
+          Configure your router in one click. Windows may warn — click "More info" → "Run anyway" (normal for new apps).
         </div>
       </div>
       <div style={{ display: 'flex', gap: '10px', flexShrink: 0, alignItems: 'center' }}>
