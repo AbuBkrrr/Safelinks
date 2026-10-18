@@ -47,7 +47,12 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
     { match: dtMatch(lang, "voiceMatchHelp"), label: dt(lang, "voiceHelpLabel"), run: () => dt(lang, "voiceLandingHelp") },
   ];
   return (
-    <div style={{ minHeight: "100%", background: T.bg, fontFamily: "'Segoe UI', system-ui, sans-serif", position: "relative", padding: "50px 20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, fontFamily: "'Segoe UI', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
+      {/* Download Prompt - NOT fixed, part of normal flow */}
+      <DownloadPrompt />
+      
+      {/* Main landing content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", position: "relative", padding: "40px 20px", overflow: "auto" }}>
       <div onClick={onPickSuperAdmin} title="Super Admin login" style={{ position: "absolute", top: 16, right: 16, display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: T.sub, cursor: "pointer", padding: "6px 10px", borderRadius: 20, border: `1px solid ${T.border}`, background: T.card }}>
         <Shield size={12} /> Super Admin
       </div>
@@ -77,7 +82,8 @@ function Landing({ onCreateAccount, onLogin, onPickSuperAdmin }) {
       <div style={{ marginTop: 22, fontSize: 11.5, color: T.sub, textAlign: "center" }}>
         A I Brains Ventures · +234 803 254 0215 · aibrainsventures@gmail.com
       </div>
-      <VoiceAssistant commands={voiceCommands} lang={lang} greeting={dt(lang, "voiceLandingGreeting")} />
+        <DownloadPrompt />
+      </div>
     </div>
   );
 }

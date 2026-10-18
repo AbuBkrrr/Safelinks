@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const DownloadPrompt = () => {
   const [os, setOs] = useState(null);
   const [dismissed, setDismissed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -13,6 +14,11 @@ const DownloadPrompt = () => {
     // Check if user already dismissed
     const dismissedFlag = localStorage.getItem('downloadPromptDismissed');
     if (dismissedFlag === 'true') setDismissed(true);
+
+    // Handle resize
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleDismiss = () => {
@@ -20,69 +26,113 @@ const DownloadPrompt = () => {
     localStorage.setItem('downloadPromptDismissed', 'true');
   };
 
-  if (dismissed || os === 'other') return null;
+  if (dismissed || os === 'other' || os === 'android') return null;
 
-  const downloadUrl = os === 'android' 
-    ? '/downloads/safelinks-installer.apk' 
-    : '/downloads/safelinks-installer.exe';
+  const downloadUrl = '/downloads/safelinks-installer.exe';
 
-  const osName = os === 'android' ? 'Android' : 'Windows';
+  // **ONLY show on Windows, NOT on mobile**
+  if (isMobile) {
+    // On mobile: show compact banner at top
+    return (
+      <div style={{
+        width: '100%',
+        background: '#1a3a6b',
+        color: 'white',
+        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '8px',
+        fontSize: '12px',
+      }}>
+        <span>📱 Get SAFE_Links Installer</span>
+        <button
+          onClick={handleDismiss}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '16px',
+            padding: '0 4px',
+            flexShrink: 0,
+          }}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
 
+  // Desktop: show full banner in flow (NOT fixed)
   return (
     <div style={{
-      position: 'fixed',
-      bottom: '20px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      background: '#1a3a6b',
+      width: '100%',
+      background: 'linear-gradient(135deg, #1a3a6b 0%, #0f172a 100%)',
       color: 'white',
-      padding: '16px 24px',
+      padding: '20px 24px',
       borderRadius: '12px',
-      boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
       display: 'flex',
       alignItems: 'center',
-      gap: '16px',
-      zIndex: 1000,
-      maxWidth: '90%',
-      flexWrap: 'wrap',
-      justifyContent: 'center'
+      justifyContent: 'space-between',
+      gap: '20px',
+      marginBottom: '20px',
+      border: '1px solid rgba(255,255,255,0.1)',
     }}>
-      <div>
-        <span>📱 Download the SAFE_Links Installer for {osName}</span>
-        <div style={{ fontSize: 10.5, color: "#cbd5e1", marginTop: 3, opacity: 0.85 }}>
-          Windows may warn — click "More info" → "Run anyway"
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
+          📱 Download SAFE_Links Installer
+        </div>
+        <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4' }}>
+          Configure your MikroTik router in one click. Windows may warn — click "More info" → "Run anyway" (normal for new apps).
         </div>
       </div>
-      {os === 'windows' ? (
-          <a
-            href={downloadUrl}
-            download
-            style={{ display: "inline-block", background: "#22c55e", color: "#fff", padding: "10px 24px", borderRadius: 8, textDecoration: "none", fontWeight: 700, fontSize: 14 }}
-            onClick={() => { try { localStorage.setItem('downloadPromptDismissed', 'true'); } catch (_) {} }}
-          >
-            Download Now
-          </a>
-        ) : (
-          <div style={{ fontSize: 12.5, color: "#cbd5e1", marginTop: 6, padding: "10px 14px", background: "rgba(255,255,255,0.08)", borderRadius: 8, lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Windows installer available now</div>
-            <div style={{ opacity: 0.85 }}>Mac, Linux, and iOS are coming soon. Use the Windows installer from a PC for now — the router configuration only needs to run once.</div>
-          </div>
-        )}
-      <button 
-        onClick={handleDismiss}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: 'white',
-          cursor: 'pointer',
-          fontSize: '20px',
-          lineHeight: 1,
-          padding: '0 4px'
-        }}
-        aria-label="Dismiss"
-      >
-        ×
-      </button>
+      <div style={{ display: 'flex', gap: '10px', flexShrink: 0, alignItems: 'center' }}>
+        <a
+          href={downloadUrl}
+          download
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#22c55e',
+            color: '#fff',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            textDecoration: 'none',
+            fontWeight: 700,
+            fontSize: '13px',
+            whiteSpace: 'nowrap',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+          onClick={() => { try { localStorage.setItem('downloadPromptDismissed', 'true'); } catch (_) {} }}
+          onMouseEnter={(e) => e.target.style.background = '#16a34a'}
+          onMouseLeave={(e) => e.target.style.background = '#22c55e'}
+        >
+          ↓ Download
+        </a>
+        <button
+          onClick={handleDismiss}
+          style={{
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.3)',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '18px',
+            padding: '4px 8px',
+            borderRadius: '6px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+          onMouseLeave={(e) => e.target.style.background = 'transparent'}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 };
