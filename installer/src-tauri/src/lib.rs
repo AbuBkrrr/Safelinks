@@ -71,15 +71,19 @@ pub fn run() {
                         if let Some((_, query)) = s.split_once('?') {
                             let mut rid = String::new(); let mut ip = String::new();
                             let mut pc = String::new(); let mut ssid = String::new(); let mut pass = String::new();
+                            let mut token = String::new(); let mut role = String::new(); let mut email = String::new(); let mut company = String::new();
                             for pair in query.split('&') {
                                 let (k, v) = match pair.split_once('=') { Some(x) => x, None => continue };
                                 let v = urlencoding_decode(v);
                                 match k {
                                     "resellerId" => rid = v, "ip" => ip = v, "pairingCode" => pc = v,
-                                    "ssid" => ssid = v, "pass" => pass = v, _ => {}
+                                    "ssid" => ssid = v, "pass" => pass = v,
+                                    "token" => token = v, "role" => role = v, "email" => email = v, "companyName" => company = v,
+                                    _ => {}
                                 }
                             }
-                            let payload = serde_json::json!({ "resellerId": rid, "ip": ip, "pairingCode": pc, "ssid": ssid, "pass": pass });
+                            let payload = serde_json::json!({ "resellerId": rid, "ip": ip, "pairingCode": pc, "ssid": ssid, "pass": pass, "token": token, "role": role, "email": email, "companyName": company });
+                            if !token.is_empty() { crate::auth::cache_pending_auth(serde_json::json!({ "token": token, "role": role, "email": email, "companyName": company })); }
                             let _ = handle.emit("deep-link-configure", payload);
                         }
                     } else if let Some(q) = s.split_once("?") {

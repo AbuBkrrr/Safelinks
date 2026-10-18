@@ -119,12 +119,9 @@ function PairingFlow({ onComplete, onBack }) {
     setShowFallback(false);
     setShowDownloadGuide(false);
 
-    // Fire the deep-link. Windows launches the installed SAFE_Links
-    // installer, which reads the ?configure URL and jumps to the scan/
-    // configure flow. We do NOT detect success via browser focus —
-    // Windows 11 doesn't reliably steal focus on protocol-handler
-    // launches, and false-negatives would show the wrong fallback.
-    // The polling loop below confirms the router checked in.
+    const session = getSession();
+    if (!session || !session.token) { setConfiguringRouter(false); alert('Session expired. Please log in again.'); return; }
+
     var rid = resolveResellerId();
     var params = new URLSearchParams({
       resellerId: rid,
@@ -132,6 +129,10 @@ function PairingFlow({ onComplete, onBack }) {
       pairingCode: code,
       ssid: ssid,
       pass: wifiPass,
+      token: session.token,
+      role: session.role || 'reseller',
+      email: session.email || '',
+      companyName: session.companyName || '',
     });
     var deeplink = "safelinks-installer://configure?" + params.toString();
 
@@ -144,7 +145,11 @@ function PairingFlow({ onComplete, onBack }) {
         ip: routerIp || "192.168.88.1",
         pairingCode: code,
         ssid: ssid,
-        pass: wifiPass
+        pass: wifiPass,
+        token: session.token,
+        role: session.role || 'reseller',
+        email: session.email || '',
+        companyName: session.companyName || '',
       }, '*');
       setTimeout(function() { setConfiguringRouter(false); }, 5000);
       return;
