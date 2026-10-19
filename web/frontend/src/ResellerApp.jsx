@@ -899,13 +899,14 @@ export default function ResellerApp({ session, onExit, notify }) {
         <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessions.data?.sessions || sessions.data || []).length} connected</Badge>}>
           {sessions.loading ? <Loading /> : ((sessions.data?.sessions || sessions.data) || []).map((s) => {
             const voucherExpires = s.voucher_expires_at;
-            const isExpiringSoon = voucherExpires && (Number(voucherExpires) - Date.now()) < 300000; // Less than 5 minutes
+            const detectedOnly = s.state === "detected";
+            const isExpiringSoon = voucherExpires && (Number(voucherExpires) - Date.now()) < 300000;
             return (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}`, background: isExpiringSoon ? `${T.warning}15` : 'transparent' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>
-                  {s.voucher_name || s.username || "(unknown)"}{" "}
-                  <span style={{ fontWeight: 400, color: T.sub, fontSize: 11.5 }}>· {s.plan_name || "no plan"}</span>
+                  {detectedOnly ? "Detected device" : (s.voucher_name || s.username || "(unknown)")} {" "}
+                  <span style={{ fontWeight: 400, color: detectedOnly ? T.warning : T.sub, fontSize: 11.5 }}>· {detectedOnly ? "not authenticated" : (s.plan_name || "no plan")}</span>
                 </div>
                 <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>
                   {s.mac} · {s.ip || "?"}{s.bandwidth_mbps ? " · " + s.bandwidth_mbps + " Mbps" : ""}
@@ -913,15 +914,16 @@ export default function ResellerApp({ session, onExit, notify }) {
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
+                {detectedOnly ? <Badge tone={T.warning}>Detected</Badge> : <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
                   {s.started_at ? timeAgo(s.started_at) : (s.last_seen ? timeAgo(s.last_seen) : "—")}
-                </span>
-                {voucherExpires && (
+                </span>}
+                {!detectedOnly && voucherExpires && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: isExpiringSoon ? T.warning : T.primary }}>
                     <Clock size={11} />
                     {getExpiryCountdown(voucherExpires)}
                   </div>
                 )}
+                {detectedOnly && <Btn size="sm" variant="outline" onClick={() => unbindClient(s.mac)}>Unbind</Btn>}
               </div>
             </div>
             );

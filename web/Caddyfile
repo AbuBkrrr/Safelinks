@@ -1,20 +1,51 @@
-# Local development configuration for LAN testing with MikroTik router
-# This Caddyfile serves the SAFE_Links platform over HTTP (no TLS locally)
-# The MikroTik router is at 192.168.88.1 on the same network
+# Public deployment: Caddy must forward API requests to the backend and
+# frontend assets/pages to the frontend container. WebSocket is not used by
+# the portal; live state uses HTTP polling.
 
 localhost:80 {
-  reverse_proxy frontend:80
+  handle /api/* {
+    reverse_proxy backend:4000
+  }
+  handle /health {
+    reverse_proxy backend:4000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
 }
 
 127.0.0.1:80 {
-  reverse_proxy frontend:80
+  handle /api/* {
+    reverse_proxy backend:4000
+  }
+  handle /health {
+    reverse_proxy backend:4000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
 }
 
 192.168.88.253:80 {
-  reverse_proxy frontend:80
+  handle /api/* {
+    reverse_proxy backend:4000
+  }
+  handle /health {
+    reverse_proxy backend:4000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
 }
 
-# Optional: add your PC's hostname if resolvable
 *.local:80 {
-  reverse_proxy frontend:80
+  handle /api/* {
+    reverse_proxy backend:4000
+  }
+  handle /health {
+    reverse_proxy backend:4000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
 }

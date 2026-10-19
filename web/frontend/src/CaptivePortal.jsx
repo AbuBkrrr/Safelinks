@@ -88,44 +88,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     }
   }, [voucher]);
 
-  // ===== WEBSOCKET SYNC (Desktop App <-> Web Browser) =====
-  useEffect(() => {
-    if (!resellerId) return;
-    try {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws/portal/${resellerId}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "payment_confirmed" && data.pendingId === pendingId) {
-            // Payment confirmed from another device (desktop app or web)
-            setVoucher(data.voucher);
-            setStep("confirmed");
-            setCountdown(0);
-            notify?.("Payment confirmed! Starting connection...");
-          } else if (data.type === "voucher_redeemed" && data.mac === clientMac) {
-            // Voucher redeemed on another device for this MAC
-            setVoucher(data.voucher);
-            setStep("confirmed");
-            setCountdown(0);
-            notify?.("Voucher verified! You're connected.");
-          }
-        } catch (_) {}
-      };
-
-      ws.onerror = () => {};
-      ws.onclose = () => {};
-
-      return () => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
-      };
-    } catch (_) {}
-  }, [resellerId, pendingId, clientMac, notify]);
+  // ===== WEBSOCKET SYNC =====
+  // The production deployment uses HTTP polling for portal state. Avoid opening
+  // a WebSocket here because the public static frontend has no WS upgrade route.
+  useEffect(() => {}, []);
 
   // ===== BROADCAST UPDATE TO WEBSOCKET =====
   const broadcastUpdate = (type, data) => {
@@ -173,14 +139,19 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     setShowScanner(true);
     setError(null);
     setTimeout(async () => {
+      let scanner = null;
       try {
-        const scanner = new Html5Qrcode("qr-reader");
+        if (!window.isSecureContext && window.location.hostname !== "localhost") {
+          throw new Error("Camera access requires HTTPS");
+        }
+        scanner = new Html5Qrcode("qr-reader");
         scannerRef.current = scanner;
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
-            scanner.stop().then(() => {
+            scanner.stop().catch(() => {}).finally(() => {
+              scannerRef.current = null;
               setShowScanner(false);
               let code = decodedText;
               try {
@@ -195,8 +166,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           () => {}
         );
       } catch (err) {
-        setError("Could not access camera. Try manual entry instead.");
+        if (scanner) scanner.clear().catch(() => {});
+        scannerRef.current = null;
         setShowScanner(false);
+        setError("Camera unavailable. Allow camera access in browser settings, or enter the voucher manually.");
       }
     }, 100);
   }
@@ -296,26 +269,26 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     } catch (_) {}
   }, [resellerId]);
 
-  // ===== AUTO-REDIRECT AFTER CONFIRMATION =====
-  useEffect(() => {
-    if (step !== "confirmed" || !clientMac || countdown > 0) return;
+  function openBrowsingDestination() {
     const params = new URLSearchParams(window.location.search);
     const dst = params.get("dst") || "https://www.budgetpro.com.ng";
     const isTauri = typeof window !== "undefined" && (window.__TAURI__ || window.__TAURI_INTERNALS__);
-    
-    const t = setTimeout(async () => {
-      if (isTauri && window.__TAURI__?.window?.getCurrentWindow) {
-        try {
-          const w = window.__TAURI__.window.getCurrentWindow();
-          if (w) { await w.close(); return; }
-        } catch (_) {}
-      }
-      window.open(dst, '_blank');
-    }, 3000);
-    
+
+    if (isTauri && window.__TAURI__?.window?.getCurrentWindow) {
+      window.__TAURI__.window.getCurrentWindow().close().catch(() => {});
+      return;
+    }
+
+    // Same-tab navigation works in captive-portal browsers that block window.open popups.
+    window.location.assign(dst);
+  }
+
+  // ===== AUTO-REDIRECT AFTER CONFIRMATION =====
+  useEffect(() => {
+    if (step !== "confirmed" || !clientMac || countdown > 0) return;
+    const t = setTimeout(openBrowsingDestination, 3000);
     return () => clearTimeout(t);
   }, [step, clientMac, countdown]);
-
   // ===== CARD PAYMENT SUBMISSION =====
   async function submitCard() {
     setProcessing(true);
@@ -345,13 +318,11 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
         throw new Error(j.error || "Payment initialization failed");
       }
 
-      // Store for recovery after redirect
       try {
         localStorage.setItem("safelinks_pending_id", j.pendingActivationId);
         localStorage.setItem("safelinks_reseller_id", resellerId);
       } catch (_) {}
 
-      // Redirect to payment gateway
       window.location.href = j.checkoutUrl;
     } catch (err) {
       setError(err.message || "Card payment failed");
@@ -766,15 +737,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               )}
 
               <Btn
-                onClick={() => {
-                  const params = new URLSearchParams(window.location.search);
-                  const dst = params.get("dst") || "https://www.budgetpro.com.ng";
-                  if (window.__TAURI__?.window?.getCurrentWindow) {
-                    window.__TAURI__.window.getCurrentWindow().close().catch(() => {});
-                  } else {
-                    window.open(dst, '_blank');
-                  }
-                }}
+                onClick={openBrowsingDestination}
                 disabled={countdown > 0}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: isMobile ? 14 : 15 }}
               >

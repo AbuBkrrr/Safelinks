@@ -616,7 +616,8 @@ CREATE TABLE IF NOT EXISTS active_sessions (
   bytes_in BIGINT DEFAULT 0,
   bytes_out BIGINT DEFAULT 0,
   started_at BIGINT NOT NULL,
-  last_seen BIGINT NOT NULL
+  last_seen BIGINT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'active'
 );
 CREATE INDEX IF NOT EXISTS idx_active_sessions_router ON active_sessions(router_id, last_seen);
 CREATE INDEX IF NOT EXISTS idx_active_sessions_reseller ON active_sessions(reseller_id, last_seen);
@@ -666,6 +667,7 @@ export async function runInstallerMigration() {
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS pairing_code TEXT;
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_ssid_broadcast BOOLEAN;
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_captive_redirect BOOLEAN;
+    ALTER TABLE active_sessions ADD COLUMN IF NOT EXISTS state TEXT NOT NULL DEFAULT 'active';
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS verify_wan_internet BOOLEAN;
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS completed_at BIGINT;
     ALTER TABLE installations ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual';
