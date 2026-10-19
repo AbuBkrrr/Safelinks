@@ -688,11 +688,24 @@ document.getElementById('cfg-apply').onclick = async function() {
   console.log('[cfg-apply] using reseller_id:', __rid);
   cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
   try {
+    var auth = localStorage.getItem('auth_token') || '';
+    cfgSetStatus('Generating pairing code...', '#fbbf24');
+    var codeRes = await fetch('https://backend-services-production-78d8.up.railway.app/api/reseller/pairing-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth },
+      body: '{}'
+    });
+    var codeJson = await codeRes.json();
+    var pairingCode = codeJson.code || codeJson.pairingCode;
+    if (!pairingCode) throw new Error("No pairing code returned from backend");
+    cfgSetStatus('Applying configuration to ' + ip + '...\nThis may take 30-60 seconds.', '#fbbf24');
+    
     var r = await invoke('installer_router_apply_config', {
       ip: ip, user: user, password: pass, ssid: ssid, wifiPassword: wifiPassword,
       resellerId: __rid,
       adminMac: await invoke('get_local_mac').catch(function() { return ''; }),
-      authToken: localStorage.getItem('auth_token') || ''
+      authToken: auth,
+      pairingCode: pairingCode
     });
     var tail = r.log.slice(-12).join('\n');
     cfgSetStatus(
