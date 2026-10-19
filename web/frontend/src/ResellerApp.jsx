@@ -929,7 +929,42 @@ export default function ResellerApp({ session, onExit, notify }) {
             </div>
             );
           })}
-          {!sessions.loading && ((sessions.data?.sessions || sessions.data) || []).length === 0 && <EmptyRow text="No devices connected right now." />}
+          {!sessionsRes.loading && (sessionsRes.data?.sessions || sessionsRes.data || []).length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${T.border}`, textAlign: "left" }}>
+                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Device / MAC</th>
+                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>IP Address</th>
+                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>User</th>
+                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Data</th>
+                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(sessionsRes.data?.sessions || sessionsRes.data || []).map((s) => (
+                  <tr key={s.id || s.mac_address} style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.mac_address}</td>
+                    <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.ip_address}</td>
+                    <td style={{ padding: "10px 8px" }}>{s.username || "Unknown"}</td>
+                    <td style={{ padding: "10px 8px", color: T.sub }}>
+                      ↓ {Math.round((s.bytes_in || 0) / 1024 / 1024)}MB / ↑ {Math.round((s.bytes_out || 0) / 1024 / 1024)}MB
+                    </td>
+                    <td style={{ padding: "10px 8px" }}>
+                      <Btn size="sm" tone={T.danger} onClick={async () => {
+                        if (!confirm("Disconnect this device?")) return;
+                        try {
+                          await api.reseller.disconnectSession(s.mac_address);
+                          sessionsRes.refetch();
+                          notify("Device disconnected");
+                        } catch(e) { notify(e.message); }
+                      }}>Disconnect</Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!sessionsRes.loading && (sessionsRes.data?.sessions || sessionsRes.data || []).length === 0 && <EmptyRow text="No devices connected right now." />}
         </Panel>
       )}
 
