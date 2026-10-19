@@ -179,6 +179,7 @@ export function registerAgentRoutes(router) {
           const exp = String(p.password || p.expiresAt || "");
           if (!mac) { await db.prepare("UPDATE router_commands SET status='dropped' WHERE id=?").run(c.id); continue; }
           const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
+          lines.push("/ip hotspot active remove [find mac-address=" + mac + "]");
           lines.push("/ip hotspot ip-binding remove [find mac-address=" + mac + "]");
           if (exp.length >= 19) {
             const d = exp.slice(0, 10);
@@ -193,6 +194,7 @@ export function registerAgentRoutes(router) {
           const mac = String(p.username || p.mac || "").toUpperCase();
           const macHex = mac.replace(/[^A-Fa-f0-9]/g, "");
           if (mac) {
+            lines.push("/ip hotspot active remove [find mac-address=" + mac + "]");
             lines.push("/ip hotspot ip-binding remove [find mac-address=" + mac + "]");
             lines.push("/system scheduler remove [find name=\"sl-exp-" + macHex + "\"]");
           }
@@ -216,7 +218,7 @@ export function registerAgentRoutes(router) {
           continue;
         }
         // Tell the router to acknowledge the command so it doesn't stay stuck
-        lines.push(':do { /tool fetch url="' + base + '/api/agent/command/' + c.id + '/ack" http-method=post http-data="status=completed" output=none } on-error={}');
+        lines.push(':do { /tool fetch url="' + base + '/api/agent/commands/' + c.id + '/ack" http-method=post http-data="status=completed" output=none } on-error={}');
         await db.prepare("UPDATE router_commands SET status='sent' WHERE id=?").run(c.id);
       }
       return text(res, 200, lines.join("\n") + "\n");
