@@ -596,15 +596,35 @@ async fn publish_and_fetch_rsc(
     log.push(format!("RSC published ({} bytes) → {}", rsc_text.len(), url));
 
     // Step 2 — tell the router to pull the file itself.
-    let fetch_cmd = format!(
-        "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
-        url, REMOTE_FILE
-    );
-    let fetch_out = exec_raw(session, &fetch_cmd).await
-        .map_err(|e| format!("router fetch exec failed: {}", e))?;
-    let fetch_trim = fetch_out.trim();
-    if fetch_trim.contains("failure:") || fetch_trim.contains("status: failed") {
-        return Err(format!("router fetch failed: {}", fetch_trim));
+    // Retry fetch up to 5 times (freshly reset routers may lack WAN for a moment)
+    let mut fetch_ok = false;
+    let mut last_err = String::new();
+    for attempt in 1..=5 {
+        let fetch_cmd = format!(
+            "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
+            url, REMOTE_FILE
+        );
+        match exec_raw(session, &fetch_cmd).await {
+            Ok(out) => {
+                let trim = out.trim();
+                if trim.contains("failure:") || trim.contains("status: failed") {
+                    last_err = trim.to_string();
+                    log.push(format!("fetch attempt {} failed: {}", attempt, trim));
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                } else {
+                    fetch_ok = true;
+                    break;
+                }
+            }
+            Err(e) => {
+                last_err = e.clone();
+                log.push(format!("fetch attempt {} error: {}", attempt, e));
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            }
+        }
+    }
+    if !fetch_ok {
+        return Err(format!("router fetch failed after 5 retries: {}", last_err));
     }
     log.push(format!("Router fetched {}", REMOTE_FILE));
 

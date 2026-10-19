@@ -10,6 +10,21 @@
 :global slPairCode
 :global slApiUrl
 :global slResellerId
+
+# --- 0. FORCE CLEANUP ---
+:do { /system script remove [find name="safelinks-register"] } on-error={}
+:do { /system script remove [find name="safelinks-checkin"] } on-error={}
+:do { /system script remove [find name="safelinks-heartbeat"] } on-error={}
+:do { /system scheduler remove [find name="safelinks-checkin"] } on-error={}
+:do { /file remove [find name="SAFELINKS-agent.rsc"] } on-error={}
+:do { /file remove [find name="SAFELINKS-credentials.txt"] } on-error={}
+:do { /ip hotspot remove [find name="safelinks-hotspot"] } on-error={}
+:do { /ip hotspot profile remove [find name="safelinks-profile"] } on-error={}
+:do { /ip pool remove [find name="safelinks-pool"] } on-error={}
+:do { /ip dhcp-server remove [find name="safelinks-dhcp"] } on-error={}
+:do { /interface bridge remove [find name="safelinks-bridge"] } on-error={}
+:log info "safelinks-configure: wiped old config"
+
 :global slAdminMac
 
 :if ([:typeof $slWanMode] = "nothing") do={ :set slWanMode "dhcp" }
