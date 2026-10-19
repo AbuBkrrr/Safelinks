@@ -169,6 +169,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   const pending = useOfflineResource(() => api.reseller.pendingActivations(), "pendingActivations", [], (r) => r.pendingActivations);
   const billing = useResource(() => api.reseller.billing(), []);
   const license = useResource(() => api.reseller.license(), []);
+  const sessionsRes = useResource(() => api.reseller.sessions(), []);
   const bankInfo = useResource(() => api.reseller.platformBankInfo(), []);
   const support = useOfflineResource(() => api.reseller.support(), "support", [], (r) => r.tickets);
   const customerSupport = useOfflineResource(() => api.reseller.customerSupport(), "customerSupport", [], (r) => r.tickets);
