@@ -596,37 +596,47 @@ async fn publish_and_fetch_rsc(
     log.push(format!("RSC published ({} bytes) → {}", rsc_text.len(), url));
 
     // Step 2 — tell the router to pull the file itself.
-    // Retry fetch up to 5 times (freshly reset routers may lack WAN for a moment)
-    let mut fetch_ok = false;
-    let mut last_err = String::new();
-    for attempt in 1..=5 {
-        let fetch_cmd = format!(
-            "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
-            url, REMOTE_FILE
-        );
-        match exec_raw(session, &fetch_cmd).await {
-            Ok(out) => {
-                let trim = out.trim();
-                if trim.contains("failure:") || trim.contains("status: failed") {
-                    last_err = trim.to_string();
-                    log.push(format!("fetch attempt {} failed: {}", attempt, trim));
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                } else {
+    // 1. Force cleanup of old agent scripts
+let _ = exec_raw(session, "/system script remove [find name=\"safelinks-checkin\"]").await;
+let _ = exec_raw(session, "/system scheduler remove [find name=\"safelinks-checkin\"]").await;
+
+// 2. Retry fetch with verification
+let mut fetch_ok = false;
+for attempt in 1..=5 {
+    let fetch_cmd = format!(
+        "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
+        url, REMOTE_FILE
+    );
+    log.push(format!("Attempting to fetch agent (try {})...", attempt));
+    
+    match exec_raw(session, &fetch_cmd).await {
+        Ok(out) => {
+            if out.contains("failure:") || out.contains("status: failed") {
+                log.push(format!("Fetch failed: {}", out.trim()));
+            } else {
+                // Wait for the file to actually appear in the filesystem
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                let check_cmd = format!("/file print where name=\"{}\"", REMOTE_FILE);
+                let check_out = exec_raw(session, &check_cmd).await.unwrap_or_default();
+                if check_out.contains(REMOTE_FILE) {
                     fetch_ok = true;
+                    log.push(format!("Agent downloaded to {}", REMOTE_FILE));
                     break;
+                } else {
+                    log.push("Fetch command succeeded but file is missing.".to_string());
                 }
             }
-            Err(e) => {
-                last_err = e.clone();
-                log.push(format!("fetch attempt {} error: {}", attempt, e));
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-            }
         }
+        Err(e) => log.push(format!("Fetch error: {}", e)),
     }
-    if !fetch_ok {
-        return Err(format!("router fetch failed after 5 retries: {}", last_err));
-    }
-    log.push(format!("Router fetched {}", REMOTE_FILE));
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+}
+
+if !fetch_ok {
+    return Err("CRITICAL: Could not download agent script to router. Check internet access.".to_string());
+}
+
+log.push("Agent file verified on router.".to_string());
 
     // Step 3 — confirm the file exists on the router.
     let check_cmd = format!("/file print where name=\"{}\"", REMOTE_FILE);
