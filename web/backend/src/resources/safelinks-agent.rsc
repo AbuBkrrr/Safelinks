@@ -41,6 +41,26 @@
 :if (($slRid = "") or ($slKey = "")) do={
   :log error "safelinks-bootstrap: missing creds"
   :error "safelinks-bootstrap: parse error"
+
+  # --- REPORT ACTIVE SESSIONS ---
+  :local sessJson "[]"
+  :local sessArr []
+  :do {
+    :foreach a in=[/ip hotspot active find] do={
+      :local mac [/ip hotspot active get $a mac-address]
+      :local ip [/ip hotspot active get $a address]
+      :local user [/ip hotspot active get $a user]
+      :local up [/ip hotspot active get $a uptime]
+      :local bi [/ip hotspot active get $a bytes-in]
+      :local bo [/ip hotspot active get $a bytes-out]
+      :set sessArr ($sessArr, ("{\"mac\":\"" . $mac . "\",\"ip\":\"" . $ip . "\",\"user\":\"" . $user . "\",\"uptime\":\"" . $up . "\",\"bytes_in\":" . $bi . ",\"bytes_out\":" . $bo . "}"))
+    }
+  } on-error={}
+  :local postBody ("router_id=" . $routerId . "&api_key=" . $apiKey . "&sessions=" . [:pick $sessArr 1 [:len $sessArr]])
+  :do {
+    /tool fetch url=($safelinksApiUrl . "/api/agent/report") http-method=post http-data=$postBody output=none
+  } on-error={}
+  # --- END REPORT ---
 }
 
 :local slCreds ($slRid . "\n" . $slKey)

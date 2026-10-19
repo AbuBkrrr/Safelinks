@@ -134,7 +134,7 @@
 } on-error={ :log info "no default redirect.html to remove" }
 
 :do { /file remove [find name="hotspot/login.html"] } on-error={}
-/tool fetch url="https://backend-services-production-78d8.up.railway.app/api/agent/login.html?rid=$slResellerId" dst-path="hotspot/login.html" mode=https check-certificate=no
+/file add name="hotspot/login.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId?mac=\$(mac)&ip=\$(ip)&dst=\$(link-orig)'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links...</p></body></html>"
 
 /file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
 
