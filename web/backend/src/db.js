@@ -592,6 +592,11 @@ export async function runAuthUpgradeMigration() {
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_phone TEXT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS plan_id TEXT;
     ALTER TABLE payments ADD COLUMN IF NOT EXISTS router_id TEXT;
+CREATE TABLE IF NOT EXISTS router_sessions (
+  id TEXT PRIMARY KEY, router_id TEXT NOT NULL, mac_address TEXT NOT NULL,
+  ip_address TEXT, username TEXT, uptime TEXT, bytes_in BIGINT, bytes_out BIGINT, updated_at BIGINT
+);
+
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_mac TEXT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
 

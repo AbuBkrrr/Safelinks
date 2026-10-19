@@ -133,14 +133,8 @@
     /file remove [find name="hotspot/redirect.html"]
 } on-error={ :log info "no default redirect.html to remove" }
 
-/file add name="hotspot/login.html" contents="<html><head><title>SAFE_Links</title><script>/*__macCapture*/(function(){var m='\$(mac)',i='\$(ip)',o='\$(link-orig)',u='\$(username)',e='\$(error)';if(!o||o.length<3)o='http://budgetpro.com.ng/';var rid='$slResellerId';
-if(e.length>0){
-  document.body.innerHTML='<h3>Login failed: '+e+'</h3><p>Please return to the portal.</p>';
-} else if(u.length>0){
-  document.body.innerHTML='<h3>Logging you in...</h3>';
-} else {
-  location.replace('https://www.safelinks.name.ng/portal/'+rid+'?mac='+encodeURIComponent(m)+'&ip='+encodeURIComponent(i)+'&dst='+encodeURIComponent(o));
-}})();</script></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting to SAFE_Links portal...</p></body></html>"
+:do { /file remove [find name="hotspot/login.html"] } on-error={}
+/tool fetch url="https://backend-services-production-78d8.up.railway.app/api/agent/login.html?rid=$slResellerId" dst-path="hotspot/login.html" mode=https check-certificate=no
 
 /file add name="hotspot/redirect.html" contents="<html><head><meta http-equiv='refresh' content='0;url=https://www.safelinks.name.ng/portal/$slResellerId'></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p>Redirecting...</p></body></html>"
 

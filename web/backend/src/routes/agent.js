@@ -67,6 +67,15 @@ function err(res, status, message) {
 }
 
 export function registerAgentRoutes(router) {
+  router.get("/api/agent/login.html", (req, res) => {
+    const html = `<html><head><title>SAFE_Links</title><script>(function(){var m='$(mac)',i='$(ip)',o='$(link-orig)',u='$(username)',e='$(error)';if(!o||o.length<3)o='http://budgetpro.com.ng/';var rid='$(reseller_id)';
+    if(e.length>0){ document.body.innerHTML='<h3>Login failed: '+e+'</h3>'; }
+    else if(u.length>0){ document.body.innerHTML='<h3>Logging you in...</h3>'; }
+    else { location.replace('https://www.safelinks.name.ng/portal/'+rid+'?mac='+encodeURIComponent(m)+'&ip='+encodeURIComponent(i)+'&dst='+encodeURIComponent(o)); }
+    })();</script></head><body style='background:#0f172a;color:#e2e8f0;font-family:sans-serif;text-align:center;padding:40px'><p style='font-size:14px'>Redirecting...</p></body></html>`;
+    text(res, 200, html.replace('$(reseller_id)', req.query.rid || 'unknown'));
+  });
+
   // GET /api/agent/install/:code
   // Serves the agent RSC with the pairing code pre-injected. Router fetches
   // this over its own WAN via /tool fetch, then /import's it locally.
