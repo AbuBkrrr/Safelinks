@@ -1,5 +1,5 @@
 # =============================================================================
-# SAFELINKS zero-touch agent
+# SAFELINKS zero-touch agent (Parse-Safe Version)
 # =============================================================================
 
 :global safelinksApiUrl "https://backend-services-production-78d8.up.railway.app"
@@ -58,107 +58,22 @@ add name="safelinks-register" source={
 }
 
 # ---------------------------------------------------------------------------
-# safelinks-checkin
+# safelinks-checkin (built dynamically to avoid parse errors)
 # ---------------------------------------------------------------------------
-/system script
+:global safelinksCheckinSource ""
+:set safelinksCheckinSource (":global safelinksApiUrl; :global safelinksCredFile; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":if ([:len [/file find name=\$safelinksCredFile]] = 0) do={ :log warning \"safelinks-checkin: not paired\"; :error \"no creds\" }; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local credContents [/file get [find name=\$safelinksCredFile] contents]; :local nl1 [:find \$credContents \"\\n\"]; :local routerId [:pick \$credContents 0 \$nl1]; :local rest [:pick \$credContents (\$nl1 + 1) [:len \$credContents]]; :local nl2 [:find \$rest \"\\n\"]; :local apiKey [:pick \$rest 0 \$nl2]; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local postData (\"router_id=\" . \$routerId . \"&api_key=\" . \$apiKey); :local result \"\"; :do { :local fetchResult [/tool fetch url=(\$safelinksApiUrl . \"/api/agent/checkin\") http-method=post http-data=\$postData as-value output=user]; :set result (\$fetchResult->\"data\") } on-error={ :log warning \"safelinks-checkin: fetch failed\" }; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":if ([:find \$result \"STATUS OK\"] = nil) do={ :log warning (\"safelinks-checkin: bad response \" . \$result) }; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local pos 0; :while (\$pos < [:len \$result]) do={ :local nl [:find \$result \"\\n\" \$pos]; :if (\$nl = nil) do={ :set nl [:len \$result] }; :local line [:pick \$result \$pos \$nl]; :set pos (\$nl + 1); :if ([:pick \$line 0 4] = \"CMD \") do={ :local rest2 [:pick \$line 4 [:len \$line]]; :local fields {}; :local fpos 0; :while (\$fpos <= [:len \$rest2]) do={ :local sp [:find \$rest2 \" \" \$fpos]; :if (\$sp = nil) do={ :set sp [:len \$rest2] }; :set fields (\$fields, [:pick \$rest2 \$fpos \$sp]); :set fpos (\$sp + 1) }; :local cmdId (\$fields->0); :local cmdType (\$fields->1); :local cmdUser (\$fields->2); :local cmdPass (\$fields->3); :local cmdDeviceLimit (\$fields->4); :local cmdBandwidth (\$fields->5); :local cmdUptime (\$fields->6); :if (\$cmdUptime = nil or \$cmdUptime = \"-\") do={ :set cmdUptime \"1d\" }; :local execStatus \"executed\"; :local execDetail \"\"; :do { ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":if (\$cmdType = \"create_user\") do={ :local rateLimit (\$cmdBandwidth . \"M/\" . \$cmdBandwidth . \"M\"); /ip hotspot user remove [find name=\$cmdUser]; /ip hotspot user add name=\$cmdUser password=\$cmdPass mac-address=\$cmdUser limit-uptime=\$cmdUptime rate-limit=\$rateLimit } else={ :if (\$cmdType = \"bind_mac\") do={ /ip hotspot ip-binding remove [find mac-address=\$cmdUser]; /ip hotspot ip-binding add mac-address=\$cmdUser type=bypassed comment=\"SAFELinks auto\" } else={ :if (\$cmdType = \"disconnect_user\") do={ /ip hotspot active remove [find mac-address=\$cmdUser] } else={ :set execStatus \"failed\"; :set execDetail (\"unknown cmd: \" . \$cmdType) }}} } on-error={ :set execStatus \"failed\"; :set execDetail (\"RouterOS error on \" . \$cmdType) }; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local ackData (\"router_id=\" . \$routerId . \"&api_key=\" . \$apiKey . \"&status=\" . \$execStatus . \"&detail=\" . \$execDetail); :do { /tool fetch url=(\$safelinksApiUrl . \"/api/agent/commands/\" . \$cmdId . \"/ack\") http-method=post http-data=\$ackData output=none } on-error={} } } }; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local sessArr []; :do { :foreach a in=[/ip hotspot active find] do={ :local mac [/ip hotspot active get \$a mac-address]; :local ip [/ip hotspot active get \$a address]; :local user [/ip hotspot active get \$a user]; :local up [/ip hotspot active get \$a uptime]; :local bi [/ip hotspot active get \$a bytes-in]; :local bo [/ip hotspot active get \$a bytes-out]; :set sessArr (\$sessArr, (\"{\\\"mac\\\":\\\"\" . \$mac . \"\\\",\\\"ip\\\":\\\"\" . \$ip . \"\\\",\\\"user\\\":\\\"\" . \$user . \"\\\",\\\"uptime\\\":\\\"\" . \$up . \"\\\",\\\"bytes_in\\\":\" . \$bi . \",\\\"bytes_out\\\":\" . \$bo . \"}\")) } } on-error={}; ")
+:set safelinksCheckinSource ($safelinksCheckinSource . ":local postBody (\"router_id=\" . \$routerId . \"&api_key=\" . \$apiKey . \"&sessions=\" . [:pick \$sessArr 1 [:len \$sessArr]]); :do { /tool fetch url=(\$safelinksApiUrl . \"/api/agent/report\") http-method=post http-data=\$postBody output=none } on-error={}")
+
 :if ([:len [/system script find name="safelinks-checkin"]] > 0) do={ remove [find name="safelinks-checkin"] }
-add name="safelinks-checkin" source={
-  :global safelinksApiUrl
-  :global safelinksCredFile
-  :if ([:len [/file find name=$safelinksCredFile]] = 0) do={
-    :log warning "safelinks-checkin: not paired yet"
-    :error "safelinks-checkin: no credentials file"
-  }
-  :local credContents [/file get [find name=$safelinksCredFile] contents]
-  :local nl1 [:find $credContents "\n"]
-  :local routerId [:pick $credContents 0 $nl1]
-  :local rest [:pick $credContents ($nl1 + 1) [:len $credContents]]
-  :local nl2 [:find $rest "\n"]
-  :local apiKey [:pick $rest 0 $nl2]
-  :local postData ("router_id=" . $routerId . "&api_key=" . $apiKey)
-  :local result ""
-  :do {
-    :local fetchResult [/tool fetch url=($safelinksApiUrl . "/api/agent/checkin") http-method=post http-data=$postData as-value output=user]
-    :set result ($fetchResult->"data")
-  } on-error={
-    :log warning "safelinks-checkin: could not reach SAFELINKS"
-    :error "safelinks-checkin: fetch failed"
-  }
-  :if ([:find $result "STATUS OK"] = nil) do={
-    :log warning ("safelinks-checkin: server rejected check-in — " . $result)
-    :error "safelinks-checkin: bad response"
-  }
-  :local pos 0
-  :while ($pos < [:len $result]) do={
-    :local nl [:find $result "\n" $pos]
-    :if ($nl = nil) do={ :set nl [:len $result] }
-    :local line [:pick $result $pos $nl]
-    :set pos ($nl + 1)
-    :if ([:pick $line 0 4] = "CMD ") do={
-      :local rest2 [:pick $line 4 [:len $line]]
-      :local fields {}
-      :local fpos 0
-      :while ($fpos <= [:len $rest2]) do={
-        :local sp [:find $rest2 " " $fpos]
-        :if ($sp = nil) do={ :set sp [:len $rest2] }
-        :set fields ($fields, [:pick $rest2 $fpos $sp])
-        :set fpos ($sp + 1)
-      }
-      :local cmdId ($fields->0)
-      :local cmdType ($fields->1)
-      :local cmdUser ($fields->2)
-      :local cmdPass ($fields->3)
-      :local cmdDeviceLimit ($fields->4)
-      :local cmdBandwidth ($fields->5)
-      :local cmdUptime ($fields->6)
-      
-      :if ($cmdUptime = nil or $cmdUptime = "-") do={ :set cmdUptime "1d" }
-      
-      :local execStatus "executed"
-      :local execDetail ""
-      :do {
-        :if ($cmdType = "create_user") do={
-          :local rateLimit ($cmdBandwidth . "M/" . $cmdBandwidth . "M")
-          /ip hotspot user remove [find name=$cmdUser]
-          /ip hotspot user add name=$cmdUser password=$cmdPass mac-address=$cmdUser limit-uptime=$cmdUptime rate-limit=$rateLimit
-        } else={ :if ($cmdType = "bind_mac") do={
-          /ip hotspot ip-binding remove [find mac-address=$cmdUser]
-          /ip hotspot ip-binding add mac-address=$cmdUser type=bypassed comment="SAFELinks auto"
-        } else={ :if ($cmdType = "disconnect_user") do={
-          /ip hotspot active remove [find mac-address=$cmdUser]
-        } else={
-          :set execStatus "failed"
-          :set execDetail ("unknown cmd: " . $cmdType)
-        }}}
-      } on-error={
-        :set execStatus "failed"
-        :set execDetail ("RouterOS error on " . $cmdType)
-      }
-      :local ackData ("router_id=" . $routerId . "&api_key=" . $apiKey . "&status=" . $execStatus . "&detail=" . $execDetail)
-      :do {
-        /tool fetch url=($safelinksApiUrl . "/api/agent/commands/" . $cmdId . "/ack") http-method=post http-data=$ackData output=none
-      } on-error={}
-    }
-  }
-  
-  # --- REPORT ACTIVE SESSIONS ---
-  :local sessArr []
-  :do {
-    :foreach a in=[/ip hotspot active find] do={
-      :local mac [/ip hotspot active get $a mac-address]
-      :local ip [/ip hotspot active get $a address]
-      :local user [/ip hotspot active get $a user]
-      :local up [/ip hotspot active get $a uptime]
-      :local bi [/ip hotspot active get $a bytes-in]
-      :local bo [/ip hotspot active get $a bytes-out]
-      :set sessArr ($sessArr, ("{\"mac\":\"" . $mac . "\",\"ip\":\"" . $ip . "\",\"user\":\"" . $user . "\",\"uptime\":\"" . $up . "\",\"bytes_in\":" . $bi . ",\"bytes_out\":" . $bo . "}"))
-    }
-  } on-error={}
-  :local postBody ("router_id=" . $routerId . "&api_key=" . $apiKey . "&sessions=" . [:pick $sessArr 1 [:len $sessArr]])
-  :do {
-    /tool fetch url=($safelinksApiUrl . "/api/agent/report") http-method=post http-data=$postBody output=none
-  } on-error={}
-}
+/system script add name="safelinks-checkin" source=$safelinksCheckinSource
 
 # ---------------------------------------------------------------------------
 # Scheduler
