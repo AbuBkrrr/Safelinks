@@ -75,6 +75,7 @@ async function fulfillVoucherPayment(paymentRow, verified) {
         password,
         deviceLimit: plan?.device_limit || 5,
         bandwidthMbps: plan?.bandwidth_mbps || 100,
+        uptime: (plan?.duration_days ? plan.duration_days + "d" : "1d"),
       }),
       "pending",
       now

@@ -604,7 +604,14 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       await db.prepare("INSERT INTO payments (id,user_type,user_id,amount,method,status,time,note) VALUES (?,?,?,?,?,?,?,?)")
         .run(id("pay"), "voucher", voucherId, pending.amount, pending.method, "completed", now, "Voucher purchase");
       // Always create the hotspot user (fallback for clients without MAC)
-      await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth });
+      let uptime = "1d";
+      if (plan && plan.duration) {
+        const d = plan.duration.toLowerCase();
+        if (d.includes('week')) uptime = "7d";
+        else if (d.includes('month')) uptime = "30d";
+        else if (d.includes('year')) uptime = "365d";
+      }
+      await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth, uptime });
       // Zero-click bypass — payload uses username key + ISO expiry in password slot
       let targetMac = pending.client_mac;
       if (!targetMac) {

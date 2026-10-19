@@ -310,7 +310,7 @@ export function registerAgentRoutes(router) {
     const lines = [`NEXT_CHECKIN 30`, `COMMAND_COUNT ${commands.length}`];
     for (const c of commands) {
       const p = JSON.parse(c.payload);
-      lines.push(`CMD ${c.id} ${c.type} ${p.username || "-"} ${p.password || "-"} ${p.deviceLimit || "-"} ${p.bandwidthMbps || "-"}`);
+      lines.push(`CMD ${c.id} ${c.type} ${p.username || "-"} ${p.password || "-"} ${p.deviceLimit || "-"} ${p.bandwidthMbps || "-"} ${p.uptime || '1d'}`);
     }
     ok(res, lines);
   });
