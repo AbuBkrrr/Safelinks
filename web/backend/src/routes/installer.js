@@ -206,7 +206,7 @@ router.post("/api/installer/rsc-publish", async (req, res, { body }) => {
   const token = randomBytes(24).toString("hex");
   RSC_CACHE.set(token, { content, expiresAt: Date.now() + RSC_TTL_MS });
 
-  const base = process.env.APP_URL || "https://www.safelinks.name.ng";
+  const base = process.env.BACKEND_URL || "https://backend-services-production-78d8.up.railway.app";
   const url = base + "/api/installer/rsc-download/" + token;
   return json(res, 200, { url, token, expiresInSec: RSC_TTL_MS / 1000 });
 });
