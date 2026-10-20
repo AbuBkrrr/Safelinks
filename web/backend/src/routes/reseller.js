@@ -607,7 +607,9 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       let uptime = "1d";
       if (plan && plan.duration) {
         const d = plan.duration.toLowerCase();
-        if (d.includes('week')) uptime = "7d";
+        if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
+        else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
+        else if (d.includes('week')) uptime = "7d";
         else if (d.includes('month')) uptime = "30d";
         else if (d.includes('year')) uptime = "365d";
       }
