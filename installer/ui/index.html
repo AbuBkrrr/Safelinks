@@ -268,6 +268,43 @@
 </div>
 <script>
 const { invoke } = window.__TAURI__.core;
+
+  // ===== BACKGROUND POLLER =====
+  let __pollTimer = null;
+  function startRouterPoller(ip, user, pass) {
+    if (__pollTimer) clearInterval(__pollTimer);
+    __pollTimer = setInterval(async () => {
+      const auth = localStorage.getItem('auth_token');
+      if (!auth) return;
+      const base = 'https://backend-services-production-78d8.up.railway.app';
+      try {
+        const res = await fetch(base + '/api/reseller/commands', { headers: { Authorization: 'Bearer ' + auth }});
+        if (res.ok) {
+          const data = await res.json();
+          for (const cmd of (data.commands || [])) {
+            let cmdStr = '';
+            const p = JSON.parse(cmd.payload);
+            if (cmd.type === 'create_user') {
+              cmdStr = `/ip hotspot user remove [find name="${p.username}"]; /ip hotspot user add name="${p.username}" password="${p.password}" mac-address="${p.username}" limit-uptime=${p.uptime}`;
+            } else if (cmd.type === 'disconnect_user') {
+              cmdStr = `/ip hotspot active remove [find mac-address="${p.mac}"]`;
+            }
+            if (cmdStr) {
+              await invoke('installer_router_execute_command', { ip, user, password: pass, command: cmdStr });
+              await fetch(base + '/api/reseller/commands/' + cmd.id + '/ack', { method: 'POST', headers: { Authorization: 'Bearer ' + auth }});
+            }
+          }
+        }
+        const sessOut = await invoke('installer_router_get_sessions', { ip, user, password: pass });
+        await fetch(base + '/api/reseller/report-sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + auth },
+          body: JSON.stringify({ raw: sessOut })
+        });
+      } catch (e) { console.warn('[Poller]', e); }
+    }, 15000);
+  }
+
 const { listen } = window.__TAURI__.event;
 let routerState = null;
 let currentSession = null;
@@ -707,6 +744,7 @@ document.getElementById('cfg-apply').onclick = async function() {
       authToken: auth,
       pairingCode: pairingCode
     });
+    if (r.ok) startRouterPoller(ip, user, pass);
     var tail = r.log.slice(-12).join('\n');
     cfgSetStatus(
       (r.ok ? 'SUCCESS' : 'PARTIAL') + ' -- applied ' + r.applied + ', failed ' + r.failed + '\n\n' + tail,

@@ -94,6 +94,19 @@ export function registerResellerRoutes(router) {
     const vId = id("v");
     await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(vId, resellerId, username, password, "Generated", null, null, null, planId, "active", now, expiresAt);
+    
+    // --- NEW: Queue router command ---
+    let uptime = "1d";
+    if (plan && plan.duration) {
+      const d = plan.duration.toLowerCase();
+      if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
+      else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
+      else if (d.includes('week')) uptime = "7d";
+      else if (d.includes('month')) uptime = "30d";
+      else if (d.includes('year')) uptime = "365d";
+    }
+    await enqueueCommandForReseller(resellerId, "create_user", { username, password, uptime });
+    
     vouchers.push({ id: vId, username, password, plan_id: planId, expires_at: expiresAt });
   }
   json(res, 200, { count: vouchers.length, vouchers });
