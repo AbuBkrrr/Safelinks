@@ -36,3 +36,13 @@ installer/icon-source.png
 # Ignore Rust backup files
 **/*.bak
 
+
+# auto-generated backups
+*.bak.p0
+*.bak.p1*
+*.bak.f1
+*.bak.final
+*.bak.rfix
+*.bak.agentcall
+surgical-scan.txt
+closing-scan.txt

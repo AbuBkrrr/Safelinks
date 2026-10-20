@@ -28,8 +28,9 @@ async function fulfillVoucherPayment(paymentRow, verified) {
   ).get(paymentRow.reseller_id || paymentRow.user_id, paymentRow.reference);
 
   // Generate credentials (username/password) for the end-user
-  const username = pending?.client_mac || `u${Math.random().toString(36).slice(2, 8)}`;
-  const password = Math.random().toString(36).slice(2, 10);
+  const mac = pending?.client_mac || null;
+  const username = mac || `u${Math.random().toString(36).slice(2, 8)}`;
+  const password = mac || Math.random().toString(36).slice(2, 10);
   const voucherId = id("v");
 
   const plan = paymentRow.plan_id
