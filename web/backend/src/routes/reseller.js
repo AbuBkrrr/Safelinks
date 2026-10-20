@@ -645,6 +645,40 @@ router.get("/api/reseller/vouchers", async (req, res) => {
     json(res, 200, { ok: true });
   });
 
+// POST /api/reseller/report-sessions — Installer poller sends raw router output here
+  router.post("/api/reseller/report-sessions", async (req, res, { body }) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const raw = (body && body.raw) || "";
+    const lines = raw.split("\n");
+    const now = Date.now();
+    const active = [];
+    for (const line of lines) {
+      if (line.includes("mac=")) {
+        const mac = (line.match(/mac=([^\s]+)/) || [])[1];
+        const ip = (line.match(/address=([^\s]+)/) || [])[1];
+        const userMatch = line.match(/user=([^\s]+)/) || line.match(/name=([^\s]+)/);
+        const user = userMatch ? userMatch[1] : "";
+        const bi = (line.match(/bytes-in=([^\s]+)/) || [])[1];
+        const bo = (line.match(/bytes-out=([^\s]+)/) || [])[1];
+        if (mac) active.push({ mac, ip, user, bi: parseInt(bi || 0), bo: parseInt(bo || 0) });
+      }
+    }
+    await db.prepare("DELETE FROM active_sessions WHERE reseller_id = ?").run(resellerId);
+    for (const s of active) {
+      await db.prepare(
+        "INSERT INTO active_sessions (id, router_id, reseller_id, mac, ip, username, bytes_in, bytes_out, started_at, last_seen, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+      ).run(id("as"), "unknown", resellerId, s.mac, s.ip, s.user, s.bi, s.bo, now, now);
+    }
+    return json(res, 200, { ok: true, count: active.length });
+  });
+
+  // DELETE /api/reseller/active-sessions/:mac — Disconnect a connected device
+  router.delete("/api/reseller/active-sessions/:mac", async (req, res, { params }) => {
+    const resellerId = requireReseller(req, res); if (!resellerId) return;
+    await enqueueCommandForReseller(resellerId, "disconnect_user", { mac: params.mac });
+    return json(res, 200, { ok: true });
+  });
+
   // --- Platform plan catalog (read-only â€” what Super Admin charges) ---
   router.get("/api/reseller/platform-plans", async (req, res) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;

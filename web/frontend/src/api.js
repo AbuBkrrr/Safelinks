@@ -169,9 +169,9 @@ export const api = {
     setVoucherStatus: (id, status) => put(`/api/reseller/vouchers/${id}/status`, { status }),
     deleteVoucher: (id) => del(`/api/reseller/vouchers/${id}`),
 
-    sessions: () => get("/api/reseller/sessions"),
+    sessions: () => get("/api/reseller/active-sessions"),
     activeSessions: () => get("/api/reseller/active-sessions"),
-    disconnectSession: (id) => del(`/api/reseller/sessions/${id}`),
+    disconnectSession: (mac) => del(`/api/reseller/active-sessions/${mac}`),
 
     routers: () => get("/api/reseller/routers"),
     clients: () => get("/api/reseller/clients"),

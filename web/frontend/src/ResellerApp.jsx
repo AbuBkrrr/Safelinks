@@ -897,74 +897,46 @@ export default function ResellerApp({ session, onExit, notify }) {
       )}
 
       {tab === "sessions" && (
-        <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessions.data?.sessions || sessions.data || []).length} connected</Badge>}>
-          {sessions.loading ? <Loading /> : ((sessions.data?.sessions || sessions.data) || []).map((s) => {
-            const voucherExpires = s.voucher_expires_at;
-            const detectedOnly = s.state === "detected";
-            const isExpiringSoon = voucherExpires && (Number(voucherExpires) - Date.now()) < 300000;
-            return (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderBottom: `1px solid ${T.border}`, background: isExpiringSoon ? `${T.warning}15` : 'transparent' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>
-                  {detectedOnly ? "Detected device" : (s.voucher_name || s.username || "(unknown)")} {" "}
-                  <span style={{ fontWeight: 400, color: detectedOnly ? T.warning : T.sub, fontSize: 11.5 }}>· {detectedOnly ? "not authenticated" : (s.plan_name || "no plan")}</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: T.sub, fontFamily: "monospace" }}>
-                  {s.mac} · {s.ip || "?"}{s.bandwidth_mbps ? " · " + s.bandwidth_mbps + " Mbps" : ""}
-                  {s.location ? " · " + (s.location.city ? s.location.city + ", " + s.location.country : s.location.country) : ""}
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                {detectedOnly ? <Badge tone={T.warning}>Detected</Badge> : <span style={{ fontSize: 11.5, color: T.sub, minWidth: 60, textAlign: "right" }}>
-                  {s.started_at ? timeAgo(s.started_at) : (s.last_seen ? timeAgo(s.last_seen) : "—")}
-                </span>}
-                {!detectedOnly && voucherExpires && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: isExpiringSoon ? T.warning : T.primary }}>
-                    <Clock size={11} />
-                    {getExpiryCountdown(voucherExpires)}
-                  </div>
-                )}
-                {detectedOnly && <Btn size="sm" variant="outline" onClick={() => unbindClient(s.mac)}>Unbind</Btn>}
-              </div>
-            </div>
-            );
-          })}
-          {!sessionsRes.loading && (sessionsRes.data?.sessions || sessionsRes.data || []).length > 0 && (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${T.border}`, textAlign: "left" }}>
-                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Device / MAC</th>
-                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>IP Address</th>
-                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>User</th>
-                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Data</th>
-                  <th style={{ padding: "10px 8px", fontWeight: 600 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(sessionsRes.data?.sessions || sessionsRes.data || []).map((s) => (
-                  <tr key={s.id || s.mac_address} style={{ borderBottom: `1px solid ${T.border}` }}>
-                    <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.mac_address}</td>
-                    <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.ip_address}</td>
-                    <td style={{ padding: "10px 8px" }}>{s.username || "Unknown"}</td>
-                    <td style={{ padding: "10px 8px", color: T.sub }}>
-                      ↓ {Math.round((s.bytes_in || 0) / 1024 / 1024)}MB / ↑ {Math.round((s.bytes_out || 0) / 1024 / 1024)}MB
-                    </td>
-                    <td style={{ padding: "10px 8px" }}>
-                      <Btn size="sm" tone={T.danger} onClick={async () => {
-                        if (!confirm("Disconnect this device?")) return;
-                        try {
-                          await api.reseller.disconnectSession(s.mac_address);
-                          sessionsRes.refetch();
-                          notify("Device disconnected");
-                        } catch(e) { notify(e.message); }
-                      }}>Disconnect</Btn>
-                    </td>
+        <Panel title="Active sessions" action={<Badge tone={T.primary}>{(sessionsRes.data?.sessions || sessionsRes.data || []).length} connected</Badge>}>
+          {sessionsRes.loading ? <Loading /> : (
+            (sessionsRes.data?.sessions || sessionsRes.data || []).length === 0 ? (
+              <EmptyRow text="No devices connected right now." />
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${T.border}`, textAlign: "left" }}>
+                    <th style={{ padding: "10px 8px", fontWeight: 600 }}>Device / MAC</th>
+                    <th style={{ padding: "10px 8px", fontWeight: 600 }}>IP Address</th>
+                    <th style={{ padding: "10px 8px", fontWeight: 600 }}>User</th>
+                    <th style={{ padding: "10px 8px", fontWeight: 600 }}>Data</th>
+                    <th style={{ padding: "10px 8px", fontWeight: 600 }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(sessionsRes.data?.sessions || sessionsRes.data || []).map((s) => (
+                    <tr key={s.id || s.mac} style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.mac}</td>
+                      <td style={{ padding: "10px 8px", fontFamily: "monospace" }}>{s.ip || "-"}</td>
+                      <td style={{ padding: "10px 8px" }}>{s.username || "Unknown"}</td>
+                      <td style={{ padding: "10px 8px", color: T.sub }}>
+                        ↓ {Math.round((s.bytes_in || 0) / 1024 / 1024)}MB / ↑ {Math.round((s.bytes_out || 0) / 1024 / 1024)}MB
+                      </td>
+                      <td style={{ padding: "10px 8px" }}>
+                        <Btn size="sm" tone={T.danger} onClick={async () => {
+                          if (!confirm("Disconnect this device?")) return;
+                          try {
+                            await api.reseller.disconnectSession(s.mac);
+                            sessionsRes.refetch();
+                            notify("Device disconnected");
+                          } catch(e) { notify(e.message); }
+                        }}>Disconnect</Btn>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
           )}
-          {!sessionsRes.loading && (sessionsRes.data?.sessions || sessionsRes.data || []).length === 0 && <EmptyRow text="No devices connected right now." />}
         </Panel>
       )}
 
