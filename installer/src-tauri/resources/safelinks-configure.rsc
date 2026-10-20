@@ -119,7 +119,7 @@
 # --- 7. Hotspot on the bridge (wired + wireless both land here) ---
 /ip hotspot remove [find name="safelinks-hotspot"]
 /ip hotspot profile remove [find name="safelinks-profile"]
-/ip hotspot profile add name="safelinks-profile" hotspot-address=$slLanIp dns-name="hotspot.local" html-directory=hotspot
+/ip hotspot profile add name="safelinks-profile" hotspot-address=$slLanIp dns-name="hotspot.local" html-directory=hotspot login-by=mac,cookie,http-chap mac-auth-mode=mac-as-username-and-password
 /ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=yes
 
 # --- 7b. Replace factory hotspot pages with a redirect to the SAFE_Links portal ---

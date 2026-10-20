@@ -1,0 +1,20 @@
+# Local development configuration for LAN testing with MikroTik router
+# This Caddyfile serves the SAFE_Links platform over HTTP (no TLS locally)
+# The MikroTik router is at 192.168.88.1 on the same network
+
+localhost:80 {
+  reverse_proxy frontend:80
+}
+
+127.0.0.1:80 {
+  reverse_proxy frontend:80
+}
+
+192.168.88.253:80 {
+  reverse_proxy frontend:80
+}
+
+# Optional: add your PC's hostname if resolvable
+*.local:80 {
+  reverse_proxy frontend:80
+}

@@ -391,35 +391,7 @@ pub async fn installer_router_apply_config(
                 log.push("Import ran but STATUS OK marker was not returned.".to_string());
             }
 
-            // Non-fatal: install the automation agent using the provided pairing code
-            let code = pairing_code.unwrap_or_default();
-            if !code.is_empty() {
-                log.push(format!("Installing agent with pairing code {}", code));
-                let url = format!("https://backend-services-production-78d8.up.railway.app/api/agent/install/{}", code);
-                let remote_file = "SAFELINKS-agent.rsc";
-                
-                let _ = exec_raw(&mut session, "/file remove [find name=\"SAFELINKS-agent.rsc\"]").await;
-                let _ = exec_raw(&mut session, "/system script remove [find name=\"safelinks-register\"]").await;
-                let _ = exec_raw(&mut session, "/system script remove [find name=\"safelinks-checkin\"]").await;
-                let _ = exec_raw(&mut session, "/system scheduler remove [find name=\"safelinks-checkin\"]").await;
-
-                let fetch_cmd = format!("/tool fetch url=\"{}\" dst-path=\"{}\" mode=https check-certificate=no", url, remote_file);
-                let fetch_out = exec_raw(&mut session, &fetch_cmd).await.unwrap_or_default();
-                log.push(format!("fetch: {}", fetch_out.trim()));
-                tokio::time::sleep(Duration::from_secs(2)).await;
-
-                let file_check = exec_raw(&mut session, "/file print where name=\"SAFELINKS-agent.rsc\"").await.unwrap_or_default();
-                if file_check.contains(remote_file) {
-                    let _ = exec_raw(&mut session, &format!("/import file={}", remote_file)).await;
-                    tokio::time::sleep(Duration::from_millis(600)).await;
-                    let run_out = exec_raw(&mut session, "/system script run safelinks-register").await.unwrap_or_default();
-                    log.push(format!("register: {}", run_out.trim()));
-                } else {
-                    log.push("Agent file not downloaded".to_string());
-                }
-            } else {
-                log.push("WARN: No pairing code provided, skipping agent install".to_string());
-            }
+            // Agent removed - using direct command execution via installer poller
             let tail: Vec<&str> = out.lines().rev().take(30).collect();
             for line in tail.iter().rev() {
                 let t = line.trim();
@@ -527,6 +499,32 @@ async fn build_status(session: &mut Handle<AcceptAllKeys>) -> RouterStatus {
         overall_ok,
         checks,
     }
+}
+
+
+#[tauri::command]
+pub async fn installer_router_execute_command(
+    ip: String,
+    user: String,
+    password: String,
+    command: String,
+) -> Result<String, String> {
+    let mut session = connect(&ip, &user, &password).await?;
+    let out = exec_raw(&mut session, &command).await?;
+    let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn installer_router_get_sessions(
+    ip: String,
+    user: String,
+    password: String,
+) -> Result<String, String> {
+    let mut session = connect(&ip, &user, &password).await?;
+    let out = exec_raw(&mut session, "/ip hotspot active print terse").await?;
+    let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
+    Ok(out)
 }
 
 #[tauri::command]

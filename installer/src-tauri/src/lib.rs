@@ -126,6 +126,8 @@ pub fn run() {
             router::installer_save_rsc,
             router::installer_router_test_ssh,
             router::installer_router_apply_config,
+            router::installer_router_execute_command,
+            router::installer_router_get_sessions,
             router::installer_router_check_status,
             ssh::scripts_info,
             auth::store_credentials,
