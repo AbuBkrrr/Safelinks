@@ -652,15 +652,13 @@ router.get("/api/reseller/vouchers", async (req, res) => {
     const lines = raw.split("\n");
     const now = Date.now();
     const active = [];
-    
-    // 1. Update router heartbeat so it shows as "Online"
+
     const routerRow = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").get(resellerId);
     const rId = routerRow ? routerRow.router_id : "unknown";
     if (rId !== "unknown") {
       await db.prepare("UPDATE routers SET last_check_in = ? WHERE router_id = ?").run(now, rId);
     }
 
-    // 2. Parse active sessions
     for (const line of lines) {
       if (line.includes("mac=")) {
         const mac = (line.match(/mac=([^\s]+)/) || [])[1];
@@ -673,28 +671,16 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       }
     }
 
-    // 3. Save to DB
     await db.prepare("DELETE FROM active_sessions WHERE reseller_id = ?").run(resellerId);
     for (const s of active) {
       await db.prepare(
         "INSERT INTO active_sessions (id, router_id, reseller_id, mac, ip, username, bytes_in, bytes_out, started_at, last_seen, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
       ).run(id("as"), rId, resellerId, s.mac, s.ip, s.user, s.bi, s.bo, now, now);
     }
-    
-    return json(res, 200, { ok: true, count: active.length });
-  });
-      }
-    }
-    await db.prepare("DELETE FROM active_sessions WHERE reseller_id = ?").run(resellerId);
-    for (const s of active) {
-      await db.prepare(
-        "INSERT INTO active_sessions (id, router_id, reseller_id, mac, ip, username, bytes_in, bytes_out, started_at, last_seen, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
-      ).run(id("as"), "unknown", resellerId, s.mac, s.ip, s.user, s.bi, s.bo, now, now);
-    }
+
     return json(res, 200, { ok: true, count: active.length });
   });
 
-  // DELETE /api/reseller/active-sessions/:mac — Disconnect a connected device
   router.delete("/api/reseller/active-sessions/:mac", async (req, res, { params }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
     await enqueueCommandForReseller(resellerId, "disconnect_user", { mac: params.mac });
