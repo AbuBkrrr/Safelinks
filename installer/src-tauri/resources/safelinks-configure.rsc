@@ -119,8 +119,8 @@
 # --- 7. Hotspot on the bridge (wired + wireless both land here) ---
 /ip hotspot remove [find name="safelinks-hotspot"]
 /ip hotspot profile remove [find name="safelinks-profile"]
-/ip hotspot profile add name="safelinks-profile" hotspot-address=$slLanIp dns-name="hotspot.local" html-directory=hotspot login-by=mac,cookie,http-chap mac-auth-mode=mac-as-username-and-password login-by=cookie,http-chap,mac
-/ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile" disabled=yes
+/ip hotspot profile add name="safelinks-profile" dns-name="hotspot.local" html-directory=hotspot login-by=mac,cookie,http-chap mac-auth-mode=mac-as-username-and-password
+/ip hotspot add name="safelinks-hotspot" interface="safelinks-bridge" address-pool="safelinks-pool" profile="safelinks-profile"
 
 # --- 7b. Replace factory hotspot pages with a redirect to the SAFE_Links portal ---
 # RouterOS serves hotspot/login.html when a client hits any HTTP site pre-auth.

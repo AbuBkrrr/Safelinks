@@ -366,7 +366,7 @@ pub async fn installer_router_apply_config(
         return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
     }
 
-    let uploaded_path = match publish_and_fetch_rsc(&mut session, &auth, &file_contents, &mut log).await {
+    let uploaded_path = match publish_and_fetch_rsc(&mut session, &auth, &file_contents, "safelinks-configure.rsc", &mut log).await {
         Ok(p) => p,
         Err(e) => {
             failed = 1;
@@ -401,6 +401,15 @@ pub async fn installer_router_apply_config(
         Err(e) => {
             failed = 1;
             log.push(format!("Import execution failed: {}", e));
+        }
+    }
+
+    if failed == 0 {
+        let mut agent_log = Vec::new();
+        if let Err(e) = install_agent(&mut session, &auth, &mut agent_log).await {
+            log.push(format!("WARN: agent install failed: {}", e));
+        } else {
+            log.extend(agent_log);
         }
     }
 
@@ -588,9 +597,10 @@ async fn publish_and_fetch_rsc(
     session: &mut Handle<AcceptAllKeys>,
     auth_token: &str,
     rsc_text: &str,
+    remote_filename: &str,
     log: &mut Vec<String>,
 ) -> Result<String, String> {
-    const REMOTE_FILE: &str = "safelinks-configure.rsc";
+    let remote_file = remote_filename;
 
     // Step 1 — POST the RSC to our backend, get a short-lived download URL.
     let client = reqwest::Client::builder()
@@ -629,7 +639,7 @@ let mut fetch_ok = false;
 for attempt in 1..=5 {
     let fetch_cmd = format!(
         "/tool fetch url=\"{}\" dst-path=\"{}\" check-certificate=no",
-        url, REMOTE_FILE
+        url, remote_file
     );
     log.push(format!("Attempting to fetch agent (try {})...", attempt));
     
@@ -640,11 +650,11 @@ for attempt in 1..=5 {
             } else {
                 // Wait for the file to actually appear in the filesystem
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                let check_cmd = format!("/file print where name=\"{}\"", REMOTE_FILE);
+                let check_cmd = format!("/file print where name=\"{}\"", remote_file);
                 let check_out = exec_raw(session, &check_cmd).await.unwrap_or_default();
-                if check_out.contains(REMOTE_FILE) {
+                if check_out.contains(remote_file) {
                     fetch_ok = true;
-                    log.push(format!("Agent downloaded to {}", REMOTE_FILE));
+                    log.push(format!("Agent downloaded to {}", remote_file));
                     break;
                 } else {
                     log.push("Fetch command succeeded but file is missing.".to_string());
@@ -663,21 +673,21 @@ if !fetch_ok {
 log.push("Agent file verified on router.".to_string());
 
     // Step 3 — confirm the file exists on the router.
-    let check_cmd = format!("/file print where name=\"{}\"", REMOTE_FILE);
+    let check_cmd = format!("/file print where name=\"{}\"", remote_file);
     let check_out = exec_raw(session, &check_cmd).await.unwrap_or_default();
-    if !check_out.contains(REMOTE_FILE) {
+    if !check_out.contains(remote_file) {
         return Err(format!(
             "file '{}' not found after fetch — file print returned: {}",
-            REMOTE_FILE, check_out.trim()
+            remote_file, check_out.trim()
         ));
     }
     let size_line = check_out.lines()
-        .find(|l| l.contains(REMOTE_FILE))
+        .find(|l| l.contains(remote_file))
         .unwrap_or("")
         .trim().to_string();
     log.push(format!("Verified on router: {}", size_line));
 
-    Ok(REMOTE_FILE.to_string())
+    Ok(remote_file.to_string())
 }
 
 /// Install the SAFELINKS zero-touch agent on the router and pair it.
@@ -693,7 +703,6 @@ async fn install_agent(
         .build()
         .map_err(|e| format!("reqwest build: {}", e))?;
 
-    // 1. Get pairing code
     let pc_resp = client
         .post(format!("{}/api/reseller/pairing-codes", SL_BACKEND))
         .bearer_auth(auth_token)
@@ -711,33 +720,19 @@ async fn install_agent(
         .to_string();
     log.push(format!("Generated pairing code: {}", code));
 
-    // 2. Router fetches bootstrap.rsc?code=<code>
-    let boot_url = format!("{}/api/agent/bootstrap.rsc?code={}", SL_BACKEND, code);
-    let fetch_cmd = format!(
-        "/tool fetch url=\"{}\" dst-path=\"safelinks-bootstrap.rsc\" check-certificate=no",
-        boot_url
-    );
-    let fetch_out = exec_raw(session, &fetch_cmd).await
-        .map_err(|e| format!("bootstrap fetch exec: {}", e))?;
-    if fetch_out.contains("failure:") || fetch_out.contains("status: failed") {
-        return Err(format!("bootstrap fetch failed: {}", fetch_out.trim()));
-    }
-    log.push("Router fetched safelinks-bootstrap.rsc".to_string());
+    let mut agent_script = crate::ssh::AGENT_RSC.to_string();
+    agent_script = agent_script.replace("PASTE-CODE-HERE", &code);
 
-    // 3. Import — runs pairing + scheduler creation inline
-    let import_out = exec_raw(session, "/import file=safelinks-bootstrap.rsc").await
-        .map_err(|e| format!("bootstrap import exec: {}", e))?;
-    let import_failed = import_out.contains("failure:")
-        || import_out.contains("status: failed")
-        || import_out.contains("Script Error:")
-        || import_out.contains("syntax error");
-    if import_failed && !import_out.contains("loaded and executed") {
-        return Err(format!("bootstrap import failed: {}", import_out.trim()));
+    let remote_path = publish_and_fetch_rsc(session, auth_token, &agent_script, "safelinks-agent.rsc", log).await?;
+
+    let import_cmd = format!("/import file={}", remote_path);
+    let import_out = exec_raw(session, &import_cmd).await
+        .map_err(|e| format!("agent import exec: {}", e))?;
+
+    if import_out.contains("failure:") || import_out.contains("Script Error:") {
+        return Err(format!("agent import failed: {}", import_out.trim()));
     }
-    if !import_out.contains("safelinks-bootstrap: OK") {
-        return Err(format!("bootstrap did not confirm pairing: {}", import_out.trim()));
-    }
-    log.push("Bootstrap paired with backend".to_string());
+    log.push("Agent installed and paired with backend".to_string());
 
     Ok(())
 }
