@@ -138,10 +138,13 @@ export function registerAgentRoutes(router) {
       if (!rid || !key) return text(res, 400, "# STATUS ERROR\n# missing creds\n");
       const routerRow = await db.prepare("SELECT id, router_id, api_key_hash FROM routers WHERE router_id = ?").get(rid);
       if (!routerRow) return text(res, 404, "# STATUS ERROR\n# unknown router\n");
-      // Accept any non-empty key for now (hash verify can be added later)
+      if (!verifyPassword(key, routerRow.api_key_hash)) return text(res, 401, "# STATUS ERROR\n# invalid router key\n");
+      // Commands are queued under the public router_id (RTR-…) everywhere
+      // (payments, portal, reseller, register). Match that, plus the
+      // internal id for any rows queued the old way.
       const cmds = await db.prepare(
-        "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
-      ).all(routerRow.id);
+        "SELECT id, type, payload FROM router_commands WHERE router_id IN (?, ?) AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
+      ).all(routerRow.router_id, routerRow.id);
       const base = process.env.APP_URL || "https://www.safelinks.name.ng";
       const lines = [];
       // [sweep-r3] Mark expired vouchers + queue unbind/disable — runs on the
