@@ -573,7 +573,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   onMouseEnter={(e) => e.currentTarget.style.borderColor = reseller.color || T.primary}
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = p.popular ? (reseller.color || T.primary) : T.border}
                 >
-                  {p.popular && (
+                  {!!p.popular && (
                     <div style={{ position: "absolute", top: -10, right: 12, background: reseller.color || T.primary, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>
                       Most Popular
                     </div>
