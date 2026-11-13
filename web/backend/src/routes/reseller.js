@@ -1,3 +1,4 @@
+import { planDurationMs } from "../planDuration.js";
 import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate, hashPassword } from "../auth.js";
@@ -95,7 +96,7 @@ export function registerResellerRoutes(router) {
   const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(planId);
   if (!plan) return json(res, 404, { error: "Plan not found" });
   const now = Date.now();
-  const expiresAt = now + durationToMs(plan.duration_value, plan.duration_unit);
+  const expiresAt = now + planDurationMs(plan);
   const vouchers = [];
   for (let i = 0; i < count; i++) {
     const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
@@ -617,7 +618,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       const username = `${pending.name.split(" ")[0].toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const password = genCode(8);
       const voucherId = id("v");
-      const voucherExpiresAt = now + durationToMs(plan?.duration_value, plan?.duration_unit);
+      const voucherExpiresAt = now + planDurationMs(plan);
       await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, voucherExpiresAt);

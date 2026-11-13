@@ -13,6 +13,7 @@ import {
 } from "../payments/index.js";
 import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
+import { planDurationMs, planUptime } from "../planDuration.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
@@ -21,7 +22,7 @@ function makeReference(prefix = "SL") {
 }
 
 // Helper: after a payment is confirmed, activate the voucher + queue a router command.
-async function fulfillVoucherPayment(paymentRow, verified) {
+export async function fulfillVoucherPayment(paymentRow, verified) {
   const now = Date.now();
   // Look up any pending activation created at signup time
   const pending = await db.prepare(
@@ -40,8 +41,9 @@ async function fulfillVoucherPayment(paymentRow, verified) {
     ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id)
     : null;
 
-  const durationDays = plan?.duration_days || 30;
-  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+  // plans have no duration_days/bandwidth_mbps columns: reading them made
+  // every paid plan 30 days at 100 Mbps.
+  const expiresAt = now + planDurationMs(plan);
 
   await db.prepare(
     `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at,client_mac)
@@ -79,8 +81,8 @@ async function fulfillVoucherPayment(paymentRow, verified) {
         username,
         password,
         deviceLimit: plan?.device_limit || 5,
-        bandwidthMbps: plan?.bandwidth_mbps || 100,
-        uptime: (plan?.duration_days ? plan.duration_days + "d" : "1d"),
+        bandwidthMbps: plan?.bandwidth || 100,
+        uptime: planUptime(plan),
       }),
       "pending",
       now

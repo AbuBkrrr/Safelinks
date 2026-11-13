@@ -22,7 +22,8 @@
 :do { /ip hotspot profile remove [find name="safelinks-profile"] } on-error={}
 :do { /ip pool remove [find name="safelinks-pool"] } on-error={}
 :do { /ip dhcp-server remove [find name="safelinks-dhcp"] } on-error={}
-:do { /interface bridge remove [find name="safelinks-bridge"] } on-error={}
+# safelinks-bridge is intentionally NOT removed: it carries the LAN IP and the
+# installer's own SSH session; section 2 below is idempotent.
 :log info "safelinks-configure: wiped old config"
 
 :global slAdminMac
@@ -56,7 +57,7 @@
     } else={
         /interface bridge add name="safelinks-bridge" comment="SafeLinks bridge"
         :foreach iface in={"ether2";"ether3";"ether4";"ether5"} do={
-            :if ([:len [/interface ethernet find name=$iface]] > 0) do={
+            :if ([:len [/interface ethernet find name=$iface]] > 0 && [:len [/interface bridge port find interface=$iface]] = 0) do={
                 /interface bridge port add bridge="safelinks-bridge" interface=$iface comment="SafeLinks LAN"
             }
         }
@@ -84,7 +85,23 @@
     }
 } on-error={ :log info "no wifi package - skipping" }
 
-# --- 4. LAN IP: already on the renamed bridge ---
+# --- 4. LAN IP / DNS / NAT (only added when missing) ---
+# Factory-default routers already have these on the renamed bridge; reset,
+# second-hand and CHR routers do not, and without them clients get no LAN
+# address, no gateway and no internet.
+:if ([:len [/ip address find interface="safelinks-bridge"]] = 0) do={
+    /ip address add address=($slLanIp . "/24") interface="safelinks-bridge" comment="SafeLinks LAN"
+    :log info "added LAN IP to safelinks-bridge"
+}
+:if ([:len [/ip dhcp-server network find address="192.168.88.0/24"]] = 0) do={
+    /ip dhcp-server network add address="192.168.88.0/24" gateway=$slLanIp dns-server=$slLanIp comment="SafeLinks LAN"
+}
+/ip dns set allow-remote-requests=yes
+:if ([:len [/ip firewall nat find chain=srcnat action=masquerade]] = 0) do={
+    /ip firewall nat add chain=srcnat out-interface="ether1" action=masquerade comment="SafeLinks NAT"
+    :if ($slWanMode = "pppoe") do={ /ip firewall nat add chain=srcnat out-interface="safelinks-pppoe" action=masquerade comment="SafeLinks NAT" }
+}
+# (previous note) LAN IP: already on the renamed bridge ---
 # The rename in section 2 preserved both the MAC and the 192.168.88.1/24 IP.
 # Nothing to do here - the address is already on safelinks-bridge.
 # --- 5. DHCP pool + server ---
@@ -98,22 +115,19 @@
 /ip dhcp-server remove [find interface="safelinks-bridge"]
 /ip dhcp-server add name="safelinks-dhcp" interface="safelinks-bridge" address-pool="safelinks-pool" disabled=no
 # --- 6. WiFi security + SSID (guarded - only runs if wireless present) ---
+# Each block is compiled with :parse at RUN time. RouterOS validates every
+# command path when a script is loaded, so a literal /interface wireless line
+# makes the whole file fail on routers that only have the newer wifi package
+# (hAP ax2/ax3, CHR, wifi-qcom-ac), and vice-versa. :parse defers that check
+# to this block, where on-error can catch it.
 :do {
-    :if ([:len [/interface wireless find]] > 0) do={
-        /interface wireless security-profiles remove [find name="safelinks-sec"]
-        /interface wireless security-profiles add name="safelinks-sec" mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=$slWifiPass
-        /interface wireless set [find] ssid=$slSsid security-profile="safelinks-sec" disabled=no
-        :log info ("WiFi (wireless): " . $slSsid)
-    }
+    :local slWl [:parse ":global slWifiPass; :global slSsid; :if ([:len [/interface wireless find]] > 0) do={ /interface wireless security-profiles remove [find name=\"safelinks-sec\"]; /interface wireless security-profiles add name=\"safelinks-sec\" mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key=\$slWifiPass; /interface wireless set [find] ssid=\$slSsid security-profile=\"safelinks-sec\" disabled=no; :log info (\"WiFi (wireless): \" . \$slSsid) }"]
+    $slWl
 } on-error={ :log info "no wireless package" }
 
 :do {
-    :if ([:len [/interface wifi find]] > 0) do={
-        /interface wifi security remove [find name="safelinks-sec"]
-        /interface wifi security add name="safelinks-sec" authentication-types=wpa2-psk passphrase=$slWifiPass
-        /interface wifi set [find] ssid=$slSsid security="safelinks-sec" disabled=no
-        :log info ("WiFi (wifi): " . $slSsid)
-    }
+    :local slWf [:parse ":global slWifiPass; :global slSsid; :if ([:len [/interface wifi find]] > 0) do={ /interface wifi security remove [find name=\"safelinks-sec\"]; /interface wifi security add name=\"safelinks-sec\" authentication-types=wpa2-psk passphrase=\$slWifiPass; /interface wifi set [find] ssid=\$slSsid security=\"safelinks-sec\" disabled=no; :log info (\"WiFi (wifi): \" . \$slSsid) }"]
+    $slWf
 } on-error={ :log info "no wifi package" }
 
 # --- 7. Hotspot on the bridge (wired + wireless both land here) ---
