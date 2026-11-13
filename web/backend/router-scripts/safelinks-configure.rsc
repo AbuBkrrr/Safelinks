@@ -107,6 +107,14 @@
 /ip hotspot walled-garden add dst-host="*.safelinks.name.ng" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal"
 /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="checkout.paystack.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="js.paystack.co" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="api.paystack.co" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="standard.paystack.co" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="checkout.stripe.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="js.stripe.com" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="m.stripe.network" action=allow comment="SafeLinks portal"
+/ip hotspot walled-garden add dst-host="api.flutterwave.com" action=allow comment="SafeLinks portal"
 
 # --- 9. Pairing code ---
 :if ([:typeof $SL_PAIR_CODE] != "nothing") do={

@@ -163,6 +163,14 @@
 :do { /ip hotspot walled-garden add dst-host="backend-services-production-78d8.up.railway.app" action=allow comment="SafeLinks portal" } on-error={}
 :do { /ip hotspot walled-garden add dst-host="accounts.google.com" action=allow comment="SafeLinks portal" } on-error={}
 :do { /ip hotspot walled-garden add dst-host="checkout.flutterwave.com" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="checkout.paystack.com" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="js.paystack.co" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="api.paystack.co" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="standard.paystack.co" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="checkout.stripe.com" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="js.stripe.com" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="m.stripe.network" action=allow comment="SafeLinks portal" } on-error={}
+:do { /ip hotspot walled-garden add dst-host="api.flutterwave.com" action=allow comment="SafeLinks portal" } on-error={}
 
 # Step 8b. Address-list with hostnames (RouterOS auto-resolves these to IPs
 # and keeps the list current). This is what makes HTTPS work.
@@ -172,6 +180,14 @@
 :do { /ip firewall address-list add list="safelinks-portal" address="backend-services-production-78d8.up.railway.app" comment="SafeLinks backend" } on-error={}
 :do { /ip firewall address-list add list="safelinks-portal" address="accounts.google.com" comment="SafeLinks OAuth" } on-error={}
 :do { /ip firewall address-list add list="safelinks-portal" address="checkout.flutterwave.com" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="checkout.paystack.com" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="js.paystack.co" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="api.paystack.co" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="standard.paystack.co" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="checkout.stripe.com" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="js.stripe.com" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="m.stripe.network" comment="SafeLinks payments" } on-error={}
+:do { /ip firewall address-list add list="safelinks-portal" address="api.flutterwave.com" comment="SafeLinks payments" } on-error={}
 
 # Step 8c. IP walled-garden: allow the whole portal address-list through HTTPS
 :do { /ip hotspot walled-garden ip remove [/ip hotspot walled-garden ip find comment~"SafeLinks"] } on-error={ :log info "sl-wgip: no entries" }

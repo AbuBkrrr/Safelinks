@@ -1,6 +1,7 @@
 // Payment routes — initiate, verify, webhooks, and provider listing.
 // Works with the custom router (http.js) — same shape as routes/portal.js.
 
+import crypto from "node:crypto";
 import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
@@ -15,7 +16,7 @@ import { enqueueCommandForReseller } from "./router.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
-  const rand = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const rand = crypto.randomBytes(5).toString("hex").toUpperCase();
   return `${prefix}-${Date.now().toString(36)}-${rand}`;
 }
 
@@ -27,10 +28,12 @@ async function fulfillVoucherPayment(paymentRow, verified) {
     "SELECT * FROM pending_activations WHERE reseller_id = ? AND reference = ? LIMIT 1"
   ).get(paymentRow.reseller_id || paymentRow.user_id, paymentRow.reference);
 
-  // Generate credentials (username/password) for the end-user
-  const mac = pending?.client_mac || null;
-  const username = mac || `u${Math.random().toString(36).slice(2, 8)}`;
-  const password = mac || Math.random().toString(36).slice(2, 10);
+  // Credentials are random and never derived from the MAC: a MAC is visible
+  // to anyone on the WLAN, so MAC-as-password let anyone clone a session.
+  // The MAC is stored separately and only drives the zero-click ip-binding.
+  const mac = paymentRow.client_mac || pending?.client_mac || null;
+  const username = `U${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  const password = crypto.randomBytes(6).toString("base64url");
   const voucherId = id("v");
 
   const plan = paymentRow.plan_id
@@ -41,8 +44,8 @@ async function fulfillVoucherPayment(paymentRow, verified) {
   const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
 
   await db.prepare(
-    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at,client_mac)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     voucherId,
     paymentRow.reseller_id,
@@ -54,7 +57,8 @@ async function fulfillVoucherPayment(paymentRow, verified) {
     paymentRow.plan_id,
     "active",
     now,
-    expiresAt
+    expiresAt,
+    mac
   );
 
   // Mark the pending activation as completed (if it existed)
@@ -82,7 +86,7 @@ async function fulfillVoucherPayment(paymentRow, verified) {
       now
     );
     // Zero-click MAC bypass with expiry, if we know the client's MAC
-    const clientMac = paymentRow.client_mac || pending?.client_mac;
+    const clientMac = mac;
     if (clientMac) {
       const isoExpiry = new Date(expiresAt).toISOString().slice(0, 19);
       await db.prepare(

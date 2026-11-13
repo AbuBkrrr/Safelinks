@@ -150,7 +150,7 @@ export function registerAgentRoutes(router) {
       try {
         const swNow = Date.now();
         const swExpired = await db.prepare(
-          "SELECT id, username, reseller_id FROM vouchers WHERE status='active' AND expires_at < ?"
+          "SELECT id, username, reseller_id, client_mac FROM vouchers WHERE status='active' AND expires_at < ?"
         ).all(swNow);
         if (swExpired.length > 0) {
           await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(swNow);
@@ -158,7 +158,7 @@ export function registerAgentRoutes(router) {
             const swRouters = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
             for (const r of swRouters) {
               await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.username }), "pending", swNow
+                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.client_mac || v.username }), "pending", swNow
               );
               await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
                 id("cmd"), r.router_id, "disable_user", JSON.stringify({ username: v.username }), "pending", swNow

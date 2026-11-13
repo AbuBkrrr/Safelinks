@@ -62,10 +62,19 @@ async function lookupGeoReseller(ip) {
 // vendors) marks the RADIUS user as suspended so it routes to the pay page.
 async function queueUnbindForVoucher(voucherId, resellerId) {
   try {
-    const sess = await db.prepare(
-      "SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
-    ).get(resellerId);
-    const mac = sess && sess.mac ? sess.mac : null;
+    // Use this voucher's MAC. (Previously took the reseller's most recent
+    // session of ANY customer, kicking the wrong person off.)
+    const v = await db.prepare(
+      "SELECT username, client_mac FROM vouchers WHERE id = ? AND reseller_id = ?"
+    ).get(voucherId, resellerId);
+    let mac = v && v.client_mac ? v.client_mac : null;
+    if (!mac && v && /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(v.username || "")) mac = v.username;
+    if (!mac) {
+      const sess = await db.prepare(
+        "SELECT mac FROM active_sessions WHERE reseller_id = ? AND username = ? ORDER BY last_seen DESC LIMIT 1"
+      ).get(resellerId, v ? v.username : null);
+      mac = sess && sess.mac ? sess.mac : null;
+    }
     if (!mac) return;
     const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
     const now = Date.now();
