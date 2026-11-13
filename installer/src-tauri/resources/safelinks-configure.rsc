@@ -209,11 +209,14 @@
 :do { /ip hotspot walled-garden ip add action=accept dst-address=1.1.1.1 comment="SafeLinks DNS" } on-error={}
 :do { /ip hotspot walled-garden ip add action=accept dst-address=8.8.8.8 comment="SafeLinks DNS" } on-error={}
 :do { /ip hotspot walled-garden ip add action=accept dst-address=8.8.4.4 comment="SafeLinks DNS" } on-error={}
-:do { /ip hotspot walled-garden ip add action=accept dst-port=8291 protocol=tcp comment="SafeLinks admin winbox" } on-error={}
-:do { /ip hotspot walled-garden ip add action=accept dst-port=22 protocol=tcp comment="SafeLinks admin ssh" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-address=$slLanIp dst-port=8291 protocol=tcp comment="SafeLinks admin winbox" } on-error={}
+:do { /ip hotspot walled-garden ip add action=accept dst-address=$slLanIp dst-port=22 protocol=tcp comment="SafeLinks admin ssh" } on-error={}
 
 # Step 8d. Also allow QUIC (UDP 443) so browsers don't stall before fallback
-:do { /ip hotspot walled-garden ip add action=accept dst-port=443 protocol=udp comment="SafeLinks quic" } on-error={}
+# Pre-login access is limited to the router (admin) and the portal/payment
+# list. Port-only rules let unpaid users reach ANY host: QUIC (UDP 443)
+# carries YouTube/Google/Instagram, and SSH can tunnel everything.
+:do { /ip hotspot walled-garden ip add action=accept dst-address-list="safelinks-portal" dst-port=443 protocol=udp comment="SafeLinks quic" } on-error={}
 
 # --- 10. Enable hotspot ASYNCHRONOUSLY ---
 # Enabling the hotspot drops all traffic on the bridge for ~5-10 seconds
