@@ -1,3 +1,4 @@
+import { planDurationMs } from "../planDuration.js";
 import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate, hashPassword } from "../auth.js";
@@ -62,10 +63,19 @@ async function lookupGeoReseller(ip) {
 // vendors) marks the RADIUS user as suspended so it routes to the pay page.
 async function queueUnbindForVoucher(voucherId, resellerId) {
   try {
-    const sess = await db.prepare(
-      "SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
-    ).get(resellerId);
-    const mac = sess && sess.mac ? sess.mac : null;
+    // Use this voucher's MAC. (Previously took the reseller's most recent
+    // session of ANY customer, kicking the wrong person off.)
+    const v = await db.prepare(
+      "SELECT username, client_mac FROM vouchers WHERE id = ? AND reseller_id = ?"
+    ).get(voucherId, resellerId);
+    let mac = v && v.client_mac ? v.client_mac : null;
+    if (!mac && v && /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(v.username || "")) mac = v.username;
+    if (!mac) {
+      const sess = await db.prepare(
+        "SELECT mac FROM active_sessions WHERE reseller_id = ? AND username = ? ORDER BY last_seen DESC LIMIT 1"
+      ).get(resellerId, v ? v.username : null);
+      mac = sess && sess.mac ? sess.mac : null;
+    }
     if (!mac) return;
     const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
     const now = Date.now();
@@ -86,7 +96,7 @@ export function registerResellerRoutes(router) {
   const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(planId);
   if (!plan) return json(res, 404, { error: "Plan not found" });
   const now = Date.now();
-  const expiresAt = now + durationToMs(plan.duration_value, plan.duration_unit);
+  const expiresAt = now + planDurationMs(plan);
   const vouchers = [];
   for (let i = 0; i < count; i++) {
     const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
@@ -608,7 +618,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       const username = `${pending.name.split(" ")[0].toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const password = genCode(8);
       const voucherId = id("v");
-      const voucherExpiresAt = now + durationToMs(plan?.duration_value, plan?.duration_unit);
+      const voucherExpiresAt = now + planDurationMs(plan);
       await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, voucherExpiresAt);

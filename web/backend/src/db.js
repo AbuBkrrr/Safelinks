@@ -471,7 +471,7 @@ export async function seed() {
   const insertSuperAdmin = db.prepare(
     "INSERT INTO super_admins (id,email,password_hash,bank_name,bank_account_name,bank_account_number,ussd_code,created_at) VALUES (?,?,?,?,?,?,?,?)"
   );
-  await insertSuperAdmin.run(id("sa"), "admin@SAFELINKS.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
+  await insertSuperAdmin.run(id("sa"), "admin@safelinks.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
 
   await db.prepare(`INSERT INTO integration_settings (id, contact_email, contact_whatsapp, platform_currency, dashboard_language, updated_at)
     VALUES ('singleton', 'aibrainsventures@gmail.com', '+2348032540215', 'USD', 'en', ?)`).run(now);
@@ -598,6 +598,7 @@ CREATE TABLE IF NOT EXISTS router_sessions (
 );
 
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS client_mac TEXT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
 
 CREATE TABLE IF NOT EXISTS router_metrics (

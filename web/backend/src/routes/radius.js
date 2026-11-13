@@ -56,6 +56,12 @@ export function registerRadiusRoutes(router) {
       "SELECT * FROM vouchers WHERE username = ? AND reseller_id = ?"
     ).get(b.username, resellerId);
     if (!v) return json(res, 404, { error: "voucher not found for this reseller" });
+    // radcheck/radreply are keyed by username only — never let one reseller
+    // overwrite a RADIUS user another reseller also holds.
+    const clash = await db.prepare(
+      "SELECT 1 FROM vouchers WHERE username = ? AND reseller_id <> ? LIMIT 1"
+    ).get(b.username, resellerId);
+    if (clash) return json(res, 409, { error: "username is used by another reseller; reissue the voucher" });
 
     await upsertRadiusUser({
       username: b.username,
@@ -80,6 +86,10 @@ export function registerRadiusRoutes(router) {
       "SELECT id FROM vouchers WHERE username = ? AND reseller_id = ?"
     ).get(b.username, resellerId);
     if (!v) return json(res, 404, { error: "voucher not found" });
+    const clash = await db.prepare(
+      "SELECT 1 FROM vouchers WHERE username = ? AND reseller_id <> ? LIMIT 1"
+    ).get(b.username, resellerId);
+    if (clash) return json(res, 409, { error: "username is used by another reseller" });
 
     await revokeRadiusUser(b.username);
     return json(res, 200, { ok: true, revoked: b.username });

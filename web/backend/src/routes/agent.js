@@ -138,10 +138,13 @@ export function registerAgentRoutes(router) {
       if (!rid || !key) return text(res, 400, "# STATUS ERROR\n# missing creds\n");
       const routerRow = await db.prepare("SELECT id, router_id, api_key_hash FROM routers WHERE router_id = ?").get(rid);
       if (!routerRow) return text(res, 404, "# STATUS ERROR\n# unknown router\n");
-      // Accept any non-empty key for now (hash verify can be added later)
+      if (!verifyPassword(key, routerRow.api_key_hash)) return text(res, 401, "# STATUS ERROR\n# invalid router key\n");
+      // Commands are queued under the public router_id (RTR-…) everywhere
+      // (payments, portal, reseller, register). Match that, plus the
+      // internal id for any rows queued the old way.
       const cmds = await db.prepare(
-        "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
-      ).all(routerRow.id);
+        "SELECT id, type, payload FROM router_commands WHERE router_id IN (?, ?) AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
+      ).all(routerRow.router_id, routerRow.id);
       const base = process.env.APP_URL || "https://www.safelinks.name.ng";
       const lines = [];
       // [sweep-r3] Mark expired vouchers + queue unbind/disable — runs on the
@@ -150,7 +153,7 @@ export function registerAgentRoutes(router) {
       try {
         const swNow = Date.now();
         const swExpired = await db.prepare(
-          "SELECT id, username, reseller_id FROM vouchers WHERE status='active' AND expires_at < ?"
+          "SELECT id, username, reseller_id, client_mac FROM vouchers WHERE status='active' AND expires_at < ?"
         ).all(swNow);
         if (swExpired.length > 0) {
           await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(swNow);
@@ -158,7 +161,7 @@ export function registerAgentRoutes(router) {
             const swRouters = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
             for (const r of swRouters) {
               await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.username }), "pending", swNow
+                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.client_mac || v.username }), "pending", swNow
               );
               await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
                 id("cmd"), r.router_id, "disable_user", JSON.stringify({ username: v.username }), "pending", swNow

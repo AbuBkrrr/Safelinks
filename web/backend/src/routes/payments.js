@@ -1,6 +1,7 @@
 // Payment routes — initiate, verify, webhooks, and provider listing.
 // Works with the custom router (http.js) — same shape as routes/portal.js.
 
+import crypto from "node:crypto";
 import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
@@ -12,37 +13,41 @@ import {
 } from "../payments/index.js";
 import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
+import { planDurationMs, planUptime } from "../planDuration.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
-  const rand = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const rand = crypto.randomBytes(5).toString("hex").toUpperCase();
   return `${prefix}-${Date.now().toString(36)}-${rand}`;
 }
 
 // Helper: after a payment is confirmed, activate the voucher + queue a router command.
-async function fulfillVoucherPayment(paymentRow, verified) {
+export async function fulfillVoucherPayment(paymentRow, verified) {
   const now = Date.now();
   // Look up any pending activation created at signup time
   const pending = await db.prepare(
     "SELECT * FROM pending_activations WHERE reseller_id = ? AND reference = ? LIMIT 1"
   ).get(paymentRow.reseller_id || paymentRow.user_id, paymentRow.reference);
 
-  // Generate credentials (username/password) for the end-user
-  const mac = pending?.client_mac || null;
-  const username = mac || `u${Math.random().toString(36).slice(2, 8)}`;
-  const password = mac || Math.random().toString(36).slice(2, 10);
+  // Credentials are random and never derived from the MAC: a MAC is visible
+  // to anyone on the WLAN, so MAC-as-password let anyone clone a session.
+  // The MAC is stored separately and only drives the zero-click ip-binding.
+  const mac = paymentRow.client_mac || pending?.client_mac || null;
+  const username = `U${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  const password = crypto.randomBytes(6).toString("base64url");
   const voucherId = id("v");
 
   const plan = paymentRow.plan_id
     ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id)
     : null;
 
-  const durationDays = plan?.duration_days || 30;
-  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
+  // plans have no duration_days/bandwidth_mbps columns: reading them made
+  // every paid plan 30 days at 100 Mbps.
+  const expiresAt = now + planDurationMs(plan);
 
   await db.prepare(
-    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at,client_mac)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     voucherId,
     paymentRow.reseller_id,
@@ -54,7 +59,8 @@ async function fulfillVoucherPayment(paymentRow, verified) {
     paymentRow.plan_id,
     "active",
     now,
-    expiresAt
+    expiresAt,
+    mac
   );
 
   // Mark the pending activation as completed (if it existed)
@@ -75,14 +81,14 @@ async function fulfillVoucherPayment(paymentRow, verified) {
         username,
         password,
         deviceLimit: plan?.device_limit || 5,
-        bandwidthMbps: plan?.bandwidth_mbps || 100,
-        uptime: (plan?.duration_days ? plan.duration_days + "d" : "1d"),
+        bandwidthMbps: plan?.bandwidth || 100,
+        uptime: planUptime(plan),
       }),
       "pending",
       now
     );
     // Zero-click MAC bypass with expiry, if we know the client's MAC
-    const clientMac = paymentRow.client_mac || pending?.client_mac;
+    const clientMac = mac;
     if (clientMac) {
       const isoExpiry = new Date(expiresAt).toISOString().slice(0, 19);
       await db.prepare(

@@ -54,8 +54,8 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     ).get(mac, rid);
     if (sess && sess.username) {
       const v = await db.prepare(
-        "SELECT status, expires_at FROM vouchers WHERE username = ? AND reseller_id = ?"
-      ).get(sess.username, rid);
+        "SELECT status, expires_at FROM vouchers WHERE (username = ? OR client_mac = ?) AND reseller_id = ? ORDER BY created_at DESC LIMIT 1"
+      ).get(sess.username, mac, rid);
       if (v) {
         const now = Date.now();
         const expired = v.expires_at && Number(v.expires_at) < now;
@@ -223,7 +223,8 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     let v = null;
     if (row.email) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? AND email=? ORDER BY created_at DESC LIMIT 1").get(resellerId, row.email);
     if (!v && row.phone) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? AND phone=? ORDER BY created_at DESC LIMIT 1").get(resellerId, row.phone);
-    if (!v) v = await db.prepare("SELECT username,password FROM vouchers WHERE reseller_id=? ORDER BY created_at DESC LIMIT 1").get(resellerId);
+    // No match → return nothing. (Previously fell back to the reseller's most
+    // recent voucher, which handed another customer's credentials to this one.)
     return json(res, 200, { status: "confirmed", voucher: v || null });
   });
 
