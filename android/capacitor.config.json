@@ -3,7 +3,7 @@
   "appName": "SAFE_Links",
   "webDir": "www",
   "server": {
-    "url": "https://REPLACE-WITH-YOUR-DOMAIN.com/",
+    "url": "https://www.safelinks.name.ng/",
     "cleartext": false
   },
   "android": {

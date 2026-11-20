@@ -110,41 +110,26 @@ public class RouterLanPairingPlugin extends Plugin {
                 return;
             }
 
-            String apiBaseUrl = getBridge().getServerUrl();
-            if (apiBaseUrl == null) {
-                call.reject("Could not determine the app's server URL - is capacitor.config.json's server.url set?");
-                return;
-            }
-
-            String installScript = RouterOsScripts.buildInstallCheckinScript(apiBaseUrl);
-            RouterOsClient.RouterOsResult installResult = client.execute(installScript, adminUser, adminPass, confirmedFingerprint);
-            if (!(installResult instanceof RouterOsClient.Success)) {
-                call.reject("Could not install the check-in script: " + describe(installResult));
-                return;
-            }
-
-            String registerScript;
+            // The router downloads and runs the current setup script itself.
+            String command;
             try {
-                registerScript = RouterOsScripts.buildRegisterScript(pairingCode, apiBaseUrl);
+                command = RouterOsScripts.buildSetupCommand(pairingCode, RouterOsScripts.BACKEND_URL);
             } catch (RouterOsScripts.InvalidPairingCodeException e) {
                 call.reject(e.getMessage());
                 return;
             }
-
-            RouterOsClient.RouterOsResult registerResult = client.execute(registerScript, adminUser, adminPass, confirmedFingerprint);
-            if (registerResult instanceof RouterOsClient.Success) {
-                String body = ((RouterOsClient.Success) registerResult).body;
-                String routerId = extractRouterId(body);
+            RouterOsClient.RouterOsResult result = client.execute(command, adminUser, adminPass, confirmedFingerprint);
+            activeClient = null;
+            activeGatewayIp = null;
+            if (result instanceof RouterOsClient.Success || result instanceof RouterOsClient.NetworkError) {
+                // NetworkError is expected when enabling the hotspot drops the LAN briefly.
                 JSObject ret = new JSObject();
                 ret.put("ok", true);
-                ret.put("routerId", routerId);
+                ret.put("routerId", (String) null);
+                ret.put("message", "Router is configuring itself. It shows Online in your dashboard within about a minute.");
                 call.resolve(ret);
-                // One-shot: clear session state so a stray extra call
-                // can't silently reuse stale credentials/session state.
-                activeClient = null;
-                activeGatewayIp = null;
             } else {
-                call.reject("Registration failed: " + describe(registerResult));
+                call.reject("Setup failed: " + describe(result));
             }
         });
     }

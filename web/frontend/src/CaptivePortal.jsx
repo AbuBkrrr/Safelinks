@@ -57,6 +57,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [helpError, setHelpError] = useState(null);
   const [voucherInput, setVoucherInput] = useState("");
   const [suspended, setSuspended] = useState(false);
+  const [routerReady, setRouterReady] = useState(false);
   const [transfer, setTransfer] = useState(null); // { reference, accountNumber, bankName, accountName, amount, expiresAt }
   const scannerRef = useRef(null);
   const wsRef = useRef(null);
@@ -134,10 +135,6 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   // ===== VOUCHER REDEMPTION =====
   async function redeemCode(vCode) {
     if (!vCode) return;
-    if (!clientMac) {
-      setError("MAC address missing. Please open the portal via the WiFi redirect.");
-      return;
-    }
     setProcessing(true);
     setError(null);
     try {
@@ -289,9 +286,18 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     } catch (_) {}
   }, [resellerId]);
 
+  // Log this device in on the hotspot router with the voucher. The router's
+  // login page URL arrives as ?login= (from its login.html hand-off); the
+  // router then enforces the plan's speed, device limit, data and time.
   function openBrowsingDestination() {
     const params = new URLSearchParams(window.location.search);
-    const dst = params.get("dst") || "https://www.budgetpro.com.ng";
+    const dst = params.get("dst") || "http://neverssl.com";
+    const loginUrl = params.get("login") || "http://login.wifi/login";
+    if (voucher?.username) {
+      const q = new URLSearchParams({ username: voucher.username, password: voucher.password || voucher.username, dst });
+      window.location.assign(`${loginUrl}${loginUrl.includes("?") ? "&" : "?"}${q.toString()}`);
+      return;
+    }
     const isTauri = typeof window !== "undefined" && (window.__TAURI__ || window.__TAURI_INTERNALS__);
 
     if (isTauri && window.__TAURI__?.window?.getCurrentWindow) {
@@ -303,12 +309,31 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     window.location.assign(dst);
   }
 
-  // ===== AUTO-REDIRECT AFTER CONFIRMATION =====
+  // ===== WAIT FOR THE ROUTER, THEN LOG IN =====
+  // The router picks up the new login on its next check-in (<=15s).
   useEffect(() => {
-    if (step !== "confirmed" || !clientMac || countdown > 0) return;
-    const t = setTimeout(openBrowsingDestination, 3000);
+    if (step !== "confirmed" || !voucher?.username) return;
+    setRouterReady(false);
+    let stopped = false, tries = 0;
+    const base = import.meta.env.VITE_API_URL || "";
+    const tick = async () => {
+      tries += 1;
+      try {
+        const r = await fetch(`${base}/api/portal/${resellerId}/ready/${encodeURIComponent(voucher.username)}`);
+        const j = r.ok ? await r.json() : {};
+        if (!stopped && (j.ready || tries > 45)) { setRouterReady(true); return; }
+      } catch (_) {}
+      if (!stopped) setTimeout(tick, 2000);
+    };
+    tick();
+    return () => { stopped = true; };
+  }, [step, voucher?.username, resellerId]);
+
+  useEffect(() => {
+    if (step !== "confirmed" || !routerReady) return;
+    const t = setTimeout(openBrowsingDestination, 1200);
     return () => clearTimeout(t);
-  }, [step, clientMac, countdown]);
+  }, [step, routerReady]);
   // ===== INSTANT TRANSFER (Paystack one-time account) =====
   async function startInstantTransfer() {
     setProcessing(true);
@@ -828,22 +853,26 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 Your internet access is active. You can now browse freely.
               </div>
 
-              {countdown > 0 && (
+              {!routerReady && (
                 <div style={{ background: `${reseller.color || T.primary}15`, border: `1px solid ${reseller.color || T.primary}`, borderRadius: 10, padding: 14, marginBottom: 14, textAlign: "center", fontSize: 12, color: T.ink, fontWeight: 600 }}>
-                  Syncing with router in {countdown} seconds…
+                  Activating on the WiFi router… (a few seconds)
                 </div>
               )}
+              <div style={{ background: "#f8f9fa", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 12.5, color: T.sub, textAlign: "left" }}>
+                Login for your other devices: <b style={{ color: T.ink, fontFamily: "monospace" }}>{voucher.username}</b>
+                {voucher.password && voucher.password !== voucher.username && <> / <b style={{ color: T.ink, fontFamily: "monospace" }}>{voucher.password}</b></>}
+              </div>
 
               <Btn
                 onClick={openBrowsingDestination}
-                disabled={countdown > 0}
+                disabled={!routerReady}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: isMobile ? 14 : 15 }}
               >
                 🚀 Start Browsing
               </Btn>
 
               <div style={{ fontSize: 11, color: T.sub, marginTop: 12, opacity: 0.8 }}>
-                {countdown > 0 ? `Starting in ${countdown}s…` : "You're online now."}
+                {routerReady ? "Connecting you now…" : "Hold on, almost there."}
               </div>
             </div>
           )}

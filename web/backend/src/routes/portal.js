@@ -5,6 +5,7 @@ import { saveUpload } from "../uploads.js";
 import * as paystack from "../payments/paystack.js";
 import { verifyPayment as verifyProviderPayment, listEnabledProviders } from "../payments/index.js";
 import { fulfillVoucherPayment } from "./payments.js";
+import { queueVoucherOnRouters, userReadyOnRouter } from "../routerCommands.js";
 
 // No payment gateway integration by design: every voucher purchase is a
 // manual transfer straight from the end-user's bank to the RESELLER's
@@ -122,7 +123,6 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     const resellerId = params.resellerId;
     const { voucherCode, clientMac } = body || {};
     if (!voucherCode) return json(res, 400, { error: "Voucher code is required" });
-    if (!clientMac) return json(res, 400, { error: "Missing device MAC. Please reconnect to the WiFi." });
 
     const vCode = String(voucherCode).trim().toUpperCase();
     const voucher = await db.prepare("SELECT * FROM vouchers WHERE UPPER(username) = ? AND reseller_id = ?").get(vCode, resellerId);
@@ -130,25 +130,13 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     if (voucher.status !== 'active') return json(res, 400, { error: "This voucher is currently " + voucher.status + "." });
     if (Number(voucher.expires_at) < Date.now()) return json(res, 400, { error: "This voucher has expired. Please contact the reseller." });
 
-    // Bind the client's MAC if provided
-    if (clientMac) {
-      const isoExpiry = new Date(Number(voucher.expires_at)).toISOString().slice(0, 19);
-      const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
-      const now = Date.now();
-      for (const r of routers) {
-        await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
-          .run(id("cmd"), r.router_id, "bind_mac", JSON.stringify({ username: clientMac, password: isoExpiry }), "pending", now);
-      }
+    if (clientMac && !voucher.client_mac) {
+      await db.prepare("UPDATE vouchers SET client_mac = ? WHERE id = ?").run(String(clientMac).toUpperCase(), voucher.id);
     }
-    
-    // Also create the hotspot user so they can log in manually if needed
-    const routers2 = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
-    for (const r of routers2) {
-      await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
-        .run(id("cmd"), r.router_id, "create_user", JSON.stringify({ username: voucher.username, password: voucher.password || voucher.username }), "pending", Date.now());
-    }
-
-    return json(res, 200, { ok: true, voucher });
+    // Make sure every router has this login, then the portal logs the
+    // device in through the router's login page.
+    await queueVoucherOnRouters(voucher);
+    return json(res, 200, { ok: true, voucher: { username: voucher.username, password: voucher.password || voucher.username, expires_at: voucher.expires_at } });
   });
 
   // POST /api/portal/:resellerId/signup
@@ -232,6 +220,13 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     // No match → return nothing. (Previously fell back to the reseller's most
     // recent voucher, which handed another customer's credentials to this one.)
     return json(res, 200, { status: "confirmed", voucher: v || null });
+  });
+
+  // GET /api/portal/:resellerId/ready/:username
+  // true once a router has applied this login; the portal then sends the
+  // browser to the router's login URL with the credentials.
+  router.get("/api/portal/:resellerId/ready/:username", async (req, res, { params }) => {
+    json(res, 200, { ready: await userReadyOnRouter(params.resellerId, params.username) });
   });
 
   // POST /api/portal/:resellerId/transfer-checkout

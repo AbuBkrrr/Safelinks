@@ -13,7 +13,8 @@ import {
 } from "../payments/index.js";
 import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
-import { planDurationMs, planUptime } from "../planDuration.js";
+import { planDurationMs } from "../planDuration.js";
+import { queueVoucherOnRouters } from "../routerCommands.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
@@ -68,38 +69,10 @@ export async function fulfillVoucherPayment(paymentRow, verified) {
     await db.prepare("UPDATE pending_activations SET status = 'activated' WHERE id = ?").run(pending.id);
   }
 
-  // Queue a router command to create the hotspot user
-  const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(paymentRow.reseller_id);
-  for (const r of routers) {
-    await db.prepare(
-      "INSERT INTO router_commands (id,router_id,type,payload,status,created_at) VALUES (?,?,?,?,?,?)"
-    ).run(
-      id("cmd"),
-      r.router_id,
-      "create_user",
-      JSON.stringify({
-        username,
-        password,
-        deviceLimit: plan?.device_limit || 5,
-        bandwidthMbps: plan?.bandwidth || 100,
-        uptime: planUptime(plan),
-      }),
-      "pending",
-      now
-    );
-    // Zero-click MAC bypass with expiry, if we know the client's MAC
-    const clientMac = mac;
-    if (clientMac) {
-      const isoExpiry = new Date(expiresAt).toISOString().slice(0, 19);
-      await db.prepare(
-        "INSERT INTO router_commands (id,router_id,type,payload,status,created_at) VALUES (?,?,?,?,?,?)"
-      ).run(
-        id("cmd"), r.router_id, "bind_mac",
-        JSON.stringify({ username: clientMac, password: isoExpiry }),
-        "pending", now
-      );
-    }
-  }
+  // Create the hotspot login on every router of this reseller. The portal
+  // then logs this device in with it (router enforces speed/devices/data).
+  await queueVoucherOnRouters(
+    { username, password, reseller_id: paymentRow.reseller_id, expires_at: expiresAt, plan_id: paymentRow.plan_id }, plan);
 
   // Notify the reseller
   await db.prepare(

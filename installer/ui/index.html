@@ -860,17 +860,17 @@ async function _optBSaveSetupFile() {
       ssid: ssid,
       wifiPassword: wifiPassword,
       resellerId: localStorage.getItem('reseller_id') || 'default',
-      adminMac: await invoke('get_local_mac').catch(function() { return ''; })
+      adminMac: await invoke('get_local_mac').catch(function() { return ''; }),
+      authToken: localStorage.getItem('auth_token') || ''
     })
     .then(function(path) {
       var msg =
         'Setup file saved to:\n  ' + path + '\n\n' +
         'Next steps:\n' +
         '  1. Open Winbox and connect to ' + document.getElementById('cfg-ip').textContent + '\n' +
-        '  2. In Winbox: Files - drag the .rsc file above into the router\n' +
-        '  3. In Winbox: New Terminal - run:\n' +
-        '       /import file=safelinks-configure.rsc\n' +
-        '  4. Come back here and click Check status.';
+        '  2. In Winbox: New Terminal - paste the ONE line from that file\n' +
+        '     (the router downloads and applies the current SAFE_Links setup)\n' +
+        '  3. Come back here and click Check status.';
       cfgSetStatus(msg, '#22c55e');
     })
     .catch(function(e) {

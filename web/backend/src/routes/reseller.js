@@ -1,3 +1,4 @@
+import { queueVoucherOnRouters, userPayload } from "../routerCommands.js";
 import { planDurationMs } from "../planDuration.js";
 import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
@@ -105,18 +106,7 @@ export function registerResellerRoutes(router) {
     await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(vId, resellerId, username, password, "Generated", null, null, null, planId, "active", now, expiresAt);
     
-    // --- NEW: Queue router command ---
-    let uptime = "1d";
-    if (plan && plan.duration) {
-      const d = plan.duration.toLowerCase();
-      if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
-      else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
-      else if (d.includes('week')) uptime = "7d";
-      else if (d.includes('month')) uptime = "30d";
-      else if (d.includes('year')) uptime = "365d";
-    }
-    await enqueueCommandForReseller(resellerId, "create_user", { username, password, uptime });
-    
+    await queueVoucherOnRouters({ username, password, reseller_id: resellerId, expires_at: expiresAt, plan_id: planId }, plan);
     vouchers.push({ id: vId, username, password, plan_id: planId, expires_at: expiresAt });
   }
   json(res, 200, { count: vouchers.length, vouchers });
@@ -244,14 +234,30 @@ router.get("/api/reseller/vouchers", async (req, res) => {
   // the router, and polls GET .../:code until the router itself has
   // called POST /api/agent/register with it. Nobody types in the
   // router's model/firmware/IP â€” the router reports those itself.
-  router.post("/api/reseller/pairing-codes", async (req, res) => {
+  // POST /api/reseller/pairing-codes
+  // body (all optional): { ssid, wifiPassword, wanMode: dhcp|pppoe, wanUser, wanPass, wanInterface, adminMac }
+  // Returns the code and the ONE command that sets up any MikroTik with it.
+  router.post("/api/reseller/pairing-codes", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const b = body || {};
+    if (b.wifiPassword && String(b.wifiPassword).length < 8) return json(res, 400, { error: "WiFi password must be at least 8 characters (or empty for an open network)" });
+    const r = await db.prepare("SELECT ssid, company_name FROM resellers WHERE id = ?").get(resellerId);
+    const config = {
+      ssid: String(b.ssid || r?.ssid || r?.company_name || "SafeLinks-WiFi").slice(0, 32),
+      wifiPassword: String(b.wifiPassword || "").slice(0, 63),
+      wanMode: b.wanMode === "pppoe" ? "pppoe" : "dhcp",
+      wanUser: String(b.wanUser || "").slice(0, 64), wanPass: String(b.wanPass || "").slice(0, 64),
+      wanInterface: /^[A-Za-z0-9-]{2,20}$/.test(String(b.wanInterface || "")) ? b.wanInterface : "ether1",
+      adminMac: /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/i.test(String(b.adminMac || "")) ? String(b.adminMac).toUpperCase() : "",
+    };
     const now = Date.now();
     const code = genCode(6).toUpperCase();
-    const pairingId = id("pc");
-    await db.prepare("INSERT INTO pairing_codes (id,reseller_id,code,status,expires_at,created_at) VALUES (?,?,?,?,?,?)")
-      .run(pairingId, resellerId, code, "pending", now + 15 * 60000, now);
-    json(res, 201, { code, expiresAt: now + 15 * 60000 });
+    const ttl = 60 * 60000;
+    await db.prepare("INSERT INTO pairing_codes (id,reseller_id,code,status,expires_at,created_at,config) VALUES (?,?,?,?,?,?,?)")
+      .run(id("pc"), resellerId, code, "pending", now + ttl, now, JSON.stringify(config));
+    const { apiBase, setupCommand } = await import("./setup.js");
+    const api = apiBase(req);
+    json(res, 201, { code, expiresAt: now + ttl, ssid: config.ssid, setupUrl: `${api}/api/setup/${code}.rsc`, command: setupCommand(api, code) });
   });
 
   router.get("/api/reseller/pairing-codes/:code", async (req, res, { params }) => {
@@ -286,11 +292,11 @@ router.get("/api/reseller/vouchers", async (req, res) => {
 
     // Sync every currently-active voucher onto the freshly provisioned
     // router so it's not starting from an empty user list.
-    const activeVouchers = await db.prepare("SELECT username, password, plan_id FROM vouchers WHERE reseller_id = ? AND status = 'active'").all(resellerId);
+    const activeVouchers = await db.prepare("SELECT * FROM vouchers WHERE reseller_id = ? AND status = 'active' AND expires_at > ?").all(resellerId, now);
     for (const v of activeVouchers) {
-      const plan = await db.prepare("SELECT device_limit, bandwidth FROM plans WHERE id = ?").get(v.plan_id);
+      const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(v.plan_id);
       await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
-        .run(id("cmd"), routerId, "create_user", JSON.stringify({ username: v.username, password: v.password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth }), "pending", now);
+        .run(id("cmd"), routerId, "create_user", JSON.stringify(userPayload(v, plan)), "pending", now);
     }
 
     // apiKey is returned ONLY in this response â€” the server never
@@ -626,30 +632,11 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       await db.prepare("INSERT INTO delivery_logs (id,voucher_id,channel,status,time) VALUES (?,?,?,?,?)").run(id("dl"), voucherId, "whatsapp", "delivered", now);
       await db.prepare("INSERT INTO payments (id,user_type,user_id,amount,method,status,time,note) VALUES (?,?,?,?,?,?,?,?)")
         .run(id("pay"), "voucher", voucherId, pending.amount, pending.method, "completed", now, "Voucher purchase");
-      // Always create the hotspot user (fallback for clients without MAC)
-      let uptime = "1d";
-      if (plan && plan.duration) {
-        const d = plan.duration.toLowerCase();
-        if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
-        else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
-        else if (d.includes('week')) uptime = "7d";
-        else if (d.includes('month')) uptime = "30d";
-        else if (d.includes('year')) uptime = "365d";
-      }
-      await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth, uptime });
-      // Zero-click bypass — payload uses username key + ISO expiry in password slot
-      let targetMac = pending.client_mac;
-      if (!targetMac) {
-        const sess = await db.prepare("SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1").get(resellerId);
-        if (sess && sess.mac) targetMac = sess.mac;
-      }
-      if (targetMac) {
-        const isoExpiry = new Date(voucherExpiresAt).toISOString().slice(0, 19);
-        await enqueueCommandForReseller(resellerId, "bind_mac", {
-          username: targetMac,
-          password: isoExpiry
-        });
-      }
+      // The paying device was recorded on the pending activation; it is the
+      // only device this voucher belongs to. (Previously, without a MAC, it
+      // unlocked whichever device last used the WiFi.)
+      if (pending.client_mac) await db.prepare("UPDATE vouchers SET client_mac = ? WHERE id = ?").run(pending.client_mac, voucherId);
+      await queueVoucherOnRouters({ username, password, reseller_id: resellerId, expires_at: voucherExpiresAt, plan_id: pending.plan_id }, plan);
       return json(res, 200, { ok: true, voucher: { username, password } });
     }
     json(res, 200, { ok: true });
