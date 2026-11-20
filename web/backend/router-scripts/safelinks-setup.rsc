@@ -138,7 +138,8 @@
     :if ([:typeof $b] != "nil") do={ :local e [:find $r "\n" $b]; :set key [:pick $r ($b + 8) $e] }
     :if ([:len $rid] = 0 || [:len $key] = 0) do={ :error "register: bad response" }
     :do { /system script remove [find name="safelinks-cred"] } on-error={}
-    /system script add name="safelinks-cred" policy=read,write,test source=(":global slRouterId \"" . $rid . "\"; :global slKey \"" . $key . "\"")
+    # Globals are wiped on reboot: everything check-in needs is persisted here.
+    /system script add name="safelinks-cred" policy=read,write,test source=(":global slRouterId \"" . $rid . "\"; :global slKey \"" . $key . "\"; :global slApi \"" . $slApi . "\"")
     /system script run safelinks-cred
     :log info ("safelinks: paired as " . $rid)
     :put ("Paired as " . $rid)
@@ -149,7 +150,7 @@
     :global slRouterId
     :global slKey
     :if ([:len [/system script job find script="safelinks-checkin"]] > 1) do={ :error "busy" }
-    :if ([:len $slRouterId] = 0) do={ :do { /system script run safelinks-cred } on-error={ :error "not paired" } }
+    :if ([:len $slRouterId] = 0 || [:len $slApi] = 0) do={ :do { /system script run safelinks-cred } on-error={ :error "not paired" } }
     :local auth ("router_id=" . $slRouterId . "&api_key=" . $slKey)
     :local r ""
     :do {

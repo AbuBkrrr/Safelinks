@@ -5,6 +5,8 @@ far: the actual web application, native Android and Windows apps that
 wrap it, a clickable offline demo, and a standalone testing tool. Each
 piece has its own detailed README — this file is just the map.
 
+**Going live?** [`GOING-LIVE.md`](./GOING-LIVE.md) lists every setting (Paystack, SMS, router setup).
+
 **New here? Start with [`DEPLOYMENT.md`](./DEPLOYMENT.md)** — a
 complete, no-assumptions, step-by-step guide from an empty checkout to
 a live production deployment on your own VPS.
