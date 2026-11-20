@@ -52,10 +52,10 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     const sess = await db.prepare(
       "SELECT username FROM active_sessions WHERE mac = ? AND reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
     ).get(mac, rid);
-    if (sess && sess.username) {
+    {
       const v = await db.prepare(
-        "SELECT status, expires_at FROM vouchers WHERE (username = ? OR client_mac = ?) AND reseller_id = ? ORDER BY created_at DESC LIMIT 1"
-      ).get(sess.username, mac, rid);
+        "SELECT status, expires_at FROM vouchers WHERE (username = ? OR UPPER(client_mac) = UPPER(?)) AND reseller_id = ? ORDER BY created_at DESC LIMIT 1"
+      ).get(sess && sess.username ? sess.username : "\u0000", mac, rid);
       if (v) {
         const now = Date.now();
         const expired = v.expires_at && Number(v.expires_at) < now;

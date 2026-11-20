@@ -75,6 +75,34 @@ export async function sweepLicenseExpiry() {
   return newlyExpired.length;
 }
 
+/** Customer vouchers past expires_at: mark expired and queue router
+ *  commands that cut the device off (remove its MAC bypass + any hotspot
+ *  login, disable the hotspot user). The device then falls back to the
+ *  hotspot login page, which redirects to the reseller's portal where the
+ *  customer can buy again. Runs here (not in a router-facing route) so it
+ *  fires whichever check-in path the routers use. */
+export async function sweepVoucherExpiry() {
+  const now = Date.now();
+  const expired = await db.prepare(
+    "SELECT id, username, reseller_id, client_mac FROM vouchers WHERE status = 'active' AND expires_at < ?"
+  ).all(now);
+  if (expired.length === 0) return 0;
+  await db.prepare("UPDATE vouchers SET status = 'expired' WHERE status = 'active' AND expires_at < ?").run(now);
+  for (const v of expired) {
+    const mac = v.client_mac || (/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(v.username || "") ? v.username : null);
+    const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
+    for (const r of routers) {
+      const q = (type, payload) => db.prepare(
+        "INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)"
+      ).run(id("cmd"), r.router_id, type, JSON.stringify(payload), "pending", now);
+      if (mac) await q("unbind_mac", { username: mac });
+      await q("disable_user", { username: v.username });
+    }
+  }
+  console.log(`[voucher-expiry] expired ${expired.length} voucher(s)`);
+  return expired.length;
+}
+
 /** Starts both sweeps on their own intervals and returns a stop()
  *  function (useful for tests). Router offline detection matters
  *  quickly (30s check-in window), so it runs often; license expiry is
@@ -86,5 +114,8 @@ export function startScheduler({ routerSweepMs = 30_000, licenseSweepMs = 60 * 6
   const licenseTimer = setInterval(() => {
     sweepLicenseExpiry().catch((err) => console.error("License expiry sweep failed:", err.message));
   }, licenseSweepMs);
-  return () => { clearInterval(routerTimer); clearInterval(licenseTimer); };
+  const voucherTimer = setInterval(() => {
+    sweepVoucherExpiry().catch((err) => console.error("Voucher expiry sweep failed:", err.message));
+  }, routerSweepMs);
+  return () => { clearInterval(routerTimer); clearInterval(licenseTimer); clearInterval(voucherTimer); };
 }

@@ -2,6 +2,7 @@ import { db, id, genCode } from "../db.js";
 import { text } from "../http.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { rateLimitByIp } from "../rateLimit.js";
+import { sweepVoucherExpiry } from "../jobs.js";
 
 // ─── Numeric coercion for RouterOS values ──────────────────────
 // RouterOS returns uptime as "1w2d3h4m5s" and cpu-load possibly as
@@ -130,7 +131,7 @@ export function registerAgentRoutes(router) {
   // Returns a fresh short script: metrics POST + any queued commands.
   router.get("/api/agent/heartbeat.rsc", async (req, res) => {
   // Sweep expired vouchers on every heartbeat so 2-min vouchers actually expire.
-  try { await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(Date.now()); } catch (e) { console.warn('[sweep] voucher expiry failed', e.message); }
+  try { await sweepVoucherExpiry(); } catch (e) { console.warn('[sweep] voucher expiry failed', e.message); }
     try {
       const url = new URL(req.url || "/", "http://x");
       const rid = String(url.searchParams.get("rid") || "").trim();
@@ -147,30 +148,7 @@ export function registerAgentRoutes(router) {
       ).all(routerRow.router_id, routerRow.id);
       const base = process.env.APP_URL || "https://www.safelinks.name.ng";
       const lines = [];
-      // [sweep-r3] Mark expired vouchers + queue unbind/disable — runs on the
-      // route the router actually fetches, so 2-min vouchers expire in the UI
-      // and clients get kicked off the router on the next heartbeat.
-      try {
-        const swNow = Date.now();
-        const swExpired = await db.prepare(
-          "SELECT id, username, reseller_id, client_mac FROM vouchers WHERE status='active' AND expires_at < ?"
-        ).all(swNow);
-        if (swExpired.length > 0) {
-          await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(swNow);
-          for (const v of swExpired) {
-            const swRouters = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
-            for (const r of swRouters) {
-              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.client_mac || v.username }), "pending", swNow
-              );
-              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "disable_user", JSON.stringify({ username: v.username }), "pending", swNow
-              );
-            }
-          }
-          console.log('[sweep-r3] expired ' + swExpired.length + ' voucher(s)');
-        }
-      } catch (swErr) { console.error('[sweep-r3] failed:', swErr.message); }
+      // Voucher expiry (mark + queue cut-off) lives in jobs.js sweepVoucherExpiry.
 
       lines.push("# safelinks-cmd.rsc — " + new Date().toISOString());
       lines.push("# " + cmds.length + " pending command(s)");
