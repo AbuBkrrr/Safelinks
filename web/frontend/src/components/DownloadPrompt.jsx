@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+// Apps are built by CI from source and published as the latest GitHub release.
+const DOWNLOAD_BASE = import.meta.env.VITE_DOWNLOAD_BASE || "https://github.com/AbuBkrrr/Safelinks/releases/latest/download";
 
 const DownloadPrompt = () => {
   const [os, setOs] = useState(null);
@@ -31,7 +33,7 @@ const DownloadPrompt = () => {
   // Show on first load (hasLoaded guarantees OS detection complete)
   if (!hasLoaded || dismissed || os === 'other' || os === 'android') return null;
 
-  const downloadUrl = '/downloads/safelinks-installer.exe';
+  const downloadUrl = `${DOWNLOAD_BASE}/safelinks-installer.exe`;
 
   // **ONLY show on Windows, NOT on mobile**
   if (isMobile) {

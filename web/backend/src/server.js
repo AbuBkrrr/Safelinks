@@ -155,8 +155,14 @@ registerRadiusRoutes(router);
       }
       (async () => {
         try {
-          const info = await stat(resolved);
-          if (!info.isFile()) throw new Error("not a file");
+          const info = await stat(resolved).catch(() => null);
+          // Apps are built by CI and published as the latest GitHub release;
+          // a file not shipped with the server redirects there.
+          if (!info || !info.isFile()) {
+            const base = (process.env.DOWNLOADS_BASE || "https://github.com/AbuBkrrr/Safelinks/releases/latest/download").replace(/\/$/, "");
+            res.writeHead(302, { Location: `${base}/${encodeURIComponent(path.basename(requested))}` });
+            return res.end();
+          }
           res.writeHead(200, {
             "Content-Type": "application/octet-stream",
             "Content-Length": info.size,

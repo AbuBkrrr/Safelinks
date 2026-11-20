@@ -46,3 +46,16 @@ installer/icon-source.png
 *.bak.agentcall
 surgical-scan.txt
 closing-scan.txt
+
+# Built by CI (.github/workflows/build-apps.yml) and published as releases
+*.exe
+*.apk
+desktop/dist/
+desktop/Output/
+# Runtime data never belongs in git
+web/backend/uploads/*
+!web/backend/uploads/.gitkeep
+*.sql
+*.bak
+*.bak-*
+*.bak.*
