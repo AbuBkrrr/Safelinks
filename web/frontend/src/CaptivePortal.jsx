@@ -57,6 +57,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [helpError, setHelpError] = useState(null);
   const [voucherInput, setVoucherInput] = useState("");
   const [suspended, setSuspended] = useState(false);
+  const [transfer, setTransfer] = useState(null); // { reference, accountNumber, bankName, accountName, amount, expiresAt }
   const scannerRef = useRef(null);
   const wsRef = useRef(null);
 
@@ -87,6 +88,25 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       setStep("connect");
     }
   }, [voucher]);
+
+  // ===== RETURNING DEVICE: ask the server what this MAC's plan state is =====
+  // A device the router just cut off lands here with no voucher in memory,
+  // so the expired/suspended screens must come from the server.
+  useEffect(() => {
+    if (!clientMac || !resellerId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const r = await fetch(`${base}/api/portal/${resellerId}/status?mac=${encodeURIComponent(clientMac)}`);
+        const j = r.ok ? await r.json() : null;
+        if (cancelled || !j) return;
+        if (j.status === "expired") { setIsExpired(true); setStep("expired"); }
+        else if (j.status === "suspended") { setSuspended(true); }
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [clientMac, resellerId]);
 
   // ===== WEBSOCKET SYNC =====
   // The production deployment uses HTTP polling for portal state. Avoid opening
@@ -289,14 +309,56 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     const t = setTimeout(openBrowsingDestination, 3000);
     return () => clearTimeout(t);
   }, [step, clientMac, countdown]);
+  // ===== INSTANT TRANSFER (Paystack one-time account) =====
+  async function startInstantTransfer() {
+    setProcessing(true);
+    setError(null);
+    try {
+      const base = import.meta.env.VITE_API_URL || "";
+      const r = await fetch(`${base}/api/portal/${resellerId}/transfer-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, planId: selectedPlan.id, clientMac, clientIp }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.accountNumber) throw new Error(j.error || "Could not create a transfer account");
+      setTransfer(j);
+    } catch (err) {
+      setError(err.message || "Instant transfer failed");
+    }
+    setProcessing(false);
+  }
+
+  useEffect(() => {
+    if (!transfer?.reference || step !== "payment") return;
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const r = await fetch(`${base}/api/portal/${resellerId}/transfer-status/${encodeURIComponent(transfer.reference)}`);
+        if (!r.ok || stopped) return;
+        const j = await r.json();
+        if (j.status === "paid") {
+          setVoucher(j.voucher);
+          setTransfer(null);
+          setStep("confirmed");
+          setCountdown(5);
+          notify?.("Transfer received! You're connected.");
+        }
+      } catch (_) {}
+    };
+    const tid = setInterval(tick, 4000);
+    return () => { stopped = true; clearInterval(tid); };
+  }, [transfer, step, resellerId, notify]);
+
   // ===== CARD PAYMENT SUBMISSION =====
   async function submitCard() {
     setProcessing(true);
     setError(null);
     try {
       const base = import.meta.env.VITE_API_URL || "";
-      const provider = method === "Card" ? "flutterwave" : 
-                       method === "USSD" || method === "Mobile Money" ? "paystack" : "flutterwave";
+      const gws = info.data?.gateways || [];
+      const provider = gws.includes("paystack") ? "paystack" : (gws[0] || "flutterwave");
       
       const r = await fetch(`${base}/api/portal/${resellerId}/card-checkout`, {
         method: "POST",
@@ -610,7 +672,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
               <Btn
                 disabled={!form.name || !form.email || !form.phone}
-                onClick={() => { setError(null); setMethod("Card"); setStep("payment"); }}
+                onClick={() => { setError(null); setMethod(reseller.instantTransfer ? "Instant Transfer" : "Card"); setStep("payment"); }}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0" }}
               >
                 Continue to Payment
@@ -624,7 +686,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: T.ink }}>Choose Payment Method</div>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                {["Card", "USSD", "Bank Transfer"].map((m) => (
+                {(reseller.instantTransfer ? ["Instant Transfer", "Card", "USSD", "Bank Transfer"] : ["Card", "USSD", "Bank Transfer"]).map((m) => (
                   <div
                     key={m}
                     onClick={() => { setMethod(m); setError(null); }}
@@ -642,12 +704,48 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                       background: method === m ? `${reseller.color || T.primary}08` : "#fff",
                     }}
                   >
-                    {m === "Card" ? "💳" : m === "USSD" ? "📱" : "🏦"} {m}
+                    {m === "Card" ? "💳" : m === "USSD" ? "📱" : m === "Instant Transfer" ? "⚡" : "🏦"} {m}
                   </div>
                 ))}
               </div>
 
-              {method === "Card" || method === "USSD" ? (
+              {method === "Instant Transfer" ? (
+                <div>
+                  {!transfer ? (
+                    <>
+                      <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12, lineHeight: 1.5 }}>
+                        Get a one-time account number, transfer exactly {formatMoney(selectedPlan.price, cur)}, and you're connected automatically. No receipt needed.
+                      </div>
+                      <Btn disabled={processing} onClick={startInstantTransfer} style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: 15 }}>
+                        {processing ? "Getting account…" : "Get account number"}
+                      </Btn>
+                    </>
+                  ) : (
+                    <div>
+                      <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, color: T.sub }}>Transfer exactly</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: T.ink, marginBottom: 10 }}>{formatMoney(transfer.amount, "NGN")}</div>
+                        <div style={{ fontSize: 12, color: T.sub }}>Bank</div>
+                        <div style={{ fontWeight: 700, color: T.ink, marginBottom: 8 }}>{transfer.bankName || "—"}</div>
+                        <div style={{ fontSize: 12, color: T.sub }}>Account number</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                          <div style={{ fontWeight: 800, fontSize: 22, letterSpacing: 1.5, color: T.ink }}>{transfer.accountNumber}</div>
+                          <Btn variant="outline" onClick={() => { try { navigator.clipboard.writeText(transfer.accountNumber); notify?.("Account number copied"); } catch (_) {} }} style={{ padding: "6px 12px", fontSize: 12 }}>Copy</Btn>
+                        </div>
+                        {transfer.accountName && (<><div style={{ fontSize: 12, color: T.sub }}>Account name</div><div style={{ fontWeight: 600, color: T.ink }}>{transfer.accountName}</div></>)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.ink, marginBottom: 8 }}>
+                        <Clock size={16} color={T.warning} /> Waiting for your transfer… this page updates by itself.
+                      </div>
+                      <div style={{ fontSize: 11.5, color: T.sub, lineHeight: 1.5 }}>
+                        No data? Use your bank's USSD code (e.g. *737#, *894#, *919#) — it works without internet.
+                        {transfer.expiresAt && <> Account valid until {new Date(transfer.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</>}
+                      </div>
+                    </div>
+                  )}
+                  {error && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+                </div>
+              ) : method === "Card" || method === "USSD" ? (
                 <div>
                   <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>
                     {method === "Card" && "Pay instantly with your card, USSD, or mobile money"}

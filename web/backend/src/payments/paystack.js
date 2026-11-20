@@ -86,7 +86,38 @@ export async function verifyPayment(reference) {
 
 // Verify webhook signature using HMAC SHA-512 of the raw body with the secret key.
 export function verifyWebhookSignature(rawBody, signature) {
-  if (!signature) return false;
+  if (!signature || !SECRET_KEY()) return false;
   const hash = crypto.createHmac("sha512", SECRET_KEY()).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature));
+  const a = Buffer.from(hash), b = Buffer.from(String(signature));
+  // timingSafeEqual throws on length mismatch; a malformed header is just invalid.
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Pay with Transfer (Charge API): Paystack issues a one-time account number
+// for this exact amount. The customer transfers from any bank app; Paystack
+// then sends charge.success to our webhook, which unlocks access with no
+// human in the loop. Requires "Pay with Transfer" enabled on the Paystack
+// account. Response fields are read defensively.
+export async function chargeBankTransfer({ amountMajor, email, reference, metadata, subaccount, expiresInMinutes = 30 }) {
+  const body = {
+    email,
+    amount: Math.round(Number(amountMajor) * 100),
+    reference,
+    metadata,
+    bank_transfer: { account_expires_at: new Date(Date.now() + expiresInMinutes * 60000).toISOString() },
+  };
+  if (subaccount) body.subaccount = subaccount;
+  const { status, body: r } = await paystackRequest("POST", "/charge", body);
+  const d = r?.data || {};
+  if (!(status >= 200 && status < 300) || !r?.status || !d.account_number) {
+    throw new Error(r?.message || d.message || `Paystack transfer charge failed (HTTP ${status})`);
+  }
+  return {
+    reference: d.reference || reference,
+    accountNumber: d.account_number,
+    accountName: d.account_name || null,
+    bankName: d.bank?.name || d.bank_name || null,
+    expiresAt: d.account_expires_at || body.bank_transfer.account_expires_at,
+    displayText: d.display_text || null,
+  };
 }

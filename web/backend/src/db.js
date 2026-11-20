@@ -599,6 +599,9 @@ CREATE TABLE IF NOT EXISTS router_sessions (
 
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_mac TEXT;
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voucher_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS paystack_subaccount TEXT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
 
 CREATE TABLE IF NOT EXISTS router_metrics (

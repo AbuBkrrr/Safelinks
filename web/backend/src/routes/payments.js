@@ -115,6 +115,9 @@ export async function fulfillVoucherPayment(paymentRow, verified) {
     "vouchers"
   );
 
+  if (paymentRow.reference) {
+    await db.prepare("UPDATE payments SET voucher_id = ? WHERE reference = ?").run(voucherId, paymentRow.reference);
+  }
   return { voucherId, username, password, expiresAt };
 }
 
@@ -244,12 +247,15 @@ export function registerPaymentRoutes(router) {
       if (!row) return json(res, 404, { error: "Payment not found" });
 
       if (row.status !== "paid") {
-        await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+        // Claim atomically: webhook and portal polling can race on one payment.
+        const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+        if (claim.changes === 1) {
         // Figure out fulfillment by purpose encoded in the metadata at creation time.
         // We stored "note" field — reuse it, or infer from plan_id/user_type.
         const purpose = row.user_type === "reseller" ? "license" : "voucher";
         if (purpose === "voucher") await fulfillVoucherPayment(row, result);
         else await fulfillLicensePayment(row);
+        }
       }
 
       json(res, 200, { ok: true, paid: true, reference, amountMajor: result.amountMajor });
@@ -270,12 +276,23 @@ export function registerPaymentRoutes(router) {
     }
     const reference = body?.data?.reference;
     if (!reference) return json(res, 200, { ok: true }); // ack regardless to stop retries
+    // Only a successful charge for at least the expected amount unlocks
+    // anything. Previously ANY signed event with a reference (charge.failed,
+    // refunds, ...) marked the payment paid and issued a voucher.
+    if (body?.event !== "charge.success" || body?.data?.status !== "success") return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
+    if (row && Number(body.data.amount) / 100 + 1e-9 < Number(row.amount)) {
+      console.error("[paystack webhook] underpaid", reference, body.data.amount, row.amount);
+      return json(res, 200, { ok: true });
+    }
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });
@@ -290,10 +307,13 @@ export function registerPaymentRoutes(router) {
     if (!reference) return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });
@@ -309,10 +329,13 @@ export function registerPaymentRoutes(router) {
     if (!reference) return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });
