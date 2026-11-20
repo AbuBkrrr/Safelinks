@@ -76,6 +76,8 @@ const post = (path, body, opts) => request("POST", path, body, opts);
 const put = (path, body, opts) => request("PUT", path, body, opts);
 const del = (path, opts) => request("DELETE", path, undefined, opts);
 
+export const http = { get, post, put, del };
+
 export const api = {
   ApiError,
 

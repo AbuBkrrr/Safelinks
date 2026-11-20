@@ -72,7 +72,8 @@ export function registerPortalRoutes(router) {
     const r = await db.prepare(`
       SELECT company_name, ssid, portal_title, color, currency, language, bank_name, bank_account_name, bank_account_number, ussd_code,
              contact_email, contact_whatsapp,
-             logo_url, favicon_url, welcome_message, support_phone, terms_url, privacy_url, background_image_url
+             logo_url, favicon_url, welcome_message, support_phone, terms_url, privacy_url, background_image_url,
+             trial_enabled, trial_minutes, happy_hour_start, happy_hour_end, happy_hour_pct, referral_reward_minutes
       FROM resellers WHERE id = ?
     `).get(params.resellerId);
     if (!r) return json(res, 404, { error: "Reseller not found" });
@@ -95,6 +96,9 @@ export function registerPortalRoutes(router) {
       // Instant (gateway) payments available to this portal.
       gateways: listEnabledProviders(),
       instantTransfer: paystack.isEnabled() && String(r.currency || "NGN").toUpperCase() === "NGN",
+      trialMinutes: Number(r.trial_enabled) ? Number(r.trial_minutes || 0) : 0,
+      happyHour: Number(r.happy_hour_pct) > 0 && r.happy_hour_start != null ? { start: r.happy_hour_start, end: r.happy_hour_end, pct: Number(r.happy_hour_pct) } : null,
+      referralRewardMinutes: Number(r.referral_reward_minutes || 0),
     });
   });
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { ChevronRight, ArrowLeft, Wifi, Clock, Mail, MessageCircle, AlertCircle, CheckCircle, Zap } from "lucide-react";
 import { T, Btn, Field, inputStyle, TransferPayBlock, Loading, formatMoney, AttachmentPicker } from "./ui.jsx";
+import { UsageCard, TrialCard, PromoFields, AccountPanel } from "./PortalExtras.jsx";
 import { api, fileToBase64 } from "./api.js";
 import { Html5Qrcode } from "html5-qrcode";
 import { useResource } from "./hooks.js";
@@ -58,6 +59,9 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [voucherInput, setVoucherInput] = useState("");
   const [suspended, setSuspended] = useState(false);
   const [routerReady, setRouterReady] = useState(false);
+  const [promo, setPromo] = useState("");
+  const [referral, setReferral] = useState("");
+  const [renewToken, setRenewToken] = useState(null);
   const [transfer, setTransfer] = useState(null); // { reference, accountNumber, bankName, accountName, amount, expiresAt }
   const scannerRef = useRef(null);
   const wsRef = useRef(null);
@@ -70,6 +74,19 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       setClientIp(params.get("ip") || null);
     } catch (_) {}
   }, []);
+
+  // ===== ONE-TAP RENEW LINK (?renew=<token>&plan=<id>&phone=<n>) =====
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const tok = q.get("renew"), planId = q.get("plan");
+    if (!tok || !planId || !plansRes.data) return;
+    const p = (plansRes.data || []).find((x) => x.id === planId);
+    if (!p) return;
+    setRenewToken(tok);
+    setSelectedPlan(p);
+    setForm((f) => ({ ...f, phone: q.get("phone") || f.phone, name: q.get("name") || f.name }));
+    setStep("form");
+  }, [plansRes.data]);
 
   // ===== RESPONSIVE HANDLER =====
   useEffect(() => {
@@ -343,9 +360,10 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       const r = await fetch(`${base}/api/portal/${resellerId}/transfer-checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, planId: selectedPlan.id, clientMac, clientIp }),
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, planId: selectedPlan.id, clientMac, clientIp, promoCode: promo, referralCode: referral, renewToken }),
       });
       const j = await r.json();
+      if (r.ok && j.free) { setTransfer({ reference: j.reference, free: true }); return; }
       if (!r.ok || !j.accountNumber) throw new Error(j.error || "Could not create a transfer account");
       setTransfer(j);
     } catch (err) {
@@ -395,12 +413,14 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           business: form.business || form.name,
           planId: selectedPlan.id,
           provider,
+          promoCode: promo, referralCode: referral, renewToken,
           clientMac,
           clientIp,
         }),
       });
 
       const j = await r.json();
+      if (r.ok && j.free) { setMethod("Instant Transfer"); setTransfer({ reference: j.reference, free: true }); setProcessing(false); return; }
       if (!r.ok || !j.checkoutUrl) {
         throw new Error(j.error || "Payment initialization failed");
       }
@@ -603,6 +623,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontSize: 14, color: T.sub, marginBottom: 16, textAlign: "center" }}>
                 Connected to <strong>{reseller.ssid}</strong>
               </div>
+              <UsageCard resellerId={resellerId} clientMac={clientMac} color={reseller.color} onRenew={() => setStep("plans")} />
 
               {clientMac && (
                 <div style={{ background: "#f0f9ff", border: `1px solid ${T.primary}22`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -632,7 +653,22 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <Btn onClick={() => setStep("plans")} style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: 15 }}>
                 Subscribe Now <Zap size={14} />
               </Btn>
+              {reseller.happyHour && (
+                <div style={{ textAlign: "center", fontSize: 12, color: T.success, marginTop: 8 }}>
+                  Happy hour {String(reseller.happyHour.start).padStart(2, "0")}:00–{String(reseller.happyHour.end).padStart(2, "0")}:00 · {reseller.happyHour.pct}% off
+                </div>
+              )}
+              <TrialCard resellerId={resellerId} minutes={reseller.trialMinutes} clientMac={clientMac}
+                onVoucher={(v) => { setVoucher(v); setStep("confirmed"); notify?.("Free trial started"); }} />
+              <Btn variant="ghost" onClick={() => setStep("account")} style={{ width: "100%", justifyContent: "center", fontSize: 13 }}>
+                My account · wallet · auto-renew
+              </Btn>
             </div>
+          )}
+
+          {step === "account" && (
+            <AccountPanel resellerId={resellerId} plans={plansRes.data || []} cur={cur} clientMac={clientMac} instantTransfer={reseller.instantTransfer}
+              notify={notify} onClose={() => setStep("connect")} onVoucher={(v) => { setVoucher(v); setStep("confirmed"); }} />
           )}
 
           {/* PLANS - Select a Data Plan */}
@@ -691,12 +727,12 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 {formatMoney(selectedPlan.price, cur)} for {selectedPlan.duration}
               </div>
               <Field label="Full Name"><input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" /></Field>
-              <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" /></Field>
+              <Field label="Email (optional)"><input style={inputStyle} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" /></Field>
               <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+234..." /></Field>
-              <Field label="Business (Optional)"><input style={inputStyle} value={form.business} onChange={(e) => setForm({ ...form, business: e.target.value })} placeholder="Your business name" /></Field>
+              <PromoFields resellerId={resellerId} plan={selectedPlan} cur={cur} promo={promo} setPromo={setPromo} referral={referral} setReferral={setReferral} />
               {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
               <Btn
-                disabled={!form.name || !form.email || !form.phone}
+                disabled={!form.name || !form.phone}
                 onClick={() => { setError(null); setMethod(reseller.instantTransfer ? "Instant Transfer" : "Card"); setStep("payment"); }}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0" }}
               >
@@ -736,7 +772,9 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
 
               {method === "Instant Transfer" ? (
                 <div>
-                  {!transfer ? (
+                  {transfer?.free ? (
+                    <div style={{ textAlign: "center", padding: 12, fontSize: 13, color: T.success, fontWeight: 600 }}>Free with your code — activating…</div>
+                  ) : !transfer ? (
                     <>
                       <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12, lineHeight: 1.5 }}>
                         Get a one-time account number, transfer exactly {formatMoney(selectedPlan.price, cur)}, and you're connected automatically. No receipt needed.

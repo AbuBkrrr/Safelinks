@@ -346,29 +346,31 @@ router.get("/api/reseller/vouchers", async (req, res) => {
 
   router.post("/api/reseller/plans", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular } = body;
+    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular, dataMb } = body;
+    const dataCap = Math.max(0, Math.round(Number(dataMb) || 0)); // MB, 0 = unlimited
     // Flexible duration: prefer unit + value; fall back to legacy duration string
     const finalDuration = duration || (durationValue && durationUnit ? (durationValue + "_" + durationUnit) : "");
     if (!name || !finalDuration || price == null) return json(res, 400, { error: "name, duration (or durationUnit+durationValue), and price are required" });
     if (typeof price !== "number" || !Number.isFinite(price) || price < 0) return json(res, 400, { error: "price must be a non-negative number" });
     if (deviceLimit != null && (typeof deviceLimit !== "number" || deviceLimit < 1)) return json(res, 400, { error: "deviceLimit must be at least 1" });
     const planId = id("p");
-    await db.prepare("INSERT INTO plans (id,reseller_id,name,duration,duration_unit,duration_value,price,device_limit,bandwidth,priority,popular,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now());
+    await db.prepare("INSERT INTO plans (id,reseller_id,name,duration,duration_unit,duration_value,price,device_limit,bandwidth,priority,popular,created_at,data_mb) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now(), dataCap);
     json(res, 201, { id: planId });
   });
 
   router.put("/api/reseller/plans/:id", async (req, res, { params, body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular } = body;
+    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular, dataMb } = body;
+    const dataCap = Math.max(0, Math.round(Number(dataMb) || 0)); // MB, 0 = unlimited
     const finalDuration = duration || (durationValue && durationUnit ? (durationValue + "_" + durationUnit) : "");
     if (!name || !finalDuration || price == null) return json(res, 400, { error: "name, duration (or durationUnit+durationValue), and price are required" });
     if (typeof price !== "number" || !Number.isFinite(price) || price < 0) return json(res, 400, { error: "price must be a non-negative number" });
     if (deviceLimit != null && (typeof deviceLimit !== "number" || deviceLimit < 1)) return json(res, 400, { error: "deviceLimit must be at least 1" });
     const result = await db.prepare(`
-      UPDATE plans SET name=?, duration=?, duration_unit=?, duration_value=?, price=?, device_limit=?, bandwidth=?, priority=?, popular=?
+      UPDATE plans SET name=?, duration=?, duration_unit=?, duration_value=?, price=?, device_limit=?, bandwidth=?, priority=?, popular=?, data_mb=?
       WHERE id = ? AND reseller_id = ?
-    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, params.id, resellerId);
+    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, dataCap, params.id, resellerId);
     if (result.changes === 0) return json(res, 404, { error: "Plan not found" });
     json(res, 200, { ok: true });
   });
