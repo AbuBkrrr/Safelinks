@@ -76,10 +76,10 @@ jobs:
         with: { node-version: 20 }
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
       - name: Build APK
         working-directory: android
         run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           npm ci
           npx cap sync android
           cd android

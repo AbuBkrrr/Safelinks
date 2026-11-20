@@ -687,7 +687,3 @@ log.push("Agent file verified on router.".to_string());
 
     Ok(remote_file.to_string())
 }
-
-/// Install the SAFELINKS zero-touch agent on the router and pair it.
-/// Runs after configure RSC succeeds. Non-fatal — the router still serves
-/// the portal if this fails, just without the automation agent.
