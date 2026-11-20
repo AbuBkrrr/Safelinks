@@ -14,6 +14,8 @@ import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
 import { registerSetupRoutes } from "./routes/setup.js";
+import { registerCustomerRoutes } from "./routes/customer.js";
+import { registerGrowthRoutes } from "./routes/growth.js";
 import { registerRadiusRoutes } from "./routes/radius.js";
 import { registerInstallerRoutes } from "./routes/installer.js";
 import { registerInstallerPlanConfigRoutes } from "./routes/installerPlanConfig.js";
@@ -110,6 +112,8 @@ async function main() {
   registerRouterRoutes(router);
   registerAgentRoutes(router);
   registerSetupRoutes(router);
+  registerCustomerRoutes(router);
+  registerGrowthRoutes(router);
 registerRadiusRoutes(router);
   registerInstallerRoutes(router);
   registerInstallerPlanConfigRoutes(router);

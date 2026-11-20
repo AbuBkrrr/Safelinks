@@ -606,6 +606,57 @@ ALTER TABLE routers ADD COLUMN IF NOT EXISTS hw_id TEXT;
 ALTER TABLE pairing_codes ADD COLUMN IF NOT EXISTS config TEXT;
 ALTER TABLE plans ADD COLUMN IF NOT EXISTS data_mb INTEGER DEFAULT 0;
 ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS bytes_used BIGINT DEFAULT 0;
+-- Growth: customers, wallet, promos, agents, messaging
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, phone TEXT NOT NULL, name TEXT, email TEXT,
+  wallet_balance REAL NOT NULL DEFAULT 0, auto_renew INTEGER NOT NULL DEFAULT 0, auto_renew_plan_id TEXT,
+  referral_code TEXT, referred_by TEXT, paid_count INTEGER NOT NULL DEFAULT 0, total_spent REAL NOT NULL DEFAULT 0,
+  opted_out INTEGER NOT NULL DEFAULT 0, trial_used_at BIGINT, created_at BIGINT, last_purchase_at BIGINT,
+  UNIQUE (reseller_id, phone)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_ref ON customers(reseller_id, referral_code);
+CREATE TABLE IF NOT EXISTS wallet_tx (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL, amount REAL NOT NULL, kind TEXT, ref TEXT, created_at BIGINT);
+CREATE TABLE IF NOT EXISTS promo_codes (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, code TEXT NOT NULL, percent_off REAL NOT NULL DEFAULT 0,
+  amount_off REAL NOT NULL DEFAULT 0, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
+  expires_at BIGINT, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT, UNIQUE (reseller_id, code)
+);
+CREATE TABLE IF NOT EXISTS sales_agents (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, name TEXT NOT NULL, phone TEXT,
+  commission_pct REAL NOT NULL DEFAULT 10, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY, reseller_id TEXT, to_phone TEXT, channel TEXT, kind TEXT, body TEXT,
+  status TEXT, error TEXT, created_at BIGINT
+);
+CREATE TABLE IF NOT EXISTS otp_codes (id TEXT PRIMARY KEY, reseller_id TEXT, phone TEXT, code_hash TEXT, expires_at BIGINT, attempts INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS renew_links (token TEXT PRIMARY KEY, reseller_id TEXT, customer_id TEXT, voucher_id TEXT, plan_id TEXT, created_at BIGINT, expires_at BIGINT);
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS agent_id TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS reminded_at BIGINT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS redeemed_at BIGINT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS router_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS promo_code TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount REAL;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS purpose_kind TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS extend_voucher_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS notify_phone TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_bank_code TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_account_number TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_account_name TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS trial_enabled INTEGER DEFAULT 1;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS trial_minutes INTEGER DEFAULT 5;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS loyalty_every INTEGER DEFAULT 10;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS referral_reward_minutes INTEGER DEFAULT 60;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_start INTEGER;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_end INTEGER;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_pct REAL DEFAULT 0;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS daily_summary INTEGER DEFAULT 1;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS last_summary_day TEXT;
+ALTER TABLE routers ADD COLUMN IF NOT EXISTS alerted_offline_at BIGINT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
 
 CREATE TABLE IF NOT EXISTS router_metrics (

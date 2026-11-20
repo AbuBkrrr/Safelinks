@@ -270,6 +270,14 @@ export function registerAgentRoutes(router) {
     if (!rt || !verifyPassword(body.api_key || "", rt.api_key_hash)) return err(res, 401, "invalid router credentials");
 
     await db.prepare("UPDATE routers SET last_check_in = ?, status = 'online' WHERE router_id = ?").run(Date.now(), rt.router_id);
+    if (rt.alerted_offline_at) {
+      await db.prepare("UPDATE routers SET alerted_offline_at = NULL WHERE router_id = ?").run(rt.router_id);
+      const r = await db.prepare("SELECT company_name, notify_phone FROM resellers WHERE id = ?").get(rt.reseller_id);
+      if (r?.notify_phone) {
+        const { sendMessage } = await import("../notify.js");
+        await sendMessage({ resellerId: rt.reseller_id, to: r.notify_phone, kind: "router-up", body: `SAFE_Links: router ${rt.router_id} (${r.company_name}) is back ONLINE.` });
+      }
+    }
 
     const commands = await db.prepare(
       "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 25"
@@ -387,8 +395,8 @@ export function registerAgentRoutes(router) {
     for (const s of Array.isArray(sessions) ? sessions : []) {
       if (!s.username) continue;
       const used = num(s.userTotal) + num(s.bytesIn) + num(s.bytesOut);
-      await db.prepare("UPDATE vouchers SET bytes_used = GREATEST(COALESCE(bytes_used,0), ?) WHERE username = ? AND reseller_id = ?")
-        .run(used, s.username, rt.reseller_id);
+      await db.prepare("UPDATE vouchers SET bytes_used = GREATEST(COALESCE(bytes_used,0), ?), router_id = COALESCE(router_id, ?) WHERE username = ? AND reseller_id = ?")
+        .run(used, router_id, s.username, rt.reseller_id);
     }
     return ok(res, ["report accepted", "metrics=" + (metrics ? "yes" : "no"), "sessions=" + (Array.isArray(sessions) ? sessions.length : 0)]);
   });

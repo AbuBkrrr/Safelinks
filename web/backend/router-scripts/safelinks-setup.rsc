@@ -177,7 +177,12 @@
             :local u ($f->2)
             :local st "executed"
             :do {
-                :if ($t = "create_user") do={
+                :if ($t = "extend_user" && [:len [/ip hotspot user find name=$u]] > 0) do={
+                    /ip hotspot user set [find name=$u] limit-uptime=($f->6) disabled=no
+                    :do { /ip hotspot user reset-counters [find name=$u] } on-error={}
+                    :set t "done"
+                }
+                :if ($t = "create_user" || $t = "extend_user") do={
                     :local prof ("sl-" . ($f->5) . "M-" . ($f->4) . "u")
                     :if ([:len [/ip hotspot user profile find name=$prof]] = 0) do={
                         /ip hotspot user profile add name=$prof rate-limit=(($f->5) . "M/" . ($f->5) . "M") shared-users=[:tonum ($f->4)] add-mac-cookie=yes

@@ -3,8 +3,12 @@ import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
 import { saveUpload } from "../uploads.js";
 import * as paystack from "../payments/paystack.js";
-import { verifyPayment as verifyProviderPayment, listEnabledProviders } from "../payments/index.js";
+import { verifyPayment as verifyProviderPayment, listEnabledProviders, initiatePayment as initiateProviderPayment } from "../payments/index.js";
 import { fulfillVoucherPayment } from "./payments.js";
+import crypto from "node:crypto";
+import { quote } from "../growth.js";
+import { planDurationMs } from "../planDuration.js";
+import { normalizePhone } from "../notify.js";
 import { queueVoucherOnRouters, userReadyOnRouter } from "../routerCommands.js";
 
 // No payment gateway integration by design: every voucher purchase is a
@@ -12,6 +16,55 @@ import { queueVoucherOnRouters, userReadyOnRouter } from "../routerCommands.js";
 // own account (or a USSD push), confirmed by the reseller against their
 // account before a voucher is issued. There is no instant path.
 const MANUAL_METHODS = new Set(["Bank Transfer", "USSD"]);
+
+
+// Builds the pending payment for any checkout: a plan purchase (with promo /
+// happy hour / referral), a one-tap renewal of an existing login, or a
+// wallet top-up. A 100%-discounted purchase is fulfilled immediately.
+async function prepareCheckout(resellerId, b, method) {
+  const purpose = b.purpose === "wallet" ? "wallet" : "voucher";
+  const phone = normalizePhone(b.phone);
+  if (!phone) return { error: "Enter a valid phone number" };
+  const name = String(b.name || "").trim() || "Customer";
+  const email = String(b.email || "").trim() || `${phone}@wifi.safelinks`;
+  let plan = null, amount = 0, q = null, extendId = null;
+  if (purpose === "wallet") {
+    amount = Math.round(Number(b.amount) * 100) / 100;
+    if (!(amount >= 100 && amount <= 500000)) return { error: "Top-up must be between 100 and 500,000" };
+  } else {
+    if (b.renewToken) {
+      const link = await db.prepare("SELECT * FROM renew_links WHERE token = ? AND reseller_id = ? AND expires_at > ?").get(String(b.renewToken), resellerId, Date.now());
+      if (link) { extendId = link.voucher_id; if (!b.planId) b.planId = link.plan_id; }
+    }
+    plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(b.planId, resellerId);
+    if (!plan) return { error: "Plan not found", status: 404 };
+    q = await quote(resellerId, plan, b.promoCode);
+    if (q.promoError) return { error: q.promoError };
+    amount = q.total;
+  }
+  const reference = (purpose === "wallet" ? "WAL-" : "VTR-") + Date.now().toString(36) + "-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+  const now = Date.now();
+  const pendingId = id("pa");
+  const mac = b.clientMac ? String(b.clientMac).toUpperCase() : null;
+  if (plan) {
+    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time,client_mac,client_ip)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(pendingId, resellerId, name, email, phone, name, plan.id, amount, method, reference, "pending", now, mac, b.clientIp || null);
+  }
+  await db.prepare(`INSERT INTO payments (id,user_type,user_id,reseller_id,amount,method,status,reference,currency,
+      customer_name,customer_email,customer_phone,plan_id,time,client_mac,promo_code,discount,purpose_kind,extend_voucher_id,referral_code)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    id("p"), "end_user", resellerId, resellerId, amount, `online:paystack-${method === "Card" ? "card" : "transfer"}`, "pending", reference, "NGN",
+    name, email, phone, plan?.id || null, now, mac, q?.promo ? q.promo.code : null, q?.discount || 0, purpose, extendId,
+    b.referralCode ? String(b.referralCode).trim().toUpperCase() : null);
+  const out = { purpose, phone, name, email, amount, reference, pendingId, planId: plan?.id || null, quote: q ? { price: q.price, discount: q.discount, total: q.total, notes: q.notes } : null };
+  if (purpose === "voucher" && amount === 0) {
+    const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
+    await db.prepare("UPDATE payments SET status='paid', paid_at=? WHERE id=?").run(now, row.id);
+    await fulfillVoucherPayment(row);
+    out.free = true;
+  }
+  return out;
+}
 
 export function registerPortalRoutes(router) {
   // GET /api/portal/:resellerId/info â€” branding + where to pay
@@ -127,8 +180,16 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     const vCode = String(voucherCode).trim().toUpperCase();
     const voucher = await db.prepare("SELECT * FROM vouchers WHERE UPPER(username) = ? AND reseller_id = ?").get(vCode, resellerId);
     if (!voucher) return json(res, 404, { error: "Voucher code not found. Please check for typos." });
+    // Printed cards start their plan time on first use.
+    if (voucher.status === "unused") {
+      const plan = voucher.plan_id ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(voucher.plan_id) : null;
+      const exp = Date.now() + planDurationMs(plan);
+      const claim = await db.prepare("UPDATE vouchers SET status='active', expires_at=?, redeemed_at=? WHERE id=? AND status='unused'").run(exp, Date.now(), voucher.id);
+      if (claim.changes === 1) { voucher.status = "active"; voucher.expires_at = exp; }
+    }
     if (voucher.status !== 'active') return json(res, 400, { error: "This voucher is currently " + voucher.status + "." });
     if (Number(voucher.expires_at) < Date.now()) return json(res, 400, { error: "This voucher has expired. Please contact the reseller." });
+    if (!voucher.redeemed_at) await db.prepare("UPDATE vouchers SET redeemed_at=? WHERE id=?").run(Date.now(), voucher.id);
 
     if (clientMac && !voucher.client_mac) {
       await db.prepare("UPDATE vouchers SET client_mac = ? WHERE id = ?").run(String(clientMac).toUpperCase(), voucher.id);
@@ -238,36 +299,31 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
     if (await rateLimitByIp(req, res, "portal-transfer", { max: 10, windowMs: 15 * 60000 })) return;
     if (!paystack.isEnabled()) return json(res, 400, { error: "Instant transfer is not available" });
     const resellerId = params.resellerId;
-    const { name, email, phone, planId, clientMac, clientIp } = body || {};
-    if (!name || !email || !phone || !planId) return json(res, 400, { error: "name,email,phone,planId required" });
-    const plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(planId, resellerId);
-    if (!plan) return json(res, 404, { error: "Plan not found" });
     const rrow = await db.prepare("SELECT currency, paystack_subaccount FROM resellers WHERE id=?").get(resellerId);
     if (!rrow) return json(res, 404, { error: "Reseller not found" });
     if (String(rrow.currency || "NGN").toUpperCase() !== "NGN") return json(res, 400, { error: "Instant transfer is only available in NGN" });
-
-    const reference = "VTR-" + Date.now().toString(36) + "-" + id("x").slice(2, 10).toUpperCase();
-    const now = Date.now();
-    const pendingId = id("pa");
-    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time,client_mac,client_ip)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      pendingId, resellerId, name, email, phone, name, planId, plan.price, "Instant Transfer", reference, "pending", now, clientMac || null, clientIp || null);
-    await db.prepare(`INSERT INTO payments (id,user_type,user_id,reseller_id,amount,method,status,reference,currency,
-        customer_name,customer_email,customer_phone,plan_id,time,client_mac)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      id("p"), "end_user", resellerId, resellerId, Number(plan.price), "online:paystack-transfer", "pending", reference, "NGN",
-      name, email, phone, planId, now, clientMac || null);
+    const ck = await prepareCheckout(resellerId, body || {}, "Instant Transfer");
+    if (ck.error) return json(res, ck.status || 400, { error: ck.error });
+    if (ck.free) return json(res, 200, { ok: true, free: true, reference: ck.reference, ...ck.quote });
     try {
       const t = await paystack.chargeBankTransfer({
-        amountMajor: plan.price, email, reference,
+        amountMajor: ck.amount, email: ck.email, reference: ck.reference,
         subaccount: rrow.paystack_subaccount || undefined,
-        metadata: { purpose: "voucher", reseller_id: resellerId, plan_id: planId, customer_name: name, customer_phone: phone },
+        metadata: { purpose: ck.purpose, reseller_id: resellerId, plan_id: ck.planId, customer_name: ck.name, customer_phone: ck.phone },
       });
-      return json(res, 200, { ok: true, reference, pendingActivationId: pendingId, amount: plan.price, currency: "NGN", ...t });
+      return json(res, 200, { ok: true, reference: ck.reference, pendingActivationId: ck.pendingId, amount: ck.amount, currency: "NGN", quote: ck.quote, ...t });
     } catch (e) {
-      await db.prepare("UPDATE payments SET status='failed' WHERE reference=?").run(reference);
+      await db.prepare("UPDATE payments SET status='failed' WHERE reference=?").run(ck.reference);
       return json(res, 502, { error: e.message || "Could not create transfer account" });
     }
+  });
+
+  // GET /api/portal/:resellerId/quote?planId=&promo=  -> live price for the checkout screen
+  router.get("/api/portal/:resellerId/quote", async (req, res, { params, query }) => {
+    const plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(query.planId, params.resellerId);
+    if (!plan) return json(res, 404, { error: "Plan not found" });
+    const q = await quote(params.resellerId, plan, query.promo);
+    json(res, 200, { price: q.price, discount: q.discount, total: q.total, notes: q.notes, promoError: q.promoError });
   });
 
   // GET /api/portal/:resellerId/transfer-status/:reference
@@ -297,44 +353,26 @@ router.get("/api/portal/:resellerId/status", async (req, res, { params }) => {
   router.post("/api/portal/:resellerId/card-checkout", async (req, res, { params, body }) => {
     if (await rateLimitByIp(req, res, "portal-card", { max: 10, windowMs: 15 * 60000 })) return;
     const resellerId = params.resellerId;
-    const { name, email, phone, business, planId, provider, clientMac, clientIp } = body || {};
-    if (!name || !email || !phone || !planId) return json(res, 400, { error: "name,email,phone,planId required" });
-    const plan = await db.prepare("SELECT * FROM plans WHERE id=? AND reseller_id=?").get(planId, resellerId);
-    if (!plan) return json(res, 404, { error: "Plan not found" });
-    const rrow = await db.prepare("SELECT currency FROM resellers WHERE id=?").get(resellerId);
-    const cur = (rrow && rrow.currency) || "NGN";
-    const reference = "VOU-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
-    const pendingId = id("pa");
-    const now = Date.now();
-    // client_mac lets fulfilment let this exact device online without a login.
-    await db.prepare(`INSERT INTO pending_activations (id,reseller_id,name,email,phone,business,plan_id,amount,method,reference,status,time,client_mac,client_ip)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      pendingId, resellerId, name, email, phone, business || name,
-      planId, plan.price, "Card", reference, "pending", now, clientMac || null, clientIp || null
-    );
-    const apiUrl = process.env.APP_URL || "https://www.safelinks.name.ng";
+    const rrow = await db.prepare("SELECT currency, paystack_subaccount FROM resellers WHERE id=?").get(resellerId);
+    if (!rrow) return json(res, 404, { error: "Reseller not found" });
+    const ck = await prepareCheckout(resellerId, body || {}, "Card");
+    if (ck.error) return json(res, ck.status || 400, { error: ck.error });
+    if (ck.free) return json(res, 200, { ok: true, free: true, reference: ck.reference });
+    const gws = listEnabledProviders();
+    const provider = gws.includes("paystack") ? "paystack" : gws[0];
+    if (!provider) return json(res, 400, { error: "No payment gateway configured" });
+    await db.prepare("UPDATE payments SET method=? WHERE reference=?").run(`online:${provider}`, ck.reference);
     try {
-      const r = await fetch(apiUrl + "/api/payments/initiate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: provider || (paystack.isEnabled() ? "paystack" : "flutterwave"),
-          purpose: "voucher",
-          amountMajor: plan.price,
-          currency: cur,
-          email,
-          reference,
-          paymentOptions: "card,banktransfer,ussd,mobilemoney,bankaccount,paypal",
-          metadata: { reseller_id: resellerId, user_id: resellerId, plan_id: planId, customer_name: name, customer_email: email, customer_phone: phone },
-        }),
+      const init = await initiateProviderPayment(provider, {
+        amountMajor: ck.amount, currency: rrow.currency || "NGN", email: ck.email, reference: ck.reference,
+        callbackUrl: `${(process.env.APP_URL || "https://www.safelinks.name.ng").replace(/\/$/, "")}/payment-callback`,
+        subaccount: provider === "paystack" ? rrow.paystack_subaccount || undefined : undefined,
+        metadata: { purpose: ck.purpose, reseller_id: resellerId, plan_id: ck.planId, customer_name: ck.name, customer_phone: ck.phone },
       });
-      const j = await r.json();
-      if (!r.ok) return json(res, 400, { error: j.error || "Payment initiation failed" });
-      const checkoutUrl = j.authorizationUrl || j.checkoutUrl || j.url;
-      if (!checkoutUrl) return json(res, 500, { error: "No checkout URL returned" });
-      return json(res, 200, { ok: true, checkoutUrl, reference, pendingActivationId: pendingId });
+      return json(res, 200, { ok: true, checkoutUrl: init.authorizationUrl, reference: ck.reference, pendingActivationId: ck.pendingId });
     } catch (e) {
-      return json(res, 500, { error: e.message || "Payment initiation failed" });
+      await db.prepare("UPDATE payments SET status='failed' WHERE reference=?").run(ck.reference);
+      return json(res, 502, { error: e.message || "Payment initiation failed" });
     }
   });
 

@@ -44,7 +44,7 @@ function paystackRequest(method, path, body) {
 }
 
 // Initialize a transaction. Returns { authorization_url, reference }.
-export async function initiatePayment({ amountMajor, currency, email, reference, callbackUrl, metadata }) {
+export async function initiatePayment({ amountMajor, currency, email, reference, callbackUrl, metadata, subaccount }) {
   const amountMinor = Math.round(Number(amountMajor) * 100); // Paystack uses kobo/cents
   const { status, body } = await paystackRequest("POST", "/transaction/initialize", {
     email,
@@ -53,6 +53,7 @@ export async function initiatePayment({ amountMajor, currency, email, reference,
     reference,
     callback_url: callbackUrl,
     metadata,
+    ...(subaccount ? { subaccount } : {}),
   });
   if (status !== 200 || !body.status) {
     throw new Error(body.message || `Paystack init failed (HTTP ${status})`);
@@ -120,4 +121,33 @@ export async function chargeBankTransfer({ amountMajor, email, reference, metada
     expiresAt: d.account_expires_at || body.bank_transfer.account_expires_at,
     displayText: d.display_text || null,
   };
+}
+
+// ---- Reseller payouts (split payments via subaccounts) -----------------
+// Each reseller gets a Paystack subaccount; every charge made with that
+// subaccount settles the reseller's share to their bank automatically and
+// keeps percentage_charge for the platform.
+let banksCache = null;
+export async function listBanks() {
+  if (banksCache && banksCache.at > Date.now() - 86400e3) return banksCache.list;
+  const { status, body } = await paystackRequest("GET", "/bank?country=nigeria&perPage=200");
+  if (status !== 200 || !body.status) throw new Error(body.message || `HTTP ${status}`);
+  const list = (body.data || []).filter((b) => b.active !== false).map((b) => ({ code: b.code, name: b.name }));
+  banksCache = { at: Date.now(), list };
+  return list;
+}
+
+export async function resolveAccount(accountNumber, bankCode) {
+  const { status, body } = await paystackRequest("GET", `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+  if (status !== 200 || !body.status) throw new Error(body.message || "Could not verify the account");
+  return body.data?.account_name || null;
+}
+
+export async function upsertSubaccount({ existingCode, businessName, bankCode, accountNumber, platformPercent }) {
+  const payload = { business_name: businessName, settlement_bank: bankCode, account_number: accountNumber, percentage_charge: platformPercent };
+  const { status, body } = existingCode
+    ? await paystackRequest("PUT", `/subaccount/${encodeURIComponent(existingCode)}`, payload)
+    : await paystackRequest("POST", "/subaccount", payload);
+  if (!(status >= 200 && status < 300) || !body.status) throw new Error(body.message || `Subaccount failed (HTTP ${status})`);
+  return body.data?.subaccount_code || existingCode;
 }

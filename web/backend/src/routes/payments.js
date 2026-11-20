@@ -14,7 +14,8 @@ import {
 import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
 import { planDurationMs } from "../planDuration.js";
-import { queueVoucherOnRouters } from "../routerCommands.js";
+import { upsertCustomer, issueVoucher, extendVoucher, walletCredit, afterPaidPurchase } from "../growth.js";
+import { sendMessage, naira } from "../notify.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
@@ -25,73 +26,58 @@ function makeReference(prefix = "SL") {
 // Helper: after a payment is confirmed, activate the voucher + queue a router command.
 export async function fulfillVoucherPayment(paymentRow, verified) {
   const now = Date.now();
-  // Look up any pending activation created at signup time
+  const resellerId = paymentRow.reseller_id || paymentRow.user_id;
   const pending = await db.prepare(
     "SELECT * FROM pending_activations WHERE reseller_id = ? AND reference = ? LIMIT 1"
-  ).get(paymentRow.reseller_id || paymentRow.user_id, paymentRow.reference);
+  ).get(resellerId, paymentRow.reference);
+  const customer = await upsertCustomer(resellerId, {
+    phone: paymentRow.customer_phone || pending?.phone,
+    name: paymentRow.customer_name || pending?.name,
+    email: paymentRow.customer_email || pending?.email,
+    referralCode: paymentRow.referral_code,
+  });
 
-  // Credentials are random and never derived from the MAC: a MAC is visible
-  // to anyone on the WLAN, so MAC-as-password let anyone clone a session.
-  // The MAC is stored separately and only drives the zero-click ip-binding.
+  // Wallet top-up: credit and stop.
+  if (paymentRow.purpose_kind === "wallet") {
+    if (customer) {
+      await walletCredit(customer.id, Number(paymentRow.amount), "topup", paymentRow.reference);
+      await db.prepare("UPDATE payments SET customer_id = ? WHERE id = ?").run(customer.id, paymentRow.id);
+      const c = await db.prepare("SELECT wallet_balance FROM customers WHERE id = ?").get(customer.id);
+      const r = await db.prepare("SELECT company_name FROM resellers WHERE id = ?").get(resellerId);
+      await sendMessage({ resellerId, to: customer.phone, kind: "wallet",
+        body: `${r?.company_name || "WiFi"}: ${naira(paymentRow.amount)} added to your wallet. Balance ${naira(c.wallet_balance)}.` });
+    }
+    return { wallet: true };
+  }
+
+  const plan = paymentRow.plan_id ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id) : null;
   const mac = paymentRow.client_mac || pending?.client_mac || null;
-  const username = `U${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-  const password = crypto.randomBytes(6).toString("base64url");
-  const voucherId = id("v");
-
-  const plan = paymentRow.plan_id
-    ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id)
-    : null;
-
-  // plans have no duration_days/bandwidth_mbps columns: reading them made
-  // every paid plan 30 days at 100 Mbps.
-  const expiresAt = now + planDurationMs(plan);
-
-  await db.prepare(
-    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at,client_mac)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(
-    voucherId,
-    paymentRow.reseller_id,
-    username,
-    password,
-    paymentRow.customer_name || pending?.name || null,
-    paymentRow.customer_email || pending?.email || null,
-    paymentRow.customer_phone || pending?.phone || null,
-    paymentRow.plan_id,
-    "active",
-    now,
-    expiresAt,
-    mac
-  );
-
-  // Mark the pending activation as completed (if it existed)
-  if (pending) {
-    await db.prepare("UPDATE pending_activations SET status = 'activated' WHERE id = ?").run(pending.id);
+  if (paymentRow.promo_code) {
+    await db.prepare("UPDATE promo_codes SET uses = uses + 1 WHERE reseller_id = ? AND UPPER(code) = UPPER(?)").run(resellerId, paymentRow.promo_code);
   }
 
-  // Create the hotspot login on every router of this reseller. The portal
-  // then logs this device in with it (router enforces speed/devices/data).
-  await queueVoucherOnRouters(
-    { username, password, reseller_id: paymentRow.reseller_id, expires_at: expiresAt, plan_id: paymentRow.plan_id }, plan);
-
-  // Notify the reseller
-  await db.prepare(
-    "INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)"
-  ).run(
-    id("n"),
-    `reseller:${paymentRow.reseller_id}`,
-    "payment",
-    "Instant voucher activated",
-    `New voucher issued to ${paymentRow.customer_email || "customer"} for ${plan?.name || "plan"}.`,
-    now,
-    0,
-    "vouchers"
-  );
-
+  // Renewal of an existing login keeps the customer connected; otherwise a
+  // fresh random login (never derived from the MAC, which anyone can see).
+  let v = null;
+  if (paymentRow.extend_voucher_id) {
+    const old = await db.prepare("SELECT * FROM vouchers WHERE id = ? AND reseller_id = ?").get(paymentRow.extend_voucher_id, resellerId);
+    if (old) v = await extendVoucher(old, plan);
+  }
+  if (!v) {
+    v = await issueVoucher({ resellerId, plan, customer, clientMac: mac, source: "paid",
+      name: paymentRow.customer_name || pending?.name, email: paymentRow.customer_email || pending?.email,
+      phone: paymentRow.customer_phone || pending?.phone });
+  }
+  if (pending) await db.prepare("UPDATE pending_activations SET status = 'activated' WHERE id = ?").run(pending.id);
   if (paymentRow.reference) {
-    await db.prepare("UPDATE payments SET voucher_id = ? WHERE reference = ?").run(voucherId, paymentRow.reference);
+    await db.prepare("UPDATE payments SET voucher_id = ?, customer_id = ? WHERE reference = ?").run(v.id, customer?.id || null, paymentRow.reference);
   }
-  return { voucherId, username, password, expiresAt };
+  await afterPaidPurchase(resellerId, customer, paymentRow.amount, plan);
+
+  await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
+    .run(id("n"), `reseller:${resellerId}`, "payment", "New sale",
+      `${naira(paymentRow.amount)} - ${plan?.name || "plan"} for ${paymentRow.customer_name || paymentRow.customer_phone || "a customer"}.`, now, 0, "vouchers");
+  return { voucherId: v.id, username: v.username, password: v.password, expiresAt: v.expires_at };
 }
 
 // Helper: after a license payment is confirmed, activate the reseller license.
