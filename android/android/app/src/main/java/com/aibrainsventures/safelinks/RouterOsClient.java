@@ -75,7 +75,12 @@ final class RouterOsClient {
                 if (chain == null || chain.length == 0) {
                     throw new CertificateException("No certificate presented by " + gatewayIp);
                 }
-                String fp = sha256Fingerprint(chain[0]);
+                String fp;
+                try {
+                    fp = sha256Fingerprint(chain[0]);
+                } catch (Exception e) {
+                    throw new CertificateException("Could not fingerprint router certificate", e);
+                }
                 observedOut.set(fp);
                 if (expectedFingerprint != null && !fp.equals(expectedFingerprint)) {
                     // Fail closed: don't complete the handshake on mismatch.
