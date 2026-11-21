@@ -15,6 +15,10 @@
 // Postgres's `$1, $2, ...`.
 
 import pg from "pg";
+// BIGINT (all our ms timestamps, byte counters, COUNT(*)) arrives as text by
+// default, which made `new Date(row.x)` show "Invalid Date" in the UI. Every
+// value we store fits safely in a JS number.
+pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
 import { randomUUID, randomBytes } from "node:crypto";
 import { hashPassword } from "./auth.js";
 
@@ -457,6 +461,8 @@ export async function migrate() {
 export async function seed() {
   const existing = await db.prepare("SELECT COUNT(*) AS n FROM resellers").get();
   if (Number(existing.n) > 0) return { seeded: false };
+  // Never put demo accounts with published passwords into a live database.
+  if (process.env.NODE_ENV === "production" && process.env.SEED_DEMO !== "true") return { seeded: false, skipped: "production" };
 
   const now = Date.now();
   const day = 86400000;
@@ -854,4 +860,22 @@ export async function ensureSuperAdmin() {
     await db.prepare("DELETE FROM super_admins WHERE LOWER(email) = 'admin@safelinks.io'").run();
   }
   return { configured: true, email };
+}
+
+// Demo accounts from seed() have passwords published in this repo. In
+// production they are locked (random password, suspended) on every start, so
+// a database that was once seeded can't be logged into with them.
+export const DEMO_RESELLER_EMAILS = ["admin@nairobitech.io", "ops@lagosconnect.ng", "hello@kampalanet.ug"];
+export async function lockDemoAccounts() {
+  if (process.env.NODE_ENV !== "production" || process.env.SEED_DEMO === "true") return 0;
+  let n = 0;
+  for (const email of DEMO_RESELLER_EMAILS) {
+    const r = await db.prepare("UPDATE resellers SET password_hash = ?, status = 'suspended' WHERE LOWER(email) = ? AND status <> 'suspended'")
+      .run(hashPassword(randomBytes(24).toString("hex")), email);
+    n += r.changes || 0;
+  }
+  if (process.env.SUPER_ADMIN_EMAIL) {
+    await db.prepare("DELETE FROM super_admins WHERE LOWER(email) = 'admin@safelinks.io'").run();
+  }
+  return n;
 }

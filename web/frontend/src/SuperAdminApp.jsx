@@ -484,9 +484,15 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                   const editing = planEdits?.id === p.id;
                   const priceInfo = planPriceRows[p.id] || { prices: [], currencies: [], default: null };
                   const row = priceInfo.prices.find((x) => x.currency === viewCurrency);
-                  const displayPrice = row ? Number(row.price) : Number(p.price);
-                  const displayCur = row ? row.currency : (priceInfo.default || viewCurrency);
-                  const isFallback = !row && priceInfo.default !== viewCurrency;
+                  // No price in the viewed currency: fall back to the plan's
+                  // default-currency price row (plans have no base price, so
+                  // Number(p.price) gave NaN).
+                  const fbRow = row || priceInfo.prices.find((x) => x.currency === priceInfo.default)
+                    || priceInfo.prices.find((x) => x.enabled) || null;
+                  const rawPrice = fbRow ? Number(fbRow.price) : Number(p.price ?? p.monthly_price_ngn);
+                  const displayPrice = Number.isFinite(rawPrice) ? rawPrice : null;
+                  const displayCur = fbRow ? fbRow.currency : (p.monthly_price_ngn != null ? "NGN" : (priceInfo.default || viewCurrency));
+                  const isFallback = !row && displayCur !== viewCurrency;
                   const hasAnyCurrencies = priceInfo.prices.filter((x) => x.enabled).length;
                   return (
                     <div key={p.id} style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 14 }}>
@@ -634,7 +640,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
                           <div style={{ fontSize: 12, color: T.sub, marginBottom: 8 }}>{p.description}</div>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ fontSize: 20, fontWeight: 700, color: T.secondary }}>
-                              {formatMoney(displayPrice, displayCur)}
+                              {displayPrice == null ? <span style={{ fontSize: 13, color: T.danger }}>No price set — click Edit plan</span> : formatMoney(displayPrice, displayCur)}
                               <span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>/mo</span>
                               {isFallback && <span style={{ fontSize: 10, color: T.sub, marginLeft: 6 }}>(fallback to {displayCur})</span>}
                             </div>

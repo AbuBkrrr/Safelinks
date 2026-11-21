@@ -103,6 +103,9 @@ async function main() {
   const { ensureSuperAdmin } = await import("./db.js");
   const sa = await ensureSuperAdmin();
   if (sa.configured) console.log(`Super admin: ${sa.email} (from SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD)`);
+  const { lockDemoAccounts } = await import("./db.js");
+  const locked = await lockDemoAccounts();
+  if (locked) console.log(`Locked ${locked} demo reseller account(s) (production).`);
   await runInstallerPlanMigration();
   await runPlanPricesMigration();
   startScheduler();
@@ -204,8 +207,10 @@ registerRadiusRoutes(router);
         ? "Database seeded with demo data."
         : "Database already had data — skipped seeding."
     );
-    console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");
-    console.log("             admin@nairobitech.io / reseller123  (reseller)");
+    if (seedResult.seeded) {
+      console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");
+      console.log("             admin@nairobitech.io / reseller123  (reseller)");
+    }
     console.log(`License enforcement: ${enforce ? "ON (hard mode)" : "OFF (soft mode — logs only)"}`);
   });
 }
