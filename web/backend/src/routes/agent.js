@@ -2,6 +2,8 @@ import { db, id, genCode } from "../db.js";
 import { text } from "../http.js";
 import { hashPassword, verifyPassword } from "../auth.js";
 import { rateLimitByIp } from "../rateLimit.js";
+import { sweepVoucherExpiry } from "../jobs.js";
+import { queueVoucherOnRouters, commandLine } from "../routerCommands.js";
 
 // ─── Numeric coercion for RouterOS values ──────────────────────
 // RouterOS returns uptime as "1w2d3h4m5s" and cpu-load possibly as
@@ -80,57 +82,36 @@ export function registerAgentRoutes(router) {
   // Serves the agent RSC with the pairing code pre-injected. Router fetches
   // this over its own WAN via /tool fetch, then /import's it locally.
   // Avoids any large-file SSH transfer + escaping hazards.
+  // Legacy path: serves the same canonical setup script as /api/setup/<code>.rsc.
   router.get("/api/agent/install/:code", async (req, res, { params }) => {
     const code = String(params.code || "").trim().toUpperCase();
-    if (!code) return text(res, 400, "STATUS ERROR\nMESSAGE missing code\n");
-    const pc = await db.prepare("SELECT code, status, expires_at FROM pairing_codes WHERE code = ?").get(code);
-    if (!pc || pc.status === "used" || pc.expires_at < Date.now()) {
-      return text(res, 410, "STATUS ERROR\nMESSAGE pairing code invalid or expired\n");
+    const pc = code ? await db.prepare("SELECT * FROM pairing_codes WHERE code = ?").get(code) : null;
+    if (!pc || pc.status === "used" || Number(pc.expires_at) < Date.now()) {
+      return text(res, 410, ':put "SAFE_Links: setup code invalid or expired"\n');
     }
-    try {
-      const { readFileSync } = await import("node:fs");
-      const { fileURLToPath } = await import("node:url");
-      const { dirname, join } = await import("node:path");
-      const here = dirname(fileURLToPath(import.meta.url));
-      const rscPath = join(here, "..", "resources", "safelinks-agent.rsc");
-      let body = readFileSync(rscPath, "utf8");
-      body = body.replace("PASTE-CODE-HERE", code);
-      text(res, 200, body);
-    } catch (e) {
-      text(res, 500, "STATUS ERROR\nMESSAGE " + (e.message || "read failed") + "\n");
-    }
+    const { buildSetupScript } = await import("./setup.js");
+    return text(res, 200, await buildSetupScript(req, pc));
   });
 
 
   // GET /api/agent/bootstrap.rsc?code=X
   // Serves the pairing bootstrap .rsc with the code substituted.
-  router.get("/api/agent/bootstrap.rsc", async (req, res) => {
-    try {
-      const url = new URL(req.url || "/", "http://x");
-      const code = String(url.searchParams.get("code") || "").trim().toUpperCase();
-      if (!code) return text(res, 400, "# STATUS ERROR\n# missing code\n");
-      const pc = await db.prepare("SELECT code, status, expires_at FROM pairing_codes WHERE code = ?").get(code);
-      if (!pc || pc.status === "used" || pc.expires_at < Date.now()) {
-        return text(res, 410, "# STATUS ERROR\n# pairing code invalid or expired\n");
-      }
-      const { readFileSync } = await import("node:fs");
-      const { fileURLToPath } = await import("node:url");
-      const { dirname, join } = await import("node:path");
-      const here = dirname(fileURLToPath(import.meta.url));
-      const rscPath = join(here, "..", "resources", "safelinks-agent.rsc");
-      let body = readFileSync(rscPath, "utf8");
-      body = body.split("PASTE-CODE-HERE").join(code);
-      return text(res, 200, body);
-    } catch (e) {
-      return text(res, 500, "# STATUS ERROR\n# " + (e.message || "read failed") + "\n");
+  // Legacy path: serves the same canonical setup script as /api/setup/<code>.rsc.
+  router.get("/api/agent/bootstrap.rsc", async (req, res, {}) => {
+    const code = String(new URL(req.url, "http://x").searchParams.get("code") || "").trim().toUpperCase();
+    const pc = code ? await db.prepare("SELECT * FROM pairing_codes WHERE code = ?").get(code) : null;
+    if (!pc || pc.status === "used" || Number(pc.expires_at) < Date.now()) {
+      return text(res, 410, ':put "SAFE_Links: setup code invalid or expired"\n');
     }
+    const { buildSetupScript } = await import("./setup.js");
+    return text(res, 200, await buildSetupScript(req, pc));
   });
 
   // GET /api/agent/heartbeat.rsc?rid=X&key=Y
   // Returns a fresh short script: metrics POST + any queued commands.
   router.get("/api/agent/heartbeat.rsc", async (req, res) => {
   // Sweep expired vouchers on every heartbeat so 2-min vouchers actually expire.
-  try { await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(Date.now()); } catch (e) { console.warn('[sweep] voucher expiry failed', e.message); }
+  try { await sweepVoucherExpiry(); } catch (e) { console.warn('[sweep] voucher expiry failed', e.message); }
     try {
       const url = new URL(req.url || "/", "http://x");
       const rid = String(url.searchParams.get("rid") || "").trim();
@@ -138,36 +119,16 @@ export function registerAgentRoutes(router) {
       if (!rid || !key) return text(res, 400, "# STATUS ERROR\n# missing creds\n");
       const routerRow = await db.prepare("SELECT id, router_id, api_key_hash FROM routers WHERE router_id = ?").get(rid);
       if (!routerRow) return text(res, 404, "# STATUS ERROR\n# unknown router\n");
-      // Accept any non-empty key for now (hash verify can be added later)
+      if (!verifyPassword(key, routerRow.api_key_hash)) return text(res, 401, "# STATUS ERROR\n# invalid router key\n");
+      // Commands are queued under the public router_id (RTR-…) everywhere
+      // (payments, portal, reseller, register). Match that, plus the
+      // internal id for any rows queued the old way.
       const cmds = await db.prepare(
-        "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
-      ).all(routerRow.id);
+        "SELECT id, type, payload FROM router_commands WHERE router_id IN (?, ?) AND status = 'pending' ORDER BY created_at ASC LIMIT 20"
+      ).all(routerRow.router_id, routerRow.id);
       const base = process.env.APP_URL || "https://www.safelinks.name.ng";
       const lines = [];
-      // [sweep-r3] Mark expired vouchers + queue unbind/disable — runs on the
-      // route the router actually fetches, so 2-min vouchers expire in the UI
-      // and clients get kicked off the router on the next heartbeat.
-      try {
-        const swNow = Date.now();
-        const swExpired = await db.prepare(
-          "SELECT id, username, reseller_id FROM vouchers WHERE status='active' AND expires_at < ?"
-        ).all(swNow);
-        if (swExpired.length > 0) {
-          await db.prepare("UPDATE vouchers SET status='expired' WHERE status='active' AND expires_at < ?").run(swNow);
-          for (const v of swExpired) {
-            const swRouters = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(v.reseller_id);
-            for (const r of swRouters) {
-              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "unbind_mac", JSON.stringify({ username: v.username }), "pending", swNow
-              );
-              await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)").run(
-                id("cmd"), r.router_id, "disable_user", JSON.stringify({ username: v.username }), "pending", swNow
-              );
-            }
-          }
-          console.log('[sweep-r3] expired ' + swExpired.length + ' voucher(s)');
-        }
-      } catch (swErr) { console.error('[sweep-r3] failed:', swErr.message); }
+      // Voucher expiry (mark + queue cut-off) lives in jobs.js sweepVoucherExpiry.
 
       lines.push("# safelinks-cmd.rsc — " + new Date().toISOString());
       lines.push("# " + cmds.length + " pending command(s)");
@@ -258,11 +219,20 @@ export function registerAgentRoutes(router) {
 
     const resellerId = pc.reseller_id;
     const now = Date.now();
-    const routerId = `RTR-${resellerId.slice(-4).toUpperCase()}-${genCode(3)}`;
     const apiKey = `sk_${genCode(24)}`;
-
-    await db.prepare("INSERT INTO routers (id,reseller_id,router_id,api_key_hash,api_key,model,firmware,last_check_in,status) VALUES (?,?,?,?,?,?,?,?,?)")
-      .run(id("rt"), resellerId, routerId, hashPassword(apiKey), apiKey, body.model || body.identity || "Unknown", body.firmware || "Unknown", now, "online");
+    const hw = String(body.hw || "").trim().slice(0, 64);
+    // Same physical router set up again (re-install, new reseller, reset):
+    // reuse its record instead of leaving a dead "offline" duplicate.
+    const existing = hw ? await db.prepare("SELECT router_id FROM routers WHERE hw_id = ? ORDER BY last_check_in DESC LIMIT 1").get(hw) : null;
+    const routerId = existing ? existing.router_id : `RTR-${resellerId.slice(-4).toUpperCase()}-${genCode(3)}`;
+    if (existing) {
+      await db.prepare("UPDATE routers SET reseller_id=?, api_key_hash=?, api_key=?, model=?, firmware=?, last_check_in=?, status='online' WHERE router_id=?")
+        .run(resellerId, hashPassword(apiKey), apiKey, body.model || body.identity || "Unknown", body.firmware || "Unknown", now, routerId);
+      await db.prepare("UPDATE router_commands SET status='dropped' WHERE router_id=? AND status='pending'").run(routerId);
+    } else {
+      await db.prepare("INSERT INTO routers (id,reseller_id,router_id,api_key_hash,api_key,model,firmware,last_check_in,status,hw_id) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .run(id("rt"), resellerId, routerId, hashPassword(apiKey), apiKey, body.model || body.identity || "Unknown", body.firmware || "Unknown", now, "online", hw || null);
+    }
     await db.prepare("INSERT INTO installations (id,reseller_id,router_id,ip,location,status,time) VALUES (?,?,?,?,?,?,?)")
       .run(id("i"), resellerId, routerId, body.ip || null, body.identity || null, "completed", now);
     await db.prepare("UPDATE pairing_codes SET status = 'used', router_id = ?, used_at = ? WHERE id = ?").run(routerId, now, pc.id);
@@ -274,11 +244,12 @@ export function registerAgentRoutes(router) {
 
     // Sync every currently-active voucher onto the freshly provisioned
     // router, same as the manual registration path.
-    const activeVouchers = await db.prepare("SELECT username, password, plan_id FROM vouchers WHERE reseller_id = ? AND status = 'active'").all(resellerId);
+    const activeVouchers = await db.prepare("SELECT * FROM vouchers WHERE reseller_id = ? AND status = 'active' AND expires_at > ?").all(resellerId, now);
+    const { userPayload } = await import("../routerCommands.js");
     for (const v of activeVouchers) {
-      const plan = await db.prepare("SELECT device_limit, bandwidth FROM plans WHERE id = ?").get(v.plan_id);
+      const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(v.plan_id);
       await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
-        .run(id("cmd"), routerId, "create_user", JSON.stringify({ username: v.username, password: v.password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth }), "pending", now);
+        .run(id("cmd"), routerId, "create_user", JSON.stringify(userPayload(v, plan)), "pending", now);
     }
 
     // ROUTER_ID and API_KEY are returned ONLY in this one response —
@@ -299,19 +270,24 @@ export function registerAgentRoutes(router) {
     if (!rt || !verifyPassword(body.api_key || "", rt.api_key_hash)) return err(res, 401, "invalid router credentials");
 
     await db.prepare("UPDATE routers SET last_check_in = ?, status = 'online' WHERE router_id = ?").run(Date.now(), rt.router_id);
+    if (rt.alerted_offline_at) {
+      await db.prepare("UPDATE routers SET alerted_offline_at = NULL WHERE router_id = ?").run(rt.router_id);
+      const r = await db.prepare("SELECT company_name, notify_phone FROM resellers WHERE id = ?").get(rt.reseller_id);
+      if (r?.notify_phone) {
+        const { sendMessage } = await import("../notify.js");
+        await sendMessage({ resellerId: rt.reseller_id, to: r.notify_phone, kind: "router-up", body: `SAFE_Links: router ${rt.router_id} (${r.company_name}) is back ONLINE.` });
+      }
+    }
 
     const commands = await db.prepare(
-      "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC"
+      "SELECT id, type, payload FROM router_commands WHERE router_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 25"
     ).all(rt.router_id);
 
     // One line per command: CMD <id> <type> <username> <password> <deviceLimit> <bandwidthMbps>
     // Fixed field order, blank fields left empty — trivial to split on
     // spaces in RouterOS script, unlike parsing real JSON.
     const lines = [`NEXT_CHECKIN 30`, `COMMAND_COUNT ${commands.length}`];
-    for (const c of commands) {
-      const p = JSON.parse(c.payload);
-      lines.push(`CMD ${c.id} ${c.type} ${p.username || "-"} ${p.password || "-"} ${p.deviceLimit || "-"} ${p.bandwidthMbps || "-"} ${p.uptime || '1d'}`);
-    }
+    for (const c of commands) lines.push(commandLine(c));
     ok(res, lines);
   });
 
@@ -388,6 +364,7 @@ export function registerAgentRoutes(router) {
           username: parts[2] || null,
           bytesIn: Number(parts[3] || 0),
           bytesOut: Number(parts[4] || 0),
+          userTotal: Number(parts[6] || 0),
         };
       });
     } else if (!Array.isArray(sessions)) {
@@ -414,6 +391,13 @@ export function registerAgentRoutes(router) {
       }
     }
 
+    // Data used per customer = router's stored counters + this live session.
+    for (const s of Array.isArray(sessions) ? sessions : []) {
+      if (!s.username) continue;
+      const used = num(s.userTotal) + num(s.bytesIn) + num(s.bytesOut);
+      await db.prepare("UPDATE vouchers SET bytes_used = GREATEST(COALESCE(bytes_used,0), ?), router_id = COALESCE(router_id, ?) WHERE username = ? AND reseller_id = ?")
+        .run(used, router_id, s.username, rt.reseller_id);
+    }
     return ok(res, ["report accepted", "metrics=" + (metrics ? "yes" : "no"), "sessions=" + (Array.isArray(sessions) ? sessions.length : 0)]);
   });
 

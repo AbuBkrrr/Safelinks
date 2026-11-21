@@ -42,6 +42,8 @@ export function readBody(req) {
       if (data.length > 9_000_000) { req.destroy(); reject(new Error("Body too large")); }
     });
     req.on("end", () => {
+      // Exact bytes kept for webhook signature checks (HMAC over the raw body).
+      req.rawBody = data;
       if (!data) return resolve({});
       const contentType = req.headers["content-type"] || "";
       if (contentType.includes("application/x-www-form-urlencoded")) {
@@ -127,7 +129,9 @@ export function createRouter() {
         const query = Object.fromEntries(url.searchParams.entries());
         try {
           const body = ["POST", "PUT"].includes(req.method) ? await readBody(req) : {};
-          await route.handler(req, res, { params, query, body });
+          // headers/rawBody: payment webhooks verify signatures with these;
+          // without them every webhook threw before doing anything.
+          await route.handler(req, res, { params, query, body, headers: req.headers, rawBody: req.rawBody });
         } catch (err) {
           // Full error (message + stack) goes to the server log only —
           // the client never sees internals like DB constraint text or

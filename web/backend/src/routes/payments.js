@@ -1,6 +1,7 @@
 // Payment routes — initiate, verify, webhooks, and provider listing.
 // Works with the custom router (http.js) — same shape as routes/portal.js.
 
+import crypto from "node:crypto";
 import { db, id } from "../db.js";
 import { json } from "../http.js";
 import { rateLimitByIp } from "../rateLimit.js";
@@ -12,104 +13,71 @@ import {
 } from "../payments/index.js";
 import { CURRENCY_GATEWAY_SUPPORT } from "./planPrices.js";
 import { enqueueCommandForReseller } from "./router.js";
+import { planDurationMs } from "../planDuration.js";
+import { upsertCustomer, issueVoucher, extendVoucher, walletCredit, afterPaidPurchase } from "../growth.js";
+import { sendMessage, naira } from "../notify.js";
 
 // Helper: generate a short unique reference for a payment intent.
 function makeReference(prefix = "SL") {
-  const rand = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const rand = crypto.randomBytes(5).toString("hex").toUpperCase();
   return `${prefix}-${Date.now().toString(36)}-${rand}`;
 }
 
 // Helper: after a payment is confirmed, activate the voucher + queue a router command.
-async function fulfillVoucherPayment(paymentRow, verified) {
+export async function fulfillVoucherPayment(paymentRow, verified) {
   const now = Date.now();
-  // Look up any pending activation created at signup time
+  const resellerId = paymentRow.reseller_id || paymentRow.user_id;
   const pending = await db.prepare(
     "SELECT * FROM pending_activations WHERE reseller_id = ? AND reference = ? LIMIT 1"
-  ).get(paymentRow.reseller_id || paymentRow.user_id, paymentRow.reference);
+  ).get(resellerId, paymentRow.reference);
+  const customer = await upsertCustomer(resellerId, {
+    phone: paymentRow.customer_phone || pending?.phone,
+    name: paymentRow.customer_name || pending?.name,
+    email: paymentRow.customer_email || pending?.email,
+    referralCode: paymentRow.referral_code,
+  });
 
-  // Generate credentials (username/password) for the end-user
-  const mac = pending?.client_mac || null;
-  const username = mac || `u${Math.random().toString(36).slice(2, 8)}`;
-  const password = mac || Math.random().toString(36).slice(2, 10);
-  const voucherId = id("v");
-
-  const plan = paymentRow.plan_id
-    ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id)
-    : null;
-
-  const durationDays = plan?.duration_days || 30;
-  const expiresAt = now + durationDays * 24 * 60 * 60 * 1000;
-
-  await db.prepare(
-    `INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,plan_id,status,created_at,expires_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(
-    voucherId,
-    paymentRow.reseller_id,
-    username,
-    password,
-    paymentRow.customer_name || pending?.name || null,
-    paymentRow.customer_email || pending?.email || null,
-    paymentRow.customer_phone || pending?.phone || null,
-    paymentRow.plan_id,
-    "active",
-    now,
-    expiresAt
-  );
-
-  // Mark the pending activation as completed (if it existed)
-  if (pending) {
-    await db.prepare("UPDATE pending_activations SET status = 'activated' WHERE id = ?").run(pending.id);
-  }
-
-  // Queue a router command to create the hotspot user
-  const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(paymentRow.reseller_id);
-  for (const r of routers) {
-    await db.prepare(
-      "INSERT INTO router_commands (id,router_id,type,payload,status,created_at) VALUES (?,?,?,?,?,?)"
-    ).run(
-      id("cmd"),
-      r.router_id,
-      "create_user",
-      JSON.stringify({
-        username,
-        password,
-        deviceLimit: plan?.device_limit || 5,
-        bandwidthMbps: plan?.bandwidth_mbps || 100,
-        uptime: (plan?.duration_days ? plan.duration_days + "d" : "1d"),
-      }),
-      "pending",
-      now
-    );
-    // Zero-click MAC bypass with expiry, if we know the client's MAC
-    const clientMac = paymentRow.client_mac || pending?.client_mac;
-    if (clientMac) {
-      const isoExpiry = new Date(expiresAt).toISOString().slice(0, 19);
-      await db.prepare(
-        "INSERT INTO router_commands (id,router_id,type,payload,status,created_at) VALUES (?,?,?,?,?,?)"
-      ).run(
-        id("cmd"), r.router_id, "bind_mac",
-        JSON.stringify({ username: clientMac, password: isoExpiry }),
-        "pending", now
-      );
+  // Wallet top-up: credit and stop.
+  if (paymentRow.purpose_kind === "wallet") {
+    if (customer) {
+      await walletCredit(customer.id, Number(paymentRow.amount), "topup", paymentRow.reference);
+      await db.prepare("UPDATE payments SET customer_id = ? WHERE id = ?").run(customer.id, paymentRow.id);
+      const c = await db.prepare("SELECT wallet_balance FROM customers WHERE id = ?").get(customer.id);
+      const r = await db.prepare("SELECT company_name FROM resellers WHERE id = ?").get(resellerId);
+      await sendMessage({ resellerId, to: customer.phone, kind: "wallet",
+        body: `${r?.company_name || "WiFi"}: ${naira(paymentRow.amount)} added to your wallet. Balance ${naira(c.wallet_balance)}.` });
     }
+    return { wallet: true };
   }
 
-  // Notify the reseller
-  await db.prepare(
-    "INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)"
-  ).run(
-    id("n"),
-    `reseller:${paymentRow.reseller_id}`,
-    "payment",
-    "Instant voucher activated",
-    `New voucher issued to ${paymentRow.customer_email || "customer"} for ${plan?.name || "plan"}.`,
-    now,
-    0,
-    "vouchers"
-  );
+  const plan = paymentRow.plan_id ? await db.prepare("SELECT * FROM plans WHERE id = ?").get(paymentRow.plan_id) : null;
+  const mac = paymentRow.client_mac || pending?.client_mac || null;
+  if (paymentRow.promo_code) {
+    await db.prepare("UPDATE promo_codes SET uses = uses + 1 WHERE reseller_id = ? AND UPPER(code) = UPPER(?)").run(resellerId, paymentRow.promo_code);
+  }
 
-  return { voucherId, username, password, expiresAt };
+  // Renewal of an existing login keeps the customer connected; otherwise a
+  // fresh random login (never derived from the MAC, which anyone can see).
+  let v = null;
+  if (paymentRow.extend_voucher_id) {
+    const old = await db.prepare("SELECT * FROM vouchers WHERE id = ? AND reseller_id = ?").get(paymentRow.extend_voucher_id, resellerId);
+    if (old) v = await extendVoucher(old, plan);
+  }
+  if (!v) {
+    v = await issueVoucher({ resellerId, plan, customer, clientMac: mac, source: "paid",
+      name: paymentRow.customer_name || pending?.name, email: paymentRow.customer_email || pending?.email,
+      phone: paymentRow.customer_phone || pending?.phone });
+  }
+  if (pending) await db.prepare("UPDATE pending_activations SET status = 'activated' WHERE id = ?").run(pending.id);
+  if (paymentRow.reference) {
+    await db.prepare("UPDATE payments SET voucher_id = ?, customer_id = ? WHERE reference = ?").run(v.id, customer?.id || null, paymentRow.reference);
+  }
+  await afterPaidPurchase(resellerId, customer, paymentRow.amount, plan);
+
+  await db.prepare("INSERT INTO notifications (id,scope,type,title,message,time,read,action_tab) VALUES (?,?,?,?,?,?,?,?)")
+    .run(id("n"), `reseller:${resellerId}`, "payment", "New sale",
+      `${naira(paymentRow.amount)} - ${plan?.name || "plan"} for ${paymentRow.customer_name || paymentRow.customer_phone || "a customer"}.`, now, 0, "vouchers");
+  return { voucherId: v.id, username: v.username, password: v.password, expiresAt: v.expires_at };
 }
 
 // Helper: after a license payment is confirmed, activate the reseller license.
@@ -238,12 +206,15 @@ export function registerPaymentRoutes(router) {
       if (!row) return json(res, 404, { error: "Payment not found" });
 
       if (row.status !== "paid") {
-        await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+        // Claim atomically: webhook and portal polling can race on one payment.
+        const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+        if (claim.changes === 1) {
         // Figure out fulfillment by purpose encoded in the metadata at creation time.
         // We stored "note" field — reuse it, or infer from plan_id/user_type.
         const purpose = row.user_type === "reseller" ? "license" : "voucher";
         if (purpose === "voucher") await fulfillVoucherPayment(row, result);
         else await fulfillLicensePayment(row);
+        }
       }
 
       json(res, 200, { ok: true, paid: true, reference, amountMajor: result.amountMajor });
@@ -264,12 +235,23 @@ export function registerPaymentRoutes(router) {
     }
     const reference = body?.data?.reference;
     if (!reference) return json(res, 200, { ok: true }); // ack regardless to stop retries
+    // Only a successful charge for at least the expected amount unlocks
+    // anything. Previously ANY signed event with a reference (charge.failed,
+    // refunds, ...) marked the payment paid and issued a voucher.
+    if (body?.event !== "charge.success" || body?.data?.status !== "success") return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
+    if (row && Number(body.data.amount) / 100 + 1e-9 < Number(row.amount)) {
+      console.error("[paystack webhook] underpaid", reference, body.data.amount, row.amount);
+      return json(res, 200, { ok: true });
+    }
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });
@@ -284,10 +266,13 @@ export function registerPaymentRoutes(router) {
     if (!reference) return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });
@@ -303,10 +288,13 @@ export function registerPaymentRoutes(router) {
     if (!reference) return json(res, 200, { ok: true });
     const row = await db.prepare("SELECT * FROM payments WHERE reference = ?").get(reference);
     if (row && row.status !== "paid") {
-      await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ?").run(Date.now(), row.id);
+      // Claim atomically: webhook and portal polling can race on one payment.
+      const claim = await db.prepare("UPDATE payments SET status = 'paid', paid_at = ? WHERE id = ? AND status <> 'paid'").run(Date.now(), row.id);
+      if (claim.changes === 1) {
       const purpose = row.user_type === "reseller" ? "license" : "voucher";
       if (purpose === "voucher") await fulfillVoucherPayment(row);
       else await fulfillLicensePayment(row);
+      }
     }
     json(res, 200, { ok: true });
   });

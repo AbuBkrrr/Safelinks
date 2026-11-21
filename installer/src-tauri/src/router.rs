@@ -8,9 +8,8 @@ use russh::ChannelMsg;
 use russh_keys::key::PublicKey;
 use serde::Serialize;
 
-use crate::ssh::CONFIGURE_RSC;
 
-const SL_BACKEND: &str = "https://backend-services-production-78d8.up.railway.app";
+const SL_BACKEND: &str = "https://safelinks.name.ng";
 
 struct AcceptAllKeys;
 
@@ -335,81 +334,49 @@ pub async fn installer_router_apply_config(
     let mut applied = 0usize;
     let mut failed = 0usize;
 
-    // Build the script with our values inlined at the top so the .rsc sees them.
-    let mut file_contents = String::new();
-    file_contents.push_str(&format!(":global slSsid \"{}\"\n", escape_ros(&ssid)));
-    file_contents.push_str(&format!(":global slWifiPass \"{}\"\n", escape_ros(&wifi_password)));
-    file_contents.push_str(":global slWanMode \"dhcp\"\n");
-    file_contents.push_str(":global slLanIp \"192.168.88.1\"\n");
-    let rid = reseller_id.unwrap_or_default();
-    if rid.is_empty() {
-        failed = 1;
-        log.push("ERROR: reseller_id is empty. Sign out and sign in again, then retry.".to_string());
-        let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
-        return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
-    }
-    file_contents.push_str(&format!(":global slResellerId \"{}\"\n", escape_ros(&rid)));
-    let mac = admin_mac.unwrap_or_default();
-    if !mac.is_empty() {
-        file_contents.push_str(&format!(":global slAdminMac \"{}\"\n", escape_ros(&mac)));
-    }
-    file_contents.push_str(CONFIGURE_RSC);
-
-    // Transport: SFTP the script to the router, then /import file=... Exec
-    // mode is single-line only; shell mode collapses newlines. Per project
-    // brief: multi-line scripts must run via /import file= on the filesystem.
+    // The router setup script lives ONLY on the backend. We ask it for a
+    // setup code bound to this reseller + WiFi settings, then run the one
+    // line that makes the router download and import the current script.
+    // An old copy of this app therefore still applies today's script.
+    let _ = reseller_id; // the backend derives the reseller from auth_token
+    let _ = pairing_code;
     let auth = auth_token.unwrap_or_default();
     if auth.is_empty() {
         failed = 1;
-        log.push("ERROR: auth_token is empty. Sign out and sign in again.".to_string());
+        log.push("ERROR: not signed in. Sign out and sign in again.".to_string());
         let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
         return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
     }
-
-    let uploaded_path = match publish_and_fetch_rsc(&mut session, &auth, &file_contents, "safelinks-configure.rsc", &mut log).await {
-        Ok(p) => p,
+    let (code, command) = match request_setup_command(&auth, &ssid, &wifi_password, admin_mac.as_deref().unwrap_or("")).await {
+        Ok(v) => v,
         Err(e) => {
             failed = 1;
-            log.push(format!("RSC delivery failed: {}", e));
+            log.push(format!("Could not get a setup code from SAFE_Links: {}", e));
             let _ = session.disconnect(russh::Disconnect::ByApplication, "", "").await;
             return Ok(ApplyResult { ok: false, ssid, applied, failed, log });
         }
     };
-
-    let import_cmd = format!("/import file={}", uploaded_path);
-    match exec_raw(&mut session, &import_cmd).await {
+    log.push(format!("Setup code {} created. Configuring router...", code));
+    match exec_raw(&mut session, &command).await {
         Ok(out) => {
-            let errors = count_ros_errors(&out);
-            if out.contains("STATUS OK") && errors == 0 {
+            if out.contains("STATUS OK") {
                 applied = 1;
-                log.push("SUCCESS: router is configured and serving the portal.".to_string());
-            } else if errors > 0 {
-                failed = errors;
-                log.push(format!("Finished with {} error(s). Router may be partially configured.", errors));
+                log.push("SUCCESS: router configured, paired and serving the portal.".to_string());
             } else {
                 failed = 1;
-                log.push("Import ran but STATUS OK marker was not returned.".to_string());
+                log.push("Setup did not report STATUS OK. Router output:".to_string());
             }
-
-            // Agent removed - using direct command execution via installer poller
-            let tail: Vec<&str> = out.lines().rev().take(30).collect();
-            for line in tail.iter().rev() {
-                let t = line.trim();
-                if !t.is_empty() { log.push(t.to_string()); }
+            let lines: Vec<&str> = out.lines().filter(|l| !l.trim().is_empty()).collect();
+            let start = lines.len().saturating_sub(15);
+            for line in &lines[start..] {
+                log.push(line.trim().to_string());
             }
         }
         Err(e) => {
-            failed = 1;
-            log.push(format!("Import execution failed: {}", e));
-        }
-    }
-
-    if failed == 0 {
-        let mut agent_log = Vec::new();
-        if let Err(e) = install_agent(&mut session, &auth, &mut agent_log).await {
-            log.push(format!("WARN: agent install failed: {}", e));
-        } else {
-            log.extend(agent_log);
+            // Enabling the hotspot can drop the SSH session near the end;
+            // the router finishes on its own and checks in within ~15s.
+            log.push(format!("Connection closed during setup ({}). The router continues on its own; check your dashboard in 30 seconds.", e));
+            applied = 1;
         }
     }
 
@@ -561,38 +528,69 @@ pub async fn installer_save_rsc(
     wifi_password: String,
     reseller_id: String,
     admin_mac: String,
+    auth_token: Option<String>,
 ) -> Result<String, String> {
-    let mut lines_out: Vec<String> = Vec::new();
-    for line in CONFIGURE_RSC.lines() {
-        let t = line.trim_end();
-        if t == ":global slSsid" {
-            lines_out.push(format!(":global slSsid \"{}\"", escape_ros(&ssid)));
-        } else if t == ":global slWifiPass" {
-            lines_out.push(format!(":global slWifiPass \"{}\"", escape_ros(&wifi_password)));
-        } else if t == ":global slResellerId" {
-            lines_out.push(format!(":global slResellerId \"{}\"", escape_ros(&reseller_id)));
-        } else if t == ":global slAdminMac" {
-            lines_out.push(format!(":global slAdminMac \"{}\"", escape_ros(&admin_mac)));
-        } else {
-            lines_out.push(line.to_string());
-        }
+    let _ = reseller_id;
+    let auth = auth_token.unwrap_or_default();
+    if auth.is_empty() {
+        return Err("Sign in first: the setup command is created by your SAFE_Links account.".into());
     }
-    let body = lines_out.join("\r\n") + "\r\n";
-
+    let (code, command) = request_setup_command(&auth, &ssid, &wifi_password, &admin_mac).await?;
+    let body = format!(
+        "SAFE_Links router setup (code {}, valid 60 minutes)\r\n\r\nOpen Winbox > New Terminal on the MikroTik and paste this ONE line:\r\n\r\n{}\r\n",
+        code, command
+    );
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| "cannot find home directory".to_string())?;
     let dir = std::path::PathBuf::from(home).join("Documents").join("SAFE_Links");
     std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {}", e))?;
-    let path = dir.join("safelinks-configure.rsc");
+    let path = dir.join("safelinks-setup-command.txt");
     std::fs::write(&path, body.as_bytes()).map_err(|e| format!("write failed: {}", e))?;
-
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Ask the backend for a setup code bound to this reseller and WiFi settings.
+/// Returns (code, one-line RouterOS command).
+async fn request_setup_command(
+    auth_token: &str,
+    ssid: &str,
+    wifi_password: &str,
+    admin_mac: &str,
+) -> Result<(String, String), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("http client: {}", e))?;
+    let resp = client
+        .post(format!("{}/api/reseller/pairing-codes", backend_url()))
+        .bearer_auth(auth_token)
+        .json(&serde_json::json!({ "ssid": ssid, "wifiPassword": wifi_password, "adminMac": admin_mac }))
+        .send()
+        .await
+        .map_err(|e| format!("network: {}", e))?;
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.map_err(|e| format!("bad response: {}", e))?;
+    if !status.is_success() {
+        return Err(body.get("error").and_then(|v| v.as_str()).unwrap_or("request failed").to_string());
+    }
+    let code = body.get("code").and_then(|v| v.as_str()).ok_or("no code in response")?.to_string();
+    let command = body.get("command").and_then(|v| v.as_str()).ok_or("no command in response")?.to_string();
+    Ok((code, command))
+}
+
+/// Backend base URL; SAFELINKS_API overrides it for staging/self-hosting.
+fn backend_url() -> String {
+    std::env::var("SAFELINKS_API")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| SL_BACKEND.to_string())
 }
 
 /// Publish the RSC to our backend, then tell the router to pull it via
 /// /tool fetch. Avoids RouterOS SFTP (unreliable on several firmware builds).
 /// Returns the local path where the router saved the file, ready for /import.
+#[allow(dead_code)]
 async fn publish_and_fetch_rsc(
     session: &mut Handle<AcceptAllKeys>,
     auth_token: &str,
@@ -610,7 +608,7 @@ async fn publish_and_fetch_rsc(
 
     let payload = serde_json::json!({ "content": rsc_text });
     let resp = client
-        .post(format!("{}/api/installer/rsc-publish", SL_BACKEND))
+        .post(format!("{}/api/installer/rsc-publish", backend_url()))
         .bearer_auth(auth_token)
         .json(&payload)
         .send()
@@ -688,51 +686,4 @@ log.push("Agent file verified on router.".to_string());
     log.push(format!("Verified on router: {}", size_line));
 
     Ok(remote_file.to_string())
-}
-
-/// Install the SAFELINKS zero-touch agent on the router and pair it.
-/// Runs after configure RSC succeeds. Non-fatal — the router still serves
-/// the portal if this fails, just without the automation agent.
-async fn install_agent(
-    session: &mut Handle<AcceptAllKeys>,
-    auth_token: &str,
-    log: &mut Vec<String>,
-) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| format!("reqwest build: {}", e))?;
-
-    let pc_resp = client
-        .post(format!("{}/api/reseller/pairing-codes", SL_BACKEND))
-        .bearer_auth(auth_token)
-        .json(&serde_json::json!({}))
-        .send()
-        .await
-        .map_err(|e| format!("pairing-code POST: {}", e))?;
-    if !pc_resp.status().is_success() {
-        return Err(format!("pairing-code HTTP {}", pc_resp.status().as_u16()));
-    }
-    let pc_body: serde_json::Value = pc_resp.json().await
-        .map_err(|e| format!("pairing-code JSON: {}", e))?;
-    let code = pc_body.get("code").and_then(|v| v.as_str())
-        .ok_or_else(|| "pairing-code missing".to_string())?
-        .to_string();
-    log.push(format!("Generated pairing code: {}", code));
-
-    let mut agent_script = crate::ssh::AGENT_RSC.to_string();
-    agent_script = agent_script.replace("PASTE-CODE-HERE", &code);
-
-    let remote_path = publish_and_fetch_rsc(session, auth_token, &agent_script, "safelinks-agent.rsc", log).await?;
-
-    let import_cmd = format!("/import file={}", remote_path);
-    let import_out = exec_raw(session, &import_cmd).await
-        .map_err(|e| format!("agent import exec: {}", e))?;
-
-    if import_out.contains("failure:") || import_out.contains("Script Error:") {
-        return Err(format!("agent import failed: {}", import_out.trim()));
-    }
-    log.push("Agent installed and paired with backend".to_string());
-
-    Ok(())
 }

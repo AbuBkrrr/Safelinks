@@ -13,6 +13,9 @@ import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
 import { registerAgentRoutes } from "./routes/agent.js";
+import { registerSetupRoutes } from "./routes/setup.js";
+import { registerCustomerRoutes } from "./routes/customer.js";
+import { registerGrowthRoutes } from "./routes/growth.js";
 import { registerRadiusRoutes } from "./routes/radius.js";
 import { registerInstallerRoutes } from "./routes/installer.js";
 import { registerInstallerPlanConfigRoutes } from "./routes/installerPlanConfig.js";
@@ -97,6 +100,12 @@ async function main() {
   await runAuthUpgradeMigration();
   await runInstallerMigration();
   const seedResult = await seed();
+  const { ensureSuperAdmin } = await import("./db.js");
+  const sa = await ensureSuperAdmin();
+  if (sa.configured) console.log(`Super admin: ${sa.email} (from SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD)`);
+  const { lockDemoAccounts } = await import("./db.js");
+  const locked = await lockDemoAccounts();
+  if (locked) console.log(`Locked ${locked} demo reseller account(s) (production).`);
   await runInstallerPlanMigration();
   await runPlanPricesMigration();
   startScheduler();
@@ -108,6 +117,9 @@ async function main() {
   registerResellerRoutes(router);
   registerRouterRoutes(router);
   registerAgentRoutes(router);
+  registerSetupRoutes(router);
+  registerCustomerRoutes(router);
+  registerGrowthRoutes(router);
 registerRadiusRoutes(router);
   registerInstallerRoutes(router);
   registerInstallerPlanConfigRoutes(router);
@@ -153,8 +165,14 @@ registerRadiusRoutes(router);
       }
       (async () => {
         try {
-          const info = await stat(resolved);
-          if (!info.isFile()) throw new Error("not a file");
+          const info = await stat(resolved).catch(() => null);
+          // Apps are built by CI and published as the latest GitHub release;
+          // a file not shipped with the server redirects there.
+          if (!info || !info.isFile()) {
+            const base = (process.env.DOWNLOADS_BASE || "https://github.com/AbuBkrrr/Safelinks/releases/latest/download").replace(/\/$/, "");
+            res.writeHead(302, { Location: `${base}/${encodeURIComponent(path.basename(requested))}` });
+            return res.end();
+          }
           res.writeHead(200, {
             "Content-Type": "application/octet-stream",
             "Content-Length": info.size,
@@ -189,8 +207,10 @@ registerRadiusRoutes(router);
         ? "Database seeded with demo data."
         : "Database already had data — skipped seeding."
     );
-    console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");
-    console.log("             admin@nairobitech.io / reseller123  (reseller)");
+    if (seedResult.seeded) {
+      console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");
+      console.log("             admin@nairobitech.io / reseller123  (reseller)");
+    }
     console.log(`License enforcement: ${enforce ? "ON (hard mode)" : "OFF (soft mode — logs only)"}`);
   });
 }

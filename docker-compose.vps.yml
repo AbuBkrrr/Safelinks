@@ -1,0 +1,68 @@
+# SAFE_Links on a self-hosted VPS (no Railway).
+#
+#   docker compose -f docker-compose.vps.yml --env-file .env up -d --build
+#
+# Public HTTPS is provided by the Caddy already running on the server
+# (collation-caddy-1), which reaches safelinks_frontend over this project's
+# network. Keep the project directory name (safelinks-app) and the network
+# name so that Caddy connection keeps working. All secrets live in .env
+# (see .env.vps.example); nothing secret belongs in this file.
+name: safelinks-app
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: safelinks_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-safelinks_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-safelinks_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-safelinks_user} -d ${POSTGRES_DB:-safelinks_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [safelinks_net]
+    restart: unless-stopped
+
+  backend:
+    build: ./web/backend
+    container_name: safelinks_backend
+    env_file: .env
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-safelinks_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-safelinks_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    networks: [safelinks_net]
+    restart: unless-stopped
+    mem_limit: 512m
+
+  frontend:
+    build:
+      context: ./web/frontend
+      args:
+        LISTEN_PORT: 80
+        VITE_API_URL: ""
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    container_name: safelinks_frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on: [backend]
+    networks: [safelinks_net]
+    restart: unless-stopped
+    mem_limit: 128m
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  safelinks_net:
+    driver: bridge

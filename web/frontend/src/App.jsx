@@ -25,6 +25,21 @@ function detectBrowserLang() {
   return codes.find((c) => SUPPORTED_LANGS.includes(c)) || "en";
 }
 
+// One-tap renew link from the expiry reminder: open the portal on the same
+// plan with the phone filled in; paying extends the SAME login.
+function RenewRedirect({ token }) {
+  const [msg, setMsg] = useState("Opening your renewal…");
+  useEffect(() => {
+    const base = import.meta.env.VITE_API_URL || "";
+    fetch(`${base}/api/renew/${encodeURIComponent(token)}`).then((r) => r.json().then((j) => ({ ok: r.ok, j }))).then(({ ok, j }) => {
+      if (!ok) return setMsg(j.error || "This renew link has expired.");
+      const q = new URLSearchParams({ renew: j.token, plan: j.planId || "", phone: j.phone || "", name: j.name || "" });
+      window.location.replace(`/portal/${encodeURIComponent(j.resellerId)}?${q.toString()}`);
+    }).catch(() => setMsg("Could not reach the server. Try again."));
+  }, [token]);
+  return <div style={{ padding: 48, textAlign: "center", fontFamily: "system-ui", color: "#334155" }}>{msg}</div>;
+}
+
 function parseRoute() {
   const __p = window.location.pathname;
   if (__p === '/agent-login-auto') return { name: 'agent-login-auto' };
@@ -32,6 +47,8 @@ function parseRoute() {
   const path = window.location.pathname;
   const portalMatch = path.match(/^\/portal\/([^/]+)\/?$/);
   if (portalMatch) return { name: "portal", resellerId: portalMatch[1] };
+  const renewMatch = path.match(/^\/r\/([\w-]+)\/?$/);
+  if (renewMatch) return { name: "renew", token: renewMatch[1] };
   if (path.replace(/\/$/, "") === "/install") return { name: "install" };
   if (path.replace(/\/$/, "") === "/verify-email") return { name: "verify-email" };
   if (path.replace(/\/$/, "") === "/payment-callback") return { name: "payment-callback" };
@@ -239,6 +256,7 @@ export default function App() {
   if (route.name === "agent-login-auto") return <AgentLoginAuto />;
   if (route.name === "agent-login-callback") return <AgentLoginCallback />;
 
+  if (route.name === "renew") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><RenewRedirect token={route.token} /></div>);
   if (route.name === "portal") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><CaptivePortal resellerId={route.resellerId} notify={notify} onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "install") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><StandaloneInstaller onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "verify-email") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><VerifyEmail onDone={() => { window.location.href = "/"; }} /></div>);

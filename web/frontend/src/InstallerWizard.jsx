@@ -3,6 +3,8 @@ import { Router, CheckCircle2, ChevronRight, ChevronLeft, Loader2, Zap, Keyboard
 import { T, Btn, Field, inputStyle } from "./ui.jsx";
 import { api, getSession } from "./api.js";
 import LanAutoPair from "./LanAutoPair.jsx";
+// Apps are built by CI from source and published as the latest GitHub release.
+const DOWNLOAD_BASE = import.meta.env.VITE_DOWNLOAD_BASE || "https://github.com/AbuBkrrr/Safelinks/releases/latest/download";
 
 const MODELS = ["MikroTik hAP ac2", "MikroTik hAP ac3", "Ubiquiti EdgeRouter X", "TP-Link ER605", "Generic OpenWRT device"];
 
@@ -251,7 +253,7 @@ function PairingFlow({ onComplete, onBack }) {
               </ol>
 
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn onClick={() => { window.open("/downloads/safelinks-installer.exe", "_blank"); }} style={{ flex: 1, justifyContent: "center" }}>
+                <Btn onClick={() => { window.open(`${DOWNLOAD_BASE}/safelinks-installer.exe`, "_blank"); }} style={{ flex: 1, justifyContent: "center" }}>
                   📥 Download installer
                 </Btn>
                 <Btn variant="ghost" onClick={() => { setShowFallback(false); setShowDownloadGuide(false); }} style={{ justifyContent: "center" }}>

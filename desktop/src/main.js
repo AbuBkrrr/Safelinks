@@ -30,8 +30,7 @@ const fs = require("node:fs");
 const { locateGateway } = require("./native/gatewayLocator");
 const { RouterOsClient } = require("./native/routerOsClient");
 const {
-  buildInstallCheckinScript,
-  buildRegisterScript,
+  buildSetupCommand,
   InvalidPairingCodeError,
 } = require("./native/routerOsScripts");
 
@@ -39,7 +38,8 @@ const {
 // THE ONE THING YOU MUST CHANGE: point this at your real deployed site
 // before building. See README.md.
 // ---------------------------------------------------------------------
-const SERVER_URL = "https://REPLACE-WITH-YOUR-DOMAIN.com/";
+// Backend that serves the router setup script; SAFELINKS_API overrides it.
+const SERVER_URL = process.env.SAFELINKS_API || "https://safelinks.name.ng";
 
 const ALLOWED_ORIGIN = (() => {
   try {
@@ -246,30 +246,27 @@ ipcMain.handle("lan-pair", async (_event, { pairingCode, adminUser, adminPass, c
     return { ok: false, error: "Fingerprint you confirmed doesn't match what was probed - aborting rather than risk pairing the wrong device." };
   }
 
-  const installScript = buildInstallCheckinScript(SERVER_URL);
-  const installResult = await activeClient.execute(installScript, adminUser, adminPass, confirmedFingerprint);
-  if (installResult.type !== "Success") {
-    return { ok: false, error: `Could not install the check-in script: ${describeResult(installResult)}` };
-  }
-
-  let registerScript;
+  // The router downloads and runs the current SAFE_Links setup script from
+  // the backend (the same one line the dashboard shows), so this app never
+  // carries a script that can go stale.
+  let command;
   try {
-    registerScript = buildRegisterScript(pairingCode, SERVER_URL);
+    command = buildSetupCommand(pairingCode, SERVER_URL);
   } catch (e) {
     if (e instanceof InvalidPairingCodeError) return { ok: false, error: e.message };
     throw e;
   }
-
-  const registerResult = await activeClient.execute(registerScript, adminUser, adminPass, confirmedFingerprint);
-  if (registerResult.type === "Success") {
-    const match = registerResult.body.match(/ROUTER_ID=(\S+)/);
-    // One-shot: clear session state so a stray extra call can't
-    // silently reuse stale credentials/session state.
-    activeClient = null;
-    activeGatewayIp = null;
-    return { ok: true, routerId: match ? match[1] : null };
+  const result = await activeClient.execute(command, adminUser, adminPass, confirmedFingerprint);
+  activeClient = null;
+  activeGatewayIp = null;
+  if (result.type === "Success") {
+    return { ok: true, routerId: null, message: "Router is configuring itself. It shows Online in your dashboard within about a minute." };
   }
-  return { ok: false, error: `Registration failed: ${describeResult(registerResult)}` };
+  // Enabling the hotspot briefly drops the LAN; the router keeps going.
+  if (result.type === "NetworkError") {
+    return { ok: true, routerId: null, message: "Connection dropped while the router applied the hotspot (expected). Check your dashboard in a minute." };
+  }
+  return { ok: false, error: `Setup failed: ${describeResult(result)}` };
 });
 
 // -----------------------------------------------------------------

@@ -54,7 +54,7 @@
 
 set -eu
 
-SAFELINKS_API_URL="https://backend-services-production-78d8.up.railway.app"
+SAFELINKS_API_URL="https://safelinks.name.ng"
 CRED_FILE="/etc/SAFELINKS/credentials"
 
 log() { echo "[SAFELINKS-agent] $*" >&2; }

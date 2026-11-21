@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { ChevronRight, ArrowLeft, Wifi, Clock, Mail, MessageCircle, AlertCircle, CheckCircle, Zap } from "lucide-react";
 import { T, Btn, Field, inputStyle, TransferPayBlock, Loading, formatMoney, AttachmentPicker } from "./ui.jsx";
+import { UsageCard, TrialCard, PromoFields, AccountPanel } from "./PortalExtras.jsx";
 import { api, fileToBase64 } from "./api.js";
 import { Html5Qrcode } from "html5-qrcode";
 import { useResource } from "./hooks.js";
@@ -57,6 +58,11 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   const [helpError, setHelpError] = useState(null);
   const [voucherInput, setVoucherInput] = useState("");
   const [suspended, setSuspended] = useState(false);
+  const [routerReady, setRouterReady] = useState(false);
+  const [promo, setPromo] = useState("");
+  const [referral, setReferral] = useState("");
+  const [renewToken, setRenewToken] = useState(null);
+  const [transfer, setTransfer] = useState(null); // { reference, accountNumber, bankName, accountName, amount, expiresAt }
   const scannerRef = useRef(null);
   const wsRef = useRef(null);
 
@@ -68,6 +74,19 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       setClientIp(params.get("ip") || null);
     } catch (_) {}
   }, []);
+
+  // ===== ONE-TAP RENEW LINK (?renew=<token>&plan=<id>&phone=<n>) =====
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const tok = q.get("renew"), planId = q.get("plan");
+    if (!tok || !planId || !plansRes.data) return;
+    const p = (plansRes.data || []).find((x) => x.id === planId);
+    if (!p) return;
+    setRenewToken(tok);
+    setSelectedPlan(p);
+    setForm((f) => ({ ...f, phone: q.get("phone") || f.phone, name: q.get("name") || f.name }));
+    setStep("form");
+  }, [plansRes.data]);
 
   // ===== RESPONSIVE HANDLER =====
   useEffect(() => {
@@ -87,6 +106,25 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
       setStep("connect");
     }
   }, [voucher]);
+
+  // ===== RETURNING DEVICE: ask the server what this MAC's plan state is =====
+  // A device the router just cut off lands here with no voucher in memory,
+  // so the expired/suspended screens must come from the server.
+  useEffect(() => {
+    if (!clientMac || !resellerId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const r = await fetch(`${base}/api/portal/${resellerId}/status?mac=${encodeURIComponent(clientMac)}`);
+        const j = r.ok ? await r.json() : null;
+        if (cancelled || !j) return;
+        if (j.status === "expired") { setIsExpired(true); setStep("expired"); }
+        else if (j.status === "suspended") { setSuspended(true); }
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, [clientMac, resellerId]);
 
   // ===== WEBSOCKET SYNC =====
   // The production deployment uses HTTP polling for portal state. Avoid opening
@@ -114,10 +152,6 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
   // ===== VOUCHER REDEMPTION =====
   async function redeemCode(vCode) {
     if (!vCode) return;
-    if (!clientMac) {
-      setError("MAC address missing. Please open the portal via the WiFi redirect.");
-      return;
-    }
     setProcessing(true);
     setError(null);
     try {
@@ -269,9 +303,18 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     } catch (_) {}
   }, [resellerId]);
 
+  // Log this device in on the hotspot router with the voucher. The router's
+  // login page URL arrives as ?login= (from its login.html hand-off); the
+  // router then enforces the plan's speed, device limit, data and time.
   function openBrowsingDestination() {
     const params = new URLSearchParams(window.location.search);
-    const dst = params.get("dst") || "https://www.budgetpro.com.ng";
+    const dst = params.get("dst") || "http://neverssl.com";
+    const loginUrl = params.get("login") || "http://login.wifi/login";
+    if (voucher?.username) {
+      const q = new URLSearchParams({ username: voucher.username, password: voucher.password || voucher.username, dst });
+      window.location.assign(`${loginUrl}${loginUrl.includes("?") ? "&" : "?"}${q.toString()}`);
+      return;
+    }
     const isTauri = typeof window !== "undefined" && (window.__TAURI__ || window.__TAURI_INTERNALS__);
 
     if (isTauri && window.__TAURI__?.window?.getCurrentWindow) {
@@ -283,20 +326,82 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
     window.location.assign(dst);
   }
 
-  // ===== AUTO-REDIRECT AFTER CONFIRMATION =====
+  // ===== WAIT FOR THE ROUTER, THEN LOG IN =====
+  // The router picks up the new login on its next check-in (<=15s).
   useEffect(() => {
-    if (step !== "confirmed" || !clientMac || countdown > 0) return;
-    const t = setTimeout(openBrowsingDestination, 3000);
+    if (step !== "confirmed" || !voucher?.username) return;
+    setRouterReady(false);
+    let stopped = false, tries = 0;
+    const base = import.meta.env.VITE_API_URL || "";
+    const tick = async () => {
+      tries += 1;
+      try {
+        const r = await fetch(`${base}/api/portal/${resellerId}/ready/${encodeURIComponent(voucher.username)}`);
+        const j = r.ok ? await r.json() : {};
+        if (!stopped && (j.ready || tries > 45)) { setRouterReady(true); return; }
+      } catch (_) {}
+      if (!stopped) setTimeout(tick, 2000);
+    };
+    tick();
+    return () => { stopped = true; };
+  }, [step, voucher?.username, resellerId]);
+
+  useEffect(() => {
+    if (step !== "confirmed" || !routerReady) return;
+    const t = setTimeout(openBrowsingDestination, 1200);
     return () => clearTimeout(t);
-  }, [step, clientMac, countdown]);
+  }, [step, routerReady]);
+  // ===== INSTANT TRANSFER (Paystack one-time account) =====
+  async function startInstantTransfer() {
+    setProcessing(true);
+    setError(null);
+    try {
+      const base = import.meta.env.VITE_API_URL || "";
+      const r = await fetch(`${base}/api/portal/${resellerId}/transfer-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, email: form.email, phone: form.phone, planId: selectedPlan.id, clientMac, clientIp, promoCode: promo, referralCode: referral, renewToken }),
+      });
+      const j = await r.json();
+      if (r.ok && j.free) { setTransfer({ reference: j.reference, free: true }); return; }
+      if (!r.ok || !j.accountNumber) throw new Error(j.error || "Could not create a transfer account");
+      setTransfer(j);
+    } catch (err) {
+      setError(err.message || "Instant transfer failed");
+    }
+    setProcessing(false);
+  }
+
+  useEffect(() => {
+    if (!transfer?.reference || step !== "payment") return;
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const r = await fetch(`${base}/api/portal/${resellerId}/transfer-status/${encodeURIComponent(transfer.reference)}`);
+        if (!r.ok || stopped) return;
+        const j = await r.json();
+        if (j.status === "paid") {
+          setVoucher(j.voucher);
+          setTransfer(null);
+          setStep("confirmed");
+          setCountdown(5);
+          notify?.("Transfer received! You're connected.");
+        }
+      } catch (_) {}
+    };
+    const tid = setInterval(tick, 4000);
+    return () => { stopped = true; clearInterval(tid); };
+  }, [transfer, step, resellerId, notify]);
+
   // ===== CARD PAYMENT SUBMISSION =====
   async function submitCard() {
     setProcessing(true);
     setError(null);
     try {
       const base = import.meta.env.VITE_API_URL || "";
-      const provider = method === "Card" ? "flutterwave" : 
-                       method === "USSD" || method === "Mobile Money" ? "paystack" : "flutterwave";
+      const gws = info.data?.gateways || [];
+      const provider = gws.includes("paystack") ? "paystack" : (gws[0] || "flutterwave");
       
       const r = await fetch(`${base}/api/portal/${resellerId}/card-checkout`, {
         method: "POST",
@@ -308,12 +413,14 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
           business: form.business || form.name,
           planId: selectedPlan.id,
           provider,
+          promoCode: promo, referralCode: referral, renewToken,
           clientMac,
           clientIp,
         }),
       });
 
       const j = await r.json();
+      if (r.ok && j.free) { setMethod("Instant Transfer"); setTransfer({ reference: j.reference, free: true }); setProcessing(false); return; }
       if (!r.ok || !j.checkoutUrl) {
         throw new Error(j.error || "Payment initialization failed");
       }
@@ -516,6 +623,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontSize: 14, color: T.sub, marginBottom: 16, textAlign: "center" }}>
                 Connected to <strong>{reseller.ssid}</strong>
               </div>
+              <UsageCard resellerId={resellerId} clientMac={clientMac} color={reseller.color} onRenew={() => setStep("plans")} />
 
               {clientMac && (
                 <div style={{ background: "#f0f9ff", border: `1px solid ${T.primary}22`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -545,7 +653,22 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <Btn onClick={() => setStep("plans")} style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: 15 }}>
                 Subscribe Now <Zap size={14} />
               </Btn>
+              {reseller.happyHour && (
+                <div style={{ textAlign: "center", fontSize: 12, color: T.success, marginTop: 8 }}>
+                  Happy hour {String(reseller.happyHour.start).padStart(2, "0")}:00–{String(reseller.happyHour.end).padStart(2, "0")}:00 · {reseller.happyHour.pct}% off
+                </div>
+              )}
+              <TrialCard resellerId={resellerId} minutes={reseller.trialMinutes} clientMac={clientMac}
+                onVoucher={(v) => { setVoucher(v); setStep("confirmed"); notify?.("Free trial started"); }} />
+              <Btn variant="ghost" onClick={() => setStep("account")} style={{ width: "100%", justifyContent: "center", fontSize: 13 }}>
+                My account · wallet · auto-renew
+              </Btn>
             </div>
+          )}
+
+          {step === "account" && (
+            <AccountPanel resellerId={resellerId} plans={plansRes.data || []} cur={cur} clientMac={clientMac} instantTransfer={reseller.instantTransfer}
+              notify={notify} onClose={() => setStep("connect")} onVoucher={(v) => { setVoucher(v); setStep("confirmed"); }} />
           )}
 
           {/* PLANS - Select a Data Plan */}
@@ -573,7 +696,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                   onMouseEnter={(e) => e.currentTarget.style.borderColor = reseller.color || T.primary}
                   onMouseLeave={(e) => e.currentTarget.style.borderColor = p.popular ? (reseller.color || T.primary) : T.border}
                 >
-                  {p.popular && (
+                  {!!p.popular && (
                     <div style={{ position: "absolute", top: -10, right: 12, background: reseller.color || T.primary, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20 }}>
                       Most Popular
                     </div>
@@ -604,13 +727,13 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 {formatMoney(selectedPlan.price, cur)} for {selectedPlan.duration}
               </div>
               <Field label="Full Name"><input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" /></Field>
-              <Field label="Email"><input style={inputStyle} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" /></Field>
+              <Field label="Email (optional)"><input style={inputStyle} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" /></Field>
               <Field label="Phone"><input style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+234..." /></Field>
-              <Field label="Business (Optional)"><input style={inputStyle} value={form.business} onChange={(e) => setForm({ ...form, business: e.target.value })} placeholder="Your business name" /></Field>
+              <PromoFields resellerId={resellerId} plan={selectedPlan} cur={cur} promo={promo} setPromo={setPromo} referral={referral} setReferral={setReferral} />
               {error && <div style={{ color: T.danger, fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
               <Btn
-                disabled={!form.name || !form.email || !form.phone}
-                onClick={() => { setError(null); setMethod("Card"); setStep("payment"); }}
+                disabled={!form.name || !form.phone}
+                onClick={() => { setError(null); setMethod(reseller.instantTransfer ? "Instant Transfer" : "Card"); setStep("payment"); }}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0" }}
               >
                 Continue to Payment
@@ -624,7 +747,7 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: T.ink }}>Choose Payment Method</div>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                {["Card", "USSD", "Bank Transfer"].map((m) => (
+                {(reseller.instantTransfer ? ["Instant Transfer", "Card", "USSD", "Bank Transfer"] : ["Card", "USSD", "Bank Transfer"]).map((m) => (
                   <div
                     key={m}
                     onClick={() => { setMethod(m); setError(null); }}
@@ -642,12 +765,50 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                       background: method === m ? `${reseller.color || T.primary}08` : "#fff",
                     }}
                   >
-                    {m === "Card" ? "💳" : m === "USSD" ? "📱" : "🏦"} {m}
+                    {m === "Card" ? "💳" : m === "USSD" ? "📱" : m === "Instant Transfer" ? "⚡" : "🏦"} {m}
                   </div>
                 ))}
               </div>
 
-              {method === "Card" || method === "USSD" ? (
+              {method === "Instant Transfer" ? (
+                <div>
+                  {transfer?.free ? (
+                    <div style={{ textAlign: "center", padding: 12, fontSize: 13, color: T.success, fontWeight: 600 }}>Free with your code — activating…</div>
+                  ) : !transfer ? (
+                    <>
+                      <div style={{ fontSize: 12.5, color: T.sub, marginBottom: 12, lineHeight: 1.5 }}>
+                        Get a one-time account number, transfer exactly {formatMoney(selectedPlan.price, cur)}, and you're connected automatically. No receipt needed.
+                      </div>
+                      <Btn disabled={processing} onClick={startInstantTransfer} style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: 15 }}>
+                        {processing ? "Getting account…" : "Get account number"}
+                      </Btn>
+                    </>
+                  ) : (
+                    <div>
+                      <div style={{ background: "#f8f9fa", borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, color: T.sub }}>Transfer exactly</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: T.ink, marginBottom: 10 }}>{formatMoney(transfer.amount, "NGN")}</div>
+                        <div style={{ fontSize: 12, color: T.sub }}>Bank</div>
+                        <div style={{ fontWeight: 700, color: T.ink, marginBottom: 8 }}>{transfer.bankName || "—"}</div>
+                        <div style={{ fontSize: 12, color: T.sub }}>Account number</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                          <div style={{ fontWeight: 800, fontSize: 22, letterSpacing: 1.5, color: T.ink }}>{transfer.accountNumber}</div>
+                          <Btn variant="outline" onClick={() => { try { navigator.clipboard.writeText(transfer.accountNumber); notify?.("Account number copied"); } catch (_) {} }} style={{ padding: "6px 12px", fontSize: 12 }}>Copy</Btn>
+                        </div>
+                        {transfer.accountName && (<><div style={{ fontSize: 12, color: T.sub }}>Account name</div><div style={{ fontWeight: 600, color: T.ink }}>{transfer.accountName}</div></>)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.ink, marginBottom: 8 }}>
+                        <Clock size={16} color={T.warning} /> Waiting for your transfer… this page updates by itself.
+                      </div>
+                      <div style={{ fontSize: 11.5, color: T.sub, lineHeight: 1.5 }}>
+                        No data? Use your bank's USSD code (e.g. *737#, *894#, *919#) — it works without internet.
+                        {transfer.expiresAt && <> Account valid until {new Date(transfer.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</>}
+                      </div>
+                    </div>
+                  )}
+                  {error && <div style={{ color: T.danger, fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+                </div>
+              ) : method === "Card" || method === "USSD" ? (
                 <div>
                   <div style={{ fontSize: 12, color: T.sub, marginBottom: 12 }}>
                     {method === "Card" && "Pay instantly with your card, USSD, or mobile money"}
@@ -730,22 +891,26 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
                 Your internet access is active. You can now browse freely.
               </div>
 
-              {countdown > 0 && (
+              {!routerReady && (
                 <div style={{ background: `${reseller.color || T.primary}15`, border: `1px solid ${reseller.color || T.primary}`, borderRadius: 10, padding: 14, marginBottom: 14, textAlign: "center", fontSize: 12, color: T.ink, fontWeight: 600 }}>
-                  Syncing with router in {countdown} seconds…
+                  Activating on the WiFi router… (a few seconds)
                 </div>
               )}
+              <div style={{ background: "#f8f9fa", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 12.5, color: T.sub, textAlign: "left" }}>
+                Login for your other devices: <b style={{ color: T.ink, fontFamily: "monospace" }}>{voucher.username}</b>
+                {voucher.password && voucher.password !== voucher.username && <> / <b style={{ color: T.ink, fontFamily: "monospace" }}>{voucher.password}</b></>}
+              </div>
 
               <Btn
                 onClick={openBrowsingDestination}
-                disabled={countdown > 0}
+                disabled={!routerReady}
                 style={{ width: "100%", justifyContent: "center", padding: "12px 0", fontSize: isMobile ? 14 : 15 }}
               >
                 🚀 Start Browsing
               </Btn>
 
               <div style={{ fontSize: 11, color: T.sub, marginTop: 12, opacity: 0.8 }}>
-                {countdown > 0 ? `Starting in ${countdown}s…` : "You're online now."}
+                {routerReady ? "Connecting you now…" : "Hold on, almost there."}
               </div>
             </div>
           )}

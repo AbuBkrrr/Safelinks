@@ -1,4 +1,6 @@
-﻿import React from 'react';
+// Apps are built by CI from source and published as the latest GitHub release.
+const DOWNLOAD_BASE = import.meta.env.VITE_DOWNLOAD_BASE || "https://github.com/AbuBkrrr/Safelinks/releases/latest/download";
+import React from 'react';
 
 const DownloadPage = () => {
   const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
@@ -7,14 +9,14 @@ const DownloadPage = () => {
   const downloads = [
     {
       platform: 'Android',
-      file: '/downloads/safelinks-installer.apk',
+      file: `${DOWNLOAD_BASE}/safelinks-installer.apk`,
       icon: '🤖',
       description: 'For Android phones and tablets (APK)',
       size: '~25 MB'
     },
     {
       platform: 'Windows',
-      file: '/downloads/safelinks-installer.exe',
+      file: `${DOWNLOAD_BASE}/safelinks-installer.exe`,
       icon: '🪟',
       description: 'For Windows 10/11 PCs (EXE)',
       size: '~80 MB'

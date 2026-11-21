@@ -15,6 +15,10 @@
 // Postgres's `$1, $2, ...`.
 
 import pg from "pg";
+// BIGINT (all our ms timestamps, byte counters, COUNT(*)) arrives as text by
+// default, which made `new Date(row.x)` show "Invalid Date" in the UI. Every
+// value we store fits safely in a JS number.
+pg.types.setTypeParser(20, (v) => (v === null ? null : Number(v)));
 import { randomUUID, randomBytes } from "node:crypto";
 import { hashPassword } from "./auth.js";
 
@@ -457,6 +461,8 @@ export async function migrate() {
 export async function seed() {
   const existing = await db.prepare("SELECT COUNT(*) AS n FROM resellers").get();
   if (Number(existing.n) > 0) return { seeded: false };
+  // Never put demo accounts with published passwords into a live database.
+  if (process.env.NODE_ENV === "production" && process.env.SEED_DEMO !== "true") return { seeded: false, skipped: "production" };
 
   const now = Date.now();
   const day = 86400000;
@@ -471,7 +477,7 @@ export async function seed() {
   const insertSuperAdmin = db.prepare(
     "INSERT INTO super_admins (id,email,password_hash,bank_name,bank_account_name,bank_account_number,ussd_code,created_at) VALUES (?,?,?,?,?,?,?,?)"
   );
-  await insertSuperAdmin.run(id("sa"), "admin@SAFELINKS.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
+  await insertSuperAdmin.run(id("sa"), "admin@safelinks.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
 
   await db.prepare(`INSERT INTO integration_settings (id, contact_email, contact_whatsapp, platform_currency, dashboard_language, updated_at)
     VALUES ('singleton', 'aibrainsventures@gmail.com', '+2348032540215', 'USD', 'en', ?)`).run(now);
@@ -598,6 +604,65 @@ CREATE TABLE IF NOT EXISTS router_sessions (
 );
 
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voucher_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS client_mac TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS paystack_subaccount TEXT;
+ALTER TABLE routers ADD COLUMN IF NOT EXISTS hw_id TEXT;
+ALTER TABLE pairing_codes ADD COLUMN IF NOT EXISTS config TEXT;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS data_mb INTEGER DEFAULT 0;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS bytes_used BIGINT DEFAULT 0;
+-- Growth: customers, wallet, promos, agents, messaging
+CREATE TABLE IF NOT EXISTS customers (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, phone TEXT NOT NULL, name TEXT, email TEXT,
+  wallet_balance REAL NOT NULL DEFAULT 0, auto_renew INTEGER NOT NULL DEFAULT 0, auto_renew_plan_id TEXT,
+  referral_code TEXT, referred_by TEXT, paid_count INTEGER NOT NULL DEFAULT 0, total_spent REAL NOT NULL DEFAULT 0,
+  opted_out INTEGER NOT NULL DEFAULT 0, trial_used_at BIGINT, created_at BIGINT, last_purchase_at BIGINT,
+  UNIQUE (reseller_id, phone)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_ref ON customers(reseller_id, referral_code);
+CREATE TABLE IF NOT EXISTS wallet_tx (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL, amount REAL NOT NULL, kind TEXT, ref TEXT, created_at BIGINT);
+CREATE TABLE IF NOT EXISTS promo_codes (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, code TEXT NOT NULL, percent_off REAL NOT NULL DEFAULT 0,
+  amount_off REAL NOT NULL DEFAULT 0, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
+  expires_at BIGINT, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT, UNIQUE (reseller_id, code)
+);
+CREATE TABLE IF NOT EXISTS sales_agents (
+  id TEXT PRIMARY KEY, reseller_id TEXT NOT NULL, name TEXT NOT NULL, phone TEXT,
+  commission_pct REAL NOT NULL DEFAULT 10, active INTEGER NOT NULL DEFAULT 1, created_at BIGINT
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY, reseller_id TEXT, to_phone TEXT, channel TEXT, kind TEXT, body TEXT,
+  status TEXT, error TEXT, created_at BIGINT
+);
+CREATE TABLE IF NOT EXISTS otp_codes (id TEXT PRIMARY KEY, reseller_id TEXT, phone TEXT, code_hash TEXT, expires_at BIGINT, attempts INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS renew_links (token TEXT PRIMARY KEY, reseller_id TEXT, customer_id TEXT, voucher_id TEXT, plan_id TEXT, created_at BIGINT, expires_at BIGINT);
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS agent_id TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS reminded_at BIGINT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS redeemed_at BIGINT;
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS router_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS promo_code TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount REAL;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS purpose_kind TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS extend_voucher_id TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS notify_phone TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_bank_code TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_account_number TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS payout_account_name TEXT;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS trial_enabled INTEGER DEFAULT 1;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS trial_minutes INTEGER DEFAULT 5;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS loyalty_every INTEGER DEFAULT 10;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS referral_reward_minutes INTEGER DEFAULT 60;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_start INTEGER;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_end INTEGER;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS happy_hour_pct REAL DEFAULT 0;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS daily_summary INTEGER DEFAULT 1;
+ALTER TABLE resellers ADD COLUMN IF NOT EXISTS last_summary_day TEXT;
+ALTER TABLE routers ADD COLUMN IF NOT EXISTS alerted_offline_at BIGINT;
 ALTER TABLE pending_activations ADD COLUMN IF NOT EXISTS client_ip TEXT;
 
 CREATE TABLE IF NOT EXISTS router_metrics (
@@ -769,4 +834,48 @@ export async function runPlanPricesMigration() {
     inserted++;
   }
   console.log(`Plan-prices migration complete (default ${defaultCurrency}, ${inserted} new rows)`);
+}
+
+// Super-admin login from the environment (never from code):
+//   SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD
+// Creates the account, or resets its password to match, on every start.
+// Once a real super admin is configured, the demo one created by seed()
+// (admin@safelinks.io / admin123) is removed so it can't be used to log in.
+export async function ensureSuperAdmin() {
+  const email = String(process.env.SUPER_ADMIN_EMAIL || "").trim().toLowerCase();
+  const password = String(process.env.SUPER_ADMIN_PASSWORD || "");
+  if (!email || !password) return { configured: false };
+  if (password.length < 10) {
+    console.error("SUPER_ADMIN_PASSWORD must be at least 10 characters; super admin not changed.");
+    return { configured: false };
+  }
+  const existing = await db.prepare("SELECT id FROM super_admins WHERE LOWER(email) = ?").get(email);
+  if (existing) {
+    await db.prepare("UPDATE super_admins SET email = ?, password_hash = ? WHERE id = ?").run(email, hashPassword(password), existing.id);
+  } else {
+    await db.prepare("INSERT INTO super_admins (id,email,password_hash,created_at) VALUES (?,?,?,?)")
+      .run(id("sa"), email, hashPassword(password), Date.now());
+  }
+  if (email !== "admin@safelinks.io") {
+    await db.prepare("DELETE FROM super_admins WHERE LOWER(email) = 'admin@safelinks.io'").run();
+  }
+  return { configured: true, email };
+}
+
+// Demo accounts from seed() have passwords published in this repo. In
+// production they are locked (random password, suspended) on every start, so
+// a database that was once seeded can't be logged into with them.
+export const DEMO_RESELLER_EMAILS = ["admin@nairobitech.io", "ops@lagosconnect.ng", "hello@kampalanet.ug"];
+export async function lockDemoAccounts() {
+  if (process.env.NODE_ENV !== "production" || process.env.SEED_DEMO === "true") return 0;
+  let n = 0;
+  for (const email of DEMO_RESELLER_EMAILS) {
+    const r = await db.prepare("UPDATE resellers SET password_hash = ?, status = 'suspended' WHERE LOWER(email) = ? AND status <> 'suspended'")
+      .run(hashPassword(randomBytes(24).toString("hex")), email);
+    n += r.changes || 0;
+  }
+  if (process.env.SUPER_ADMIN_EMAIL) {
+    await db.prepare("DELETE FROM super_admins WHERE LOWER(email) = 'admin@safelinks.io'").run();
+  }
+  return n;
 }

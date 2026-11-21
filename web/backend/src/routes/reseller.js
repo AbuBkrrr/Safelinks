@@ -1,3 +1,5 @@
+import { queueVoucherOnRouters, userPayload } from "../routerCommands.js";
+import { planDurationMs } from "../planDuration.js";
 import { db, id, genCode } from "../db.js";
 import { json } from "../http.js";
 import { authenticate, hashPassword } from "../auth.js";
@@ -62,10 +64,19 @@ async function lookupGeoReseller(ip) {
 // vendors) marks the RADIUS user as suspended so it routes to the pay page.
 async function queueUnbindForVoucher(voucherId, resellerId) {
   try {
-    const sess = await db.prepare(
-      "SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1"
-    ).get(resellerId);
-    const mac = sess && sess.mac ? sess.mac : null;
+    // Use this voucher's MAC. (Previously took the reseller's most recent
+    // session of ANY customer, kicking the wrong person off.)
+    const v = await db.prepare(
+      "SELECT username, client_mac FROM vouchers WHERE id = ? AND reseller_id = ?"
+    ).get(voucherId, resellerId);
+    let mac = v && v.client_mac ? v.client_mac : null;
+    if (!mac && v && /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(v.username || "")) mac = v.username;
+    if (!mac) {
+      const sess = await db.prepare(
+        "SELECT mac FROM active_sessions WHERE reseller_id = ? AND username = ? ORDER BY last_seen DESC LIMIT 1"
+      ).get(resellerId, v ? v.username : null);
+      mac = sess && sess.mac ? sess.mac : null;
+    }
     if (!mac) return;
     const routers = await db.prepare("SELECT router_id FROM routers WHERE reseller_id = ?").all(resellerId);
     const now = Date.now();
@@ -86,7 +97,7 @@ export function registerResellerRoutes(router) {
   const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(planId);
   if (!plan) return json(res, 404, { error: "Plan not found" });
   const now = Date.now();
-  const expiresAt = now + durationToMs(plan.duration_value, plan.duration_unit);
+  const expiresAt = now + planDurationMs(plan);
   const vouchers = [];
   for (let i = 0; i < count; i++) {
     const username = `v-${Math.random().toString(36).substring(2, 6)}${Math.floor(1000 + Math.random() * 9000)}`;
@@ -95,18 +106,7 @@ export function registerResellerRoutes(router) {
     await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(vId, resellerId, username, password, "Generated", null, null, null, planId, "active", now, expiresAt);
     
-    // --- NEW: Queue router command ---
-    let uptime = "1d";
-    if (plan && plan.duration) {
-      const d = plan.duration.toLowerCase();
-      if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
-      else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
-      else if (d.includes('week')) uptime = "7d";
-      else if (d.includes('month')) uptime = "30d";
-      else if (d.includes('year')) uptime = "365d";
-    }
-    await enqueueCommandForReseller(resellerId, "create_user", { username, password, uptime });
-    
+    await queueVoucherOnRouters({ username, password, reseller_id: resellerId, expires_at: expiresAt, plan_id: planId }, plan);
     vouchers.push({ id: vId, username, password, plan_id: planId, expires_at: expiresAt });
   }
   json(res, 200, { count: vouchers.length, vouchers });
@@ -234,14 +234,30 @@ router.get("/api/reseller/vouchers", async (req, res) => {
   // the router, and polls GET .../:code until the router itself has
   // called POST /api/agent/register with it. Nobody types in the
   // router's model/firmware/IP â€” the router reports those itself.
-  router.post("/api/reseller/pairing-codes", async (req, res) => {
+  // POST /api/reseller/pairing-codes
+  // body (all optional): { ssid, wifiPassword, wanMode: dhcp|pppoe, wanUser, wanPass, wanInterface, adminMac }
+  // Returns the code and the ONE command that sets up any MikroTik with it.
+  router.post("/api/reseller/pairing-codes", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
+    const b = body || {};
+    if (b.wifiPassword && String(b.wifiPassword).length < 8) return json(res, 400, { error: "WiFi password must be at least 8 characters (or empty for an open network)" });
+    const r = await db.prepare("SELECT ssid, company_name FROM resellers WHERE id = ?").get(resellerId);
+    const config = {
+      ssid: String(b.ssid || r?.ssid || r?.company_name || "SafeLinks-WiFi").slice(0, 32),
+      wifiPassword: String(b.wifiPassword || "").slice(0, 63),
+      wanMode: b.wanMode === "pppoe" ? "pppoe" : "dhcp",
+      wanUser: String(b.wanUser || "").slice(0, 64), wanPass: String(b.wanPass || "").slice(0, 64),
+      wanInterface: /^[A-Za-z0-9-]{2,20}$/.test(String(b.wanInterface || "")) ? b.wanInterface : "ether1",
+      adminMac: /^([0-9A-F]{2}[:-]){5}[0-9A-F]{2}$/i.test(String(b.adminMac || "")) ? String(b.adminMac).toUpperCase() : "",
+    };
     const now = Date.now();
     const code = genCode(6).toUpperCase();
-    const pairingId = id("pc");
-    await db.prepare("INSERT INTO pairing_codes (id,reseller_id,code,status,expires_at,created_at) VALUES (?,?,?,?,?,?)")
-      .run(pairingId, resellerId, code, "pending", now + 15 * 60000, now);
-    json(res, 201, { code, expiresAt: now + 15 * 60000 });
+    const ttl = 60 * 60000;
+    await db.prepare("INSERT INTO pairing_codes (id,reseller_id,code,status,expires_at,created_at,config) VALUES (?,?,?,?,?,?,?)")
+      .run(id("pc"), resellerId, code, "pending", now + ttl, now, JSON.stringify(config));
+    const { apiBase, setupCommand } = await import("./setup.js");
+    const api = apiBase(req);
+    json(res, 201, { code, expiresAt: now + ttl, ssid: config.ssid, setupUrl: `${api}/api/setup/${code}.rsc`, command: setupCommand(api, code) });
   });
 
   router.get("/api/reseller/pairing-codes/:code", async (req, res, { params }) => {
@@ -276,11 +292,11 @@ router.get("/api/reseller/vouchers", async (req, res) => {
 
     // Sync every currently-active voucher onto the freshly provisioned
     // router so it's not starting from an empty user list.
-    const activeVouchers = await db.prepare("SELECT username, password, plan_id FROM vouchers WHERE reseller_id = ? AND status = 'active'").all(resellerId);
+    const activeVouchers = await db.prepare("SELECT * FROM vouchers WHERE reseller_id = ? AND status = 'active' AND expires_at > ?").all(resellerId, now);
     for (const v of activeVouchers) {
-      const plan = await db.prepare("SELECT device_limit, bandwidth FROM plans WHERE id = ?").get(v.plan_id);
+      const plan = await db.prepare("SELECT * FROM plans WHERE id = ?").get(v.plan_id);
       await db.prepare("INSERT INTO router_commands (id, router_id, type, payload, status, created_at) VALUES (?,?,?,?,?,?)")
-        .run(id("cmd"), routerId, "create_user", JSON.stringify({ username: v.username, password: v.password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth }), "pending", now);
+        .run(id("cmd"), routerId, "create_user", JSON.stringify(userPayload(v, plan)), "pending", now);
     }
 
     // apiKey is returned ONLY in this response â€” the server never
@@ -330,29 +346,31 @@ router.get("/api/reseller/vouchers", async (req, res) => {
 
   router.post("/api/reseller/plans", async (req, res, { body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular } = body;
+    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular, dataMb } = body;
+    const dataCap = Math.max(0, Math.round(Number(dataMb) || 0)); // MB, 0 = unlimited
     // Flexible duration: prefer unit + value; fall back to legacy duration string
     const finalDuration = duration || (durationValue && durationUnit ? (durationValue + "_" + durationUnit) : "");
     if (!name || !finalDuration || price == null) return json(res, 400, { error: "name, duration (or durationUnit+durationValue), and price are required" });
     if (typeof price !== "number" || !Number.isFinite(price) || price < 0) return json(res, 400, { error: "price must be a non-negative number" });
     if (deviceLimit != null && (typeof deviceLimit !== "number" || deviceLimit < 1)) return json(res, 400, { error: "deviceLimit must be at least 1" });
     const planId = id("p");
-    await db.prepare("INSERT INTO plans (id,reseller_id,name,duration,duration_unit,duration_value,price,device_limit,bandwidth,priority,popular,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now());
+    await db.prepare("INSERT INTO plans (id,reseller_id,name,duration,duration_unit,duration_value,price,device_limit,bandwidth,priority,popular,created_at,data_mb) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .run(planId, resellerId, name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit || 1, bandwidth || 10, priority || "medium", popular ? 1 : 0, Date.now(), dataCap);
     json(res, 201, { id: planId });
   });
 
   router.put("/api/reseller/plans/:id", async (req, res, { params, body }) => {
     const resellerId = requireReseller(req, res); if (!resellerId) return;
-    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular } = body;
+    const { name, duration, durationUnit, durationValue, price, deviceLimit, bandwidth, priority, popular, dataMb } = body;
+    const dataCap = Math.max(0, Math.round(Number(dataMb) || 0)); // MB, 0 = unlimited
     const finalDuration = duration || (durationValue && durationUnit ? (durationValue + "_" + durationUnit) : "");
     if (!name || !finalDuration || price == null) return json(res, 400, { error: "name, duration (or durationUnit+durationValue), and price are required" });
     if (typeof price !== "number" || !Number.isFinite(price) || price < 0) return json(res, 400, { error: "price must be a non-negative number" });
     if (deviceLimit != null && (typeof deviceLimit !== "number" || deviceLimit < 1)) return json(res, 400, { error: "deviceLimit must be at least 1" });
     const result = await db.prepare(`
-      UPDATE plans SET name=?, duration=?, duration_unit=?, duration_value=?, price=?, device_limit=?, bandwidth=?, priority=?, popular=?
+      UPDATE plans SET name=?, duration=?, duration_unit=?, duration_value=?, price=?, device_limit=?, bandwidth=?, priority=?, popular=?, data_mb=?
       WHERE id = ? AND reseller_id = ?
-    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, params.id, resellerId);
+    `).run(name, finalDuration, durationUnit || "day", durationValue != null ? Math.round(Number(durationValue)) : null, price, deviceLimit, bandwidth, priority, popular ? 1 : 0, dataCap, params.id, resellerId);
     if (result.changes === 0) return json(res, 404, { error: "Plan not found" });
     json(res, 200, { ok: true });
   });
@@ -608,7 +626,7 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       const username = `${pending.name.split(" ")[0].toLowerCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const password = genCode(8);
       const voucherId = id("v");
-      const voucherExpiresAt = now + durationToMs(plan?.duration_value, plan?.duration_unit);
+      const voucherExpiresAt = now + planDurationMs(plan);
       await db.prepare(`INSERT INTO vouchers (id,reseller_id,username,password,name,email,phone,business,plan_id,status,created_at,expires_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(voucherId, resellerId, username, password, pending.name, pending.email, pending.phone, pending.business, pending.plan_id, "active", now, voucherExpiresAt);
@@ -616,30 +634,11 @@ router.get("/api/reseller/vouchers", async (req, res) => {
       await db.prepare("INSERT INTO delivery_logs (id,voucher_id,channel,status,time) VALUES (?,?,?,?,?)").run(id("dl"), voucherId, "whatsapp", "delivered", now);
       await db.prepare("INSERT INTO payments (id,user_type,user_id,amount,method,status,time,note) VALUES (?,?,?,?,?,?,?,?)")
         .run(id("pay"), "voucher", voucherId, pending.amount, pending.method, "completed", now, "Voucher purchase");
-      // Always create the hotspot user (fallback for clients without MAC)
-      let uptime = "1d";
-      if (plan && plan.duration) {
-        const d = plan.duration.toLowerCase();
-        if (d.includes('minute')) uptime = d.match(/(\d+)/)[0] + "m";
-        else if (d.includes('hour')) uptime = d.match(/(\d+)/)[0] + "h";
-        else if (d.includes('week')) uptime = "7d";
-        else if (d.includes('month')) uptime = "30d";
-        else if (d.includes('year')) uptime = "365d";
-      }
-      await enqueueCommandForReseller(resellerId, "create_user", { username, password, deviceLimit: plan?.device_limit, bandwidthMbps: plan?.bandwidth, uptime });
-      // Zero-click bypass — payload uses username key + ISO expiry in password slot
-      let targetMac = pending.client_mac;
-      if (!targetMac) {
-        const sess = await db.prepare("SELECT mac FROM active_sessions WHERE reseller_id = ? ORDER BY last_seen DESC LIMIT 1").get(resellerId);
-        if (sess && sess.mac) targetMac = sess.mac;
-      }
-      if (targetMac) {
-        const isoExpiry = new Date(voucherExpiresAt).toISOString().slice(0, 19);
-        await enqueueCommandForReseller(resellerId, "bind_mac", {
-          username: targetMac,
-          password: isoExpiry
-        });
-      }
+      // The paying device was recorded on the pending activation; it is the
+      // only device this voucher belongs to. (Previously, without a MAC, it
+      // unlocked whichever device last used the WiFi.)
+      if (pending.client_mac) await db.prepare("UPDATE vouchers SET client_mac = ? WHERE id = ?").run(pending.client_mac, voucherId);
+      await queueVoucherOnRouters({ username, password, reseller_id: resellerId, expires_at: voucherExpiresAt, plan_id: pending.plan_id }, plan);
       return json(res, 200, { ok: true, voucher: { username, password } });
     }
     json(res, 200, { ok: true });

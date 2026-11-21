@@ -1,4 +1,4 @@
-﻿# Multi-stage: build the static Vite bundle, then serve with nginx.
+# Multi-stage: build the static Vite bundle, then serve with nginx.
 FROM node:22-alpine AS build
 WORKDIR /app
 
@@ -22,9 +22,11 @@ RUN echo "Cachebust: $CACHEBUST" && npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
+# Serves the app and forwards /api to the backend container.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-ENV PORT 3600
+ARG LISTEN_PORT=80
+ENV PORT=$LISTEN_PORT
 RUN sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/conf.d/default.conf
 EXPOSE $PORT
 CMD ["nginx", "-g", "daemon off;"]

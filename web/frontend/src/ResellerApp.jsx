@@ -18,6 +18,8 @@ import { SyncProvider, useSyncStatus, queueOfflineAction } from "./offline/syncC
 import { getPendingBlob, deletePendingBlob } from "./offline/offlineStore.js";
 import { isPlaceholder, extractBlobId } from "./offline/attachmentPlaceholder.js";
 import InstallerWizard from "./InstallerWizard.jsx";
+import GrowthTab, { RouterSetupPanel } from "./GrowthTab.jsx";
+import { http } from "./api.js";
 import { LANGUAGES, t } from "./i18n.js";
 import { dt } from "./dashboardI18n.js";
 
@@ -155,7 +157,7 @@ function getExpiryCountdown(expiresAt) {
 }
 
 export default function ResellerApp({ session, onExit, notify }) {
-  const [tab, setTab] = useState("vouchers");
+  const [tab, setTab] = useState("growth");
   const [countdownNow, setCountdownNow] = useState(Date.now());
   const [voucherGenForm, setVoucherGenForm] = useState({ count: 10, planId: "" });
   const [generatedVouchers, setGeneratedVouchers] = useState(null);
@@ -199,6 +201,7 @@ export default function ResellerApp({ session, onExit, notify }) {
   }, []);
 
   const tabs = [
+    { key: "growth", label: "Growth", icon: TrendingUp },
     { key: "vouchers", label: dt(dashboardLang, "tabVouchers"), icon: Users },
     { key: "clients", label: "Clients", icon: Activity },
     { key: "sessions", label: dt(dashboardLang, "tabSessions"), icon: Activity },
@@ -359,7 +362,7 @@ export default function ResellerApp({ session, onExit, notify }) {
       durationUnit: planForm.durationUnit || "day",
       durationValue: Number(planForm.durationValue) || null,
       price: Number(planForm.price),
-        deviceLimit: Number(planForm.deviceLimit), bandwidth: Number(planForm.bandwidth),
+        deviceLimit: Number(planForm.deviceLimit), bandwidth: Number(planForm.bandwidth), dataMb: Number(planForm.dataMb || 0),
         priority: planForm.priority, popular: !!planForm.popular,
       };
       if (planForm.isNew) await api.reseller.createPlan(body);
@@ -940,6 +943,12 @@ export default function ResellerApp({ session, onExit, notify }) {
         </Panel>
       )}
 
+      {tab === "growth" && (
+        <GrowthTab currency={currency} plans={plans.data || []} notify={notify} />
+      )}
+      {tab === "routers" && (
+        <div style={{ marginBottom: 14 }}><RouterSetupPanel notify={notify} defaultSsid={portalSettingsRes.data?.ssid || ""} /></div>
+      )}
       {tab === "routers" && (
           <LiveRouters url="/api/reseller/routers/live" />
         )}
@@ -953,7 +962,7 @@ export default function ResellerApp({ session, onExit, notify }) {
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <Badge tone={statusColor(rt.status)}>{rt.status}</Badge>
-                <Btn size="sm" variant="outline" onClick={() => setTab("installer")}><RotateCw size={12} /> Re-provision</Btn>
+                <Btn size="sm" variant="outline" onClick={async () => { try { const r = await http.post(`/api/reseller/routers/${rt.router_id}/reboot`, {}); notify(r.message); } catch (e) { notify(e.message); } }}><RotateCw size={12} /> Reboot</Btn>
               </div>
             </div>
           ))}
@@ -996,7 +1005,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                   <div style={{ fontSize: 22, fontWeight: 700, margin: "6px 0", color: T.primary }}>{formatMoney(p.price, currency)}<span style={{ fontSize: 12, color: T.sub, fontWeight: 500 }}> / {formatPlanDuration(p)}</span></div>
                   <div style={{ fontSize: 12, color: T.sub, marginBottom: 10 }}>{p.device_limit} devices · {p.bandwidth} Mbps · {p.priority} priority</div>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <Btn size="sm" variant="outline" onClick={() => setPlanForm({ ...p, deviceLimit: p.device_limit, durationUnit: p.duration_unit || "day", durationValue: p.duration_value || 30 })}><Save size={12} /> Edit</Btn>
+                    <Btn size="sm" variant="outline" onClick={() => setPlanForm({ ...p, dataMb: p.data_mb || 0, deviceLimit: p.device_limit, durationUnit: p.duration_unit || "day", durationValue: p.duration_value || 30 })}><Save size={12} /> Edit</Btn>
                     <Btn size="sm" variant="ghost" tone={T.danger} onClick={() => deletePlan(p.id)}><Trash2 size={12} /></Btn>
                   </div>
                 </div>
@@ -1024,6 +1033,7 @@ export default function ResellerApp({ session, onExit, notify }) {
                 </Field>
                 <Field label="Device limit"><input style={inputStyle} type="number" value={planForm.deviceLimit} onChange={(e) => setPlanForm({ ...planForm, deviceLimit: e.target.value })} /></Field>
                 <Field label="Bandwidth (Mbps)"><input style={inputStyle} type="number" value={planForm.bandwidth} onChange={(e) => setPlanForm({ ...planForm, bandwidth: e.target.value })} /></Field>
+                <Field label="Data cap (MB)" hint="0 = unlimited"><input style={inputStyle} type="number" value={planForm.dataMb ?? 0} onChange={(e) => setPlanForm({ ...planForm, dataMb: e.target.value })} /></Field>
                 <Field label="Priority level">
                   <select style={inputStyle} value={planForm.priority} onChange={(e) => setPlanForm({ ...planForm, priority: e.target.value })}>
                     <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
