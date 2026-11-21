@@ -2,6 +2,28 @@
 # frontend assets/pages to the frontend container. WebSocket is not used by
 # the portal; live state uses HTTP polling.
 
+# Public site over HTTPS. Caddy obtains and renews the Let's Encrypt
+# certificate automatically; DNS for these names must point at this server
+# and ports 80 + 443 must be open. Override with SITE_DOMAINS if needed.
+{$SITE_DOMAINS:safelinks.name.ng, www.safelinks.name.ng} {
+  encode gzip
+  handle /api/* {
+    reverse_proxy backend:4000
+  }
+  handle /health {
+    reverse_proxy backend:4000
+  }
+  handle /uploads/* {
+    reverse_proxy backend:4000
+  }
+  handle /downloads/* {
+    reverse_proxy backend:4000
+  }
+  handle {
+    reverse_proxy frontend:80
+  }
+}
+
 localhost:80 {
   handle /api/* {
     reverse_proxy backend:4000
