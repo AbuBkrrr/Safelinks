@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 const KEYRING_SERVICE: &str = "safelinks-installer";
 const EMAIL_MARKER: &str = "__last_email__";
 const TOKEN_MARKER: &str = "__token__";
-const BACKEND: &str = "https://backend-services-production-78d8.up.railway.app";
+const BACKEND: &str = "https://safelinks.name.ng";
 
 #[derive(Serialize, Deserialize)]
 pub struct StoredSession {

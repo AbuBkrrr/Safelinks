@@ -9,7 +9,7 @@ use russh_keys::key::PublicKey;
 use serde::Serialize;
 
 
-const SL_BACKEND: &str = "https://backend-services-production-78d8.up.railway.app";
+const SL_BACKEND: &str = "https://safelinks.name.ng";
 
 struct AcceptAllKeys;
 

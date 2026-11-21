@@ -11,10 +11,6 @@ piece has its own detailed README — this file is just the map.
 complete, no-assumptions, step-by-step guide from an empty checkout to
 a live production deployment on your own VPS.
 
-**Deploying via GitHub + Railway instead?** Use
-[`RAILWAY.md`](./RAILWAY.md) — no server to rent or manage yourself,
-Railway builds directly from this repo.
-
 ## Start here: deployment order matters
 
 The Android and Windows apps are **empty shells without the web app

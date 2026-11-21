@@ -1,7 +1,7 @@
 # Going live: settings, payments, messaging, routers
 
 This is the checklist for running SAFE_Links as a working ISP platform. For
-hosting the web app itself, follow `DEPLOYMENT.md` (VPS) or `RAILWAY.md`.
+hosting, SAFE_Links runs on your VPS: `bash deploy/vps-setup-env.sh` once, then `bash deploy/vps-deploy.sh` to update.
 
 ## 1. Backend environment variables
 

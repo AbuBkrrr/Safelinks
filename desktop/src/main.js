@@ -39,7 +39,7 @@ const {
 // before building. See README.md.
 // ---------------------------------------------------------------------
 // Backend that serves the router setup script; SAFELINKS_API overrides it.
-const SERVER_URL = process.env.SAFELINKS_API || "https://backend-services-production-78d8.up.railway.app";
+const SERVER_URL = process.env.SAFELINKS_API || "https://safelinks.name.ng";
 
 const ALLOWED_ORIGIN = (() => {
   try {

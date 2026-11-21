@@ -22,7 +22,7 @@ async function validateLicense(licenseKey) {
       fingerprint: getHardwareFingerprint(),
     });
 
-    const url = new URL(process.env.LICENSE_SERVER_URL || "https://backend-services-production-78d8.up.railway.app");
+    const url = new URL(process.env.LICENSE_SERVER_URL || "https://safelinks.name.ng");
     const req = https.request(
       {
         hostname: url.hostname,

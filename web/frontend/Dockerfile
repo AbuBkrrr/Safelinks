@@ -22,12 +22,10 @@ RUN echo "Cachebust: $CACHEBUST" && npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# nginx.conf = Railway (API on Railway); nginx.vps.conf = self-hosted VPS
-# (API on the backend container). Chosen at build time.
-ARG NGINX_CONF=nginx.conf
-COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
+# Serves the app and forwards /api to the backend container.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-ARG LISTEN_PORT=3600
+ARG LISTEN_PORT=80
 ENV PORT=$LISTEN_PORT
 RUN sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/conf.d/default.conf
 EXPOSE $PORT

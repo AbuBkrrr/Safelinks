@@ -25,7 +25,7 @@ git checkout -f -B "$BRANCH" "origin/$BRANCH"
 
 echo "== Building and starting"
 $COMPOSE build
-docker run --rm -v "$PWD/web/frontend/nginx.vps.conf:/etc/nginx/conf.d/default.conf:ro" \
+docker run --rm -v "$PWD/web/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
   --add-host backend:127.0.0.1 nginx:alpine nginx -t
 $COMPOSE up -d --remove-orphans
 

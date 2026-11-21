@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  */
 final class RouterOsScripts {
     /** Backend serving the setup script. */
-    static final String BACKEND_URL = "https://backend-services-production-78d8.up.railway.app";
+    static final String BACKEND_URL = "https://safelinks.name.ng";
 
     private static final Pattern PAIRING_CODE_RE = Pattern.compile("^[A-Z0-9]{4,10}$");
 
