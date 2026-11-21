@@ -1,4 +1,4 @@
-﻿# Multi-stage: build the static Vite bundle, then serve with nginx.
+# Multi-stage: build the static Vite bundle, then serve with nginx.
 FROM node:22-alpine AS build
 WORKDIR /app
 
@@ -22,9 +22,13 @@ RUN echo "Cachebust: $CACHEBUST" && npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx.conf = Railway (API on Railway); nginx.vps.conf = self-hosted VPS
+# (API on the backend container). Chosen at build time.
+ARG NGINX_CONF=nginx.conf
+COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 
-ENV PORT 3600
+ARG LISTEN_PORT=3600
+ENV PORT=$LISTEN_PORT
 RUN sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/conf.d/default.conf
 EXPOSE $PORT
 CMD ["nginx", "-g", "daemon off;"]
