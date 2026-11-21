@@ -100,6 +100,9 @@ async function main() {
   await runAuthUpgradeMigration();
   await runInstallerMigration();
   const seedResult = await seed();
+  const { ensureSuperAdmin } = await import("./db.js");
+  const sa = await ensureSuperAdmin();
+  if (sa.configured) console.log(`Super admin: ${sa.email} (from SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD)`);
   await runInstallerPlanMigration();
   await runPlanPricesMigration();
   startScheduler();

@@ -9,6 +9,8 @@ hosting the web app itself, follow `DEPLOYMENT.md` (VPS) or `RAILWAY.md`.
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection |
 | `JWT_SECRET` | yes | Signs logins (long random string) |
+| `SUPER_ADMIN_EMAIL` | yes | Your super-admin login email |
+| `SUPER_ADMIN_PASSWORD` | yes | Its password (10+ characters). Applied on every start; also removes the demo `admin@safelinks.io` account |
 | `APP_URL` | yes | Public site URL, e.g. `https://www.safelinks.name.ng`. Captive portal and renew links use it |
 | `PUBLIC_API_URL` | yes | Public backend URL routers download their setup from, e.g. `https://api.safelinks.name.ng` |
 | `PAYSTACK_SECRET_KEY` | yes (NG) | Card, USSD and Instant Transfer payments; reseller payouts |

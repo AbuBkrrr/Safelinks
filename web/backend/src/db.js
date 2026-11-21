@@ -829,3 +829,29 @@ export async function runPlanPricesMigration() {
   }
   console.log(`Plan-prices migration complete (default ${defaultCurrency}, ${inserted} new rows)`);
 }
+
+// Super-admin login from the environment (never from code):
+//   SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD
+// Creates the account, or resets its password to match, on every start.
+// Once a real super admin is configured, the demo one created by seed()
+// (admin@safelinks.io / admin123) is removed so it can't be used to log in.
+export async function ensureSuperAdmin() {
+  const email = String(process.env.SUPER_ADMIN_EMAIL || "").trim().toLowerCase();
+  const password = String(process.env.SUPER_ADMIN_PASSWORD || "");
+  if (!email || !password) return { configured: false };
+  if (password.length < 10) {
+    console.error("SUPER_ADMIN_PASSWORD must be at least 10 characters; super admin not changed.");
+    return { configured: false };
+  }
+  const existing = await db.prepare("SELECT id FROM super_admins WHERE LOWER(email) = ?").get(email);
+  if (existing) {
+    await db.prepare("UPDATE super_admins SET email = ?, password_hash = ? WHERE id = ?").run(email, hashPassword(password), existing.id);
+  } else {
+    await db.prepare("INSERT INTO super_admins (id,email,password_hash,created_at) VALUES (?,?,?,?)")
+      .run(id("sa"), email, hashPassword(password), Date.now());
+  }
+  if (email !== "admin@safelinks.io") {
+    await db.prepare("DELETE FROM super_admins WHERE LOWER(email) = 'admin@safelinks.io'").run();
+  }
+  return { configured: true, email };
+}
