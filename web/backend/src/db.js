@@ -458,7 +458,22 @@ export async function migrate() {
   await db.exec(`ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;`);
 }
 
+// What every installation needs, demo data or not: the license plans
+// resellers buy, and the platform settings row. Idempotent.
+export async function ensureEssentials() {
+  const plans = await db.prepare("SELECT COUNT(*) AS n FROM platform_plans").get();
+  if (Number(plans.n) === 0) {
+    const ins = db.prepare("INSERT INTO platform_plans (id,name,price,max_clients,max_devices_per_client,description) VALUES (?,?,?,?,?,?) ON CONFLICT (id) DO NOTHING");
+    await ins.run("basic", "Basic", 15, 20, 3, "Starter tier for a single-site deployment.");
+    await ins.run("professional", "Professional", 35, 100, 6, "For growing reseller operations with multiple locations.");
+    await ins.run("enterprise", "Enterprise", 79, 500, 10, "Full-scale, multi-site deployments with priority support.");
+  }
+  await db.prepare(`INSERT INTO integration_settings (id, platform_currency, dashboard_language, updated_at)
+    VALUES ('singleton', 'USD', 'en', ?) ON CONFLICT (id) DO NOTHING`).run(Date.now());
+}
+
 export async function seed() {
+  await ensureEssentials();
   const existing = await db.prepare("SELECT COUNT(*) AS n FROM resellers").get();
   if (Number(existing.n) > 0) return { seeded: false };
   // Never put demo accounts with published passwords into a live database.
@@ -467,20 +482,12 @@ export async function seed() {
   const now = Date.now();
   const day = 86400000;
 
-  const insertPlatformPlan = db.prepare(
-    "INSERT INTO platform_plans (id,name,price,max_clients,max_devices_per_client,description) VALUES (?,?,?,?,?,?)"
-  );
-  await insertPlatformPlan.run("basic", "Basic", 15, 20, 3, "Starter tier for a single-site deployment.");
-  await insertPlatformPlan.run("professional", "Professional", 35, 100, 6, "For growing reseller operations with multiple locations.");
-  await insertPlatformPlan.run("enterprise", "Enterprise", 79, 500, 10, "Full-scale, multi-site deployments with priority support.");
-
   const insertSuperAdmin = db.prepare(
     "INSERT INTO super_admins (id,email,password_hash,bank_name,bank_account_name,bank_account_number,ussd_code,created_at) VALUES (?,?,?,?,?,?,?,?)"
   );
   await insertSuperAdmin.run(id("sa"), "admin@safelinks.io", hashPassword("admin123"), "Chase Bank", "A I Brains Ventures", "0099 8811 220", "*911*1*0000#", now);
 
-  await db.prepare(`INSERT INTO integration_settings (id, contact_email, contact_whatsapp, platform_currency, dashboard_language, updated_at)
-    VALUES ('singleton', 'aibrainsventures@gmail.com', '+2348032540215', 'USD', 'en', ?)`).run(now);
+  await db.prepare(`UPDATE integration_settings SET contact_email = 'support@example.com', contact_whatsapp = '+2348000000000', updated_at = ? WHERE id = 'singleton'`).run(now);
 
   const insertReseller = db.prepare(`INSERT INTO resellers
     (id,email,password_hash,company_name,license_key,status,subscription_plan,subscription_expiry,ssid,portal_title,color,currency,language,dashboard_language,bank_name,bank_account_name,bank_account_number,ussd_code,contact_email,contact_whatsapp,security_question,security_answer_hash,referral_code,referred_by,created_at)

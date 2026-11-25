@@ -12,6 +12,7 @@ import { registerSuperAdminRoutes } from "./routes/superAdmin.js";
 import { registerResellerRoutes } from "./routes/reseller.js";
 import { registerRouterRoutes } from "./routes/router.js";
 import { licenseMiddleware } from "./modules/license-manager.js";
+import { accountGate } from "./accountGate.js";
 import { registerAgentRoutes } from "./routes/agent.js";
 import { registerSetupRoutes } from "./routes/setup.js";
 import { registerCustomerRoutes } from "./routes/customer.js";
@@ -187,15 +188,21 @@ registerRadiusRoutes(router);
       return;
     }
 
-    // Public / unauthenticated routes bypass the licence check entirely.
-    if (isLicenseExempt(pathname)) {
-      return router.handle(req, res);
-    }
-
-    // Everything else requires a valid licence (in enforce mode).
-    // In soft mode (default), licenseMiddleware logs a warning and lets
-    // the request through anyway — see modules/license-manager.js.
-    licenseMiddleware(req, res, () => router.handle(req, res));
+    // Suspended / expired resellers: read-only + renew, no new sales.
+    accountGate(req, res, pathname).then((blocked) => {
+      if (blocked) return;
+      // Public / unauthenticated routes bypass the licence check entirely.
+      if (isLicenseExempt(pathname)) {
+        return router.handle(req, res);
+      }
+      // Everything else requires a valid licence (in enforce mode).
+      // In soft mode (default), licenseMiddleware logs a warning and lets
+      // the request through anyway — see modules/license-manager.js.
+      licenseMiddleware(req, res, () => router.handle(req, res));
+    }).catch((err) => {
+      console.error("accountGate failed:", err.message);
+      if (!res.headersSent) json(res, 500, { error: "Internal server error" });
+    });
   });
 
   server.listen(PORT, () => {
@@ -205,7 +212,9 @@ registerRadiusRoutes(router);
     console.log(
       seedResult.seeded
         ? "Database seeded with demo data."
-        : "Database already had data — skipped seeding."
+        : seedResult.skipped === "production"
+          ? "Production mode: no demo data (license plans and settings ensured)."
+          : "Database already had data — skipped seeding."
     );
     if (seedResult.seeded) {
       console.log("Demo logins: admin@safelinks.io / admin123  (super admin)");

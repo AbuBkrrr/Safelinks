@@ -7,6 +7,7 @@ import { verifyPayment as verifyProviderPayment, listEnabledProviders, initiateP
 import { fulfillVoucherPayment } from "./payments.js";
 import crypto from "node:crypto";
 import { quote } from "../growth.js";
+import { resellerStanding } from "../accountGate.js";
 import { planDurationMs } from "../planDuration.js";
 import { normalizePhone } from "../notify.js";
 import { queueVoucherOnRouters, userReadyOnRouter } from "../routerCommands.js";
@@ -96,6 +97,7 @@ export function registerPortalRoutes(router) {
       // Instant (gateway) payments available to this portal.
       gateways: listEnabledProviders(),
       instantTransfer: paystack.isEnabled() && String(r.currency || "NGN").toUpperCase() === "NGN",
+      serviceAvailable: (await resellerStanding(params.resellerId)).ok,
       trialMinutes: Number(r.trial_enabled) ? Number(r.trial_minutes || 0) : 0,
       happyHour: Number(r.happy_hour_pct) > 0 && r.happy_hour_start != null ? { start: r.happy_hour_start, end: r.happy_hour_end, pct: Number(r.happy_hour_pct) } : null,
       referralRewardMinutes: Number(r.referral_reward_minutes || 0),

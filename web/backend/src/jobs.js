@@ -63,7 +63,7 @@ export async function sweepLicenseExpiry() {
   const now = Date.now();
   const newlyExpired = await db.prepare(`
     UPDATE resellers SET status = 'suspended', notified_expiry = subscription_expiry
-    WHERE status = 'active' AND subscription_expiry < ?
+    WHERE status IN ('active', 'pending') AND subscription_expiry < ?
       AND (notified_expiry IS NULL OR notified_expiry <> subscription_expiry)
     RETURNING id, company_name, email
   `).all(now);

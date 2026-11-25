@@ -623,6 +623,11 @@ export default function CaptivePortal({ resellerId, notify, onExit }) {
               <div style={{ fontSize: 14, color: T.sub, marginBottom: 16, textAlign: "center" }}>
                 Connected to <strong>{reseller.ssid}</strong>
               </div>
+              {reseller.serviceAvailable === false && (
+                <div style={{ background: "#fff7ed", border: "1px solid #fdba74", color: "#9a3412", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 13, textAlign: "center" }}>
+                  New purchases are temporarily unavailable on this WiFi. If you already have time, you can keep using it.
+                </div>
+              )}
               <UsageCard resellerId={resellerId} clientMac={clientMac} color={reseller.color} onRenew={() => setStep("plans")} />
 
               {clientMac && (
