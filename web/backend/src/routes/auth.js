@@ -236,6 +236,10 @@ export function registerAuthRoutes(router) {
         securityQuestion.trim(), hashAnswer(securityAnswer),
         referralCode, referrer?.id || null, false, now
       );
+    if (body.mkt && typeof body.mkt === "object") {
+      const ms = String(body.mkt.slug || "").slice(0, 64), md = String(body.mkt.deviceKey || "").slice(0, 80);
+      await db.prepare("UPDATE resellers SET mkt_slug = ?, mkt_device_key = ? WHERE id = ?").run(ms, md || null, resellerId);
+    }
 
     if (referrer) {
       const bonusRow = await db.prepare(

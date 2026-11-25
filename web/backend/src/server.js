@@ -17,6 +17,7 @@ import { registerAgentRoutes } from "./routes/agent.js";
 import { registerSetupRoutes } from "./routes/setup.js";
 import { registerCustomerRoutes } from "./routes/customer.js";
 import { registerGrowthRoutes } from "./routes/growth.js";
+import { registerMarketingRoutes, migrateMarketing } from "./routes/marketing.js";
 import { registerRadiusRoutes } from "./routes/radius.js";
 import { registerInstallerRoutes } from "./routes/installer.js";
 import { registerInstallerPlanConfigRoutes } from "./routes/installerPlanConfig.js";
@@ -38,6 +39,9 @@ const LICENSE_EXEMPT_PREFIXES = [
   "/health",
   "/api/auth/",
   "/api/portal/",
+  "/api/mkt/",
+  "/api/setup/",
+  "/api/renew/",
   "/uploads/",
   "/downloads/",
 ];
@@ -100,6 +104,7 @@ async function main() {
   const { runAuthUpgradeMigration, runInstallerMigration, runInstallerPlanMigration, runPlanPricesMigration } = await import("./db.js");
   await runAuthUpgradeMigration();
   await runInstallerMigration();
+  await migrateMarketing();
   const seedResult = await seed();
   const { ensureSuperAdmin } = await import("./db.js");
   const sa = await ensureSuperAdmin();
@@ -121,6 +126,7 @@ async function main() {
   registerSetupRoutes(router);
   registerCustomerRoutes(router);
   registerGrowthRoutes(router);
+  registerMarketingRoutes(router);
 registerRadiusRoutes(router);
   registerInstallerRoutes(router);
   registerInstallerPlanConfigRoutes(router);

@@ -1,6 +1,6 @@
 import { fileUrl } from "./ui.jsx";
 import React, { useMemo, useState, useEffect } from "react";
-import { Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package, Activity, Server, LifeBuoy, AlertCircle, MessageSquare, Mail, Gauge, Cpu, CreditCard, Settings as SettingsIcon, Save, CheckCircle2, ChevronRight, Gift, KeyRound, Download, Ban, Copy, Plus } from "lucide-react";
+import { Shield, Building2, Users, DollarSign, Router, Bell, BarChart3, Package, Activity, Server, LifeBuoy, AlertCircle, MessageSquare, Mail, Gauge, Cpu, CreditCard, Settings as SettingsIcon, Save, CheckCircle2, ChevronRight, Gift, KeyRound, Download, Ban, Copy, Plus, Megaphone } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -9,6 +9,7 @@ import {
   statusColor, timeAgo, formatMoney, CURRENCIES, AttachmentPicker,
 } from "./ui.jsx";
 import { api, fileToBase64 } from "./api.js";
+import MarketingTab from "./MarketingTab.jsx";
 import { useResource, usePollingResource } from "./hooks.js";
 import { LANGUAGES } from "./i18n.js";
 import { dt } from "./dashboardI18n.js";
@@ -134,6 +135,7 @@ export default function SuperAdminApp({ session, onExit, notify }) {
     { key: "productKeys", label: dt(dashboardLang, "tabProductKeys"), icon: KeyRound },
     { key: "support", label: dt(dashboardLang, "tabSupport"), icon: LifeBuoy },
     { key: "notifications", label: dt(dashboardLang, "tabNotifications"), icon: Bell },
+    { key: "marketing", label: "Marketing", icon: Megaphone },
     { key: "settings", label: dt(dashboardLang, "tabSettings"), icon: SettingsIcon },
   ];
 
@@ -1007,6 +1009,8 @@ export default function SuperAdminApp({ session, onExit, notify }) {
           )}
         </Panel>
       )}
+
+      {tab === "marketing" && <MarketingTab />}
 
       {tab === "settings" && (
         <Panel title="Contact & bank settings">
