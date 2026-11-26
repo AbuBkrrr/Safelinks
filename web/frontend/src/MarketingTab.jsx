@@ -24,7 +24,7 @@ function Bars({ rows, fmt = (k) => k, max = 8 }) {
   const top = Math.max(1, ...rows.map((r) => r.n));
   return rows.slice(0, max).map((r) => (
     <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, margin: "5px 0" }}>
-      <div style={{ width: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fmt(r.key)}</div>
+      <div style={{ width: "40%", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fmt(r.key)}</div>
       <div style={{ flex: 1, background: T.bg, borderRadius: 6, height: 10 }}><div style={{ width: `${(r.n / top) * 100}%`, background: T.primary, height: 10, borderRadius: 6 }} /></div>
       <div style={{ width: 34, textAlign: "right", fontWeight: 600 }}>{r.n}</div>
     </div>
@@ -219,7 +219,7 @@ export default function MarketingTab({ showToast = () => {} }) {
                   </tr>))}</tbody></table></div>)}
           </Panel>
           <Panel title="Message leads (SMS / WhatsApp)" style={{ marginTop: 12 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 180px auto", gap: 10, alignItems: "end" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, alignItems: "end" }}>
               <Field label="Message"><input style={inputStyle} value={bulk.message} placeholder="Your 7-day free trial is waiting: …" onChange={(e) => setBulk({ ...bulk, message: e.target.value })} /></Field>
               <Field label="Send to"><select style={inputStyle} value={bulk.status} onChange={(e) => setBulk({ ...bulk, status: e.target.value })}>{["all", "new", "contacted", "demo booked", "lost"].map((s) => <option key={s}>{s}</option>)}</select></Field>
               <Btn onClick={async () => { try { const r = await http.post("/api/admin/marketing/leads/message", bulk); showToast(`Sent to ${r.sent} of ${r.recipients}`); } catch (e) { showToast(e.message, "error"); } }}><Send size={13} /> Send</Btn>

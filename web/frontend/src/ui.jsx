@@ -1,5 +1,5 @@
-import React from "react";
-import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2, Mic, Paperclip, X, CloudUpload } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ChevronRight, Landmark, Hash, Upload, Radio, LogOut, Loader2, CheckCircle2, Mic, Paperclip, X, CloudUpload, Menu } from "lucide-react";
 import VoiceAssistant from "./VoiceAssistant.jsx";
 import { dt, dtMatch } from "./dashboardI18n.js";
 import { storePendingBlob } from "./offline/offlineStore.js";
@@ -343,8 +343,21 @@ export function TransferPayBlock({
 /* ============================================================
    NAV SHELL — sidebar + topbar shared by the two dashboards
    ============================================================ */
+// True below `px` wide (phones, small tablets); follows rotation/resizes.
+export function useNarrow(px = 820) {
+  const get = () => (typeof window !== "undefined" ? window.innerWidth < px : false);
+  const [narrow, setNarrow] = useState(get);
+  useEffect(() => { const f = () => setNarrow(get()); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, [px]);
+  return narrow;
+}
+
 export function Shell({ roleLabel, roleIcon: RoleIcon, tone, identity, tabs, active, onTab, onExit, exitLabel, badges, notifications, dashboardLang, children }) {
   const lang = dashboardLang || "en";
+  const narrow = useNarrow();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const activeTab = tabs.find((t) => t.key === active);
+  const totalBadges = Object.values(badges || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const pick = (k) => { onTab(k); setMenuOpen(false); if (narrow) window.scrollTo(0, 0); };
   const voiceCommands = [
     ...tabs.map((t) => ({
       match: [t.label.toLowerCase()],
@@ -381,41 +394,62 @@ export function Shell({ roleLabel, roleIcon: RoleIcon, tone, identity, tabs, act
         Skip to main content
       </a>
       <div style={{
-        background: T.card, borderBottom: `1px solid ${T.border}`, padding: "0 22px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", height: 58,
+        background: T.card, borderBottom: `1px solid ${T.border}`, padding: narrow ? "0 10px" : "0 22px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", height: 58, gap: 8,
+        position: narrow ? "sticky" : "static", top: 0, zIndex: 1400,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: narrow ? 8 : 10, minWidth: 0 }}>
+          {narrow && (
+            <button aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)} style={{ position: "relative", border: `1px solid ${T.border}`, background: T.card, borderRadius: 8, width: 38, height: 38, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+              {menuOpen ? <X size={18} /> : <Menu size={18} />}
+              {!menuOpen && totalBadges > 0 && <span style={{ position: "absolute", top: -4, right: -4, background: T.danger, color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "1px 5px" }}>{totalBadges}</span>}
+            </button>
+          )}
           <div style={{
             width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${T.primary}, ${T.secondary})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <Radio size={17} color="#fff" />
           </div>
-          <div style={{ fontWeight: 700, fontSize: 14.5, color: T.ink }}>SAFE_Links</div>
-          <ChevronRight size={14} color={T.sub} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: tone, fontWeight: 600, fontSize: 13 }}>
-            <RoleIcon size={14} /> {roleLabel}
-          </div>
+          {narrow ? (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeTab?.label || "SAFE_Links"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, color: tone, fontWeight: 600, fontSize: 11 }}><RoleIcon size={11} /> {roleLabel}</div>
+            </div>
+          ) : (<>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: T.ink }}>SAFE_Links</div>
+            <ChevronRight size={14} color={T.sub} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, color: tone, fontWeight: 600, fontSize: 13 }}>
+              <RoleIcon size={14} /> {roleLabel}
+            </div>
+          </>)}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ fontSize: 12.5, color: T.sub }}>{identity}</div>
-          <Btn variant="ghost" size="sm" onClick={onExit}><LogOut size={14} /> {exitLabel || "Log out"}</Btn>
+        <div style={{ display: "flex", alignItems: "center", gap: narrow ? 4 : 14, flexShrink: 0 }}>
+          {!narrow && <div style={{ fontSize: 12.5, color: T.sub }}>{identity}</div>}
+          <Btn variant="ghost" size="sm" onClick={onExit}><LogOut size={14} />{narrow ? null : ` ${exitLabel || "Log out"}`}</Btn>
         </div>
       </div>
       <div style={{ display: "flex" }}>
-        <nav aria-label="Dashboard sections" style={{
-          width: 196, borderRight: `1px solid ${T.border}`, padding: "16px 10px",
+        {narrow && menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: "58px 0 0 0", background: "rgba(15,23,42,.35)", zIndex: 1300 }} />}
+        <nav aria-label="Dashboard sections" style={narrow ? {
+          position: "fixed", top: 58, left: 0, bottom: 0, width: "min(280px, 82vw)", zIndex: 1350, background: T.card,
+          borderRight: `1px solid ${T.border}`, padding: "12px 10px", overflowY: "auto",
+          transform: menuOpen ? "none" : "translateX(-105%)", transition: "transform .2s ease", boxShadow: menuOpen ? "0 10px 30px rgba(0,0,0,.18)" : "none",
+          visibility: menuOpen ? "visible" : "hidden",
+        } : {
+          width: 196, flexShrink: 0, borderRight: `1px solid ${T.border}`, padding: "16px 10px",
           minHeight: "calc(100vh - 58px)", background: T.card, overflowY: "auto",
         }}>
+          {narrow && identity && <div style={{ fontSize: 12, color: T.sub, padding: "4px 12px 10px", borderBottom: `1px solid ${T.border}`, marginBottom: 8, wordBreak: "break-all" }}>{identity}</div>}
           {tabs.map((t) => (
             <button
               key={t.key}
-              onClick={() => onTab(t.key)}
+              onClick={() => pick(t.key)}
               aria-current={active === t.key ? "page" : undefined}
               aria-label={badges?.[t.key] > 0 ? `${t.label}, ${badges[t.key]} unread` : t.label}
               style={{
                 width: "100%", border: "none", textAlign: "left",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9, padding: "9px 12px", borderRadius: 8,
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 9, padding: narrow ? "12px 12px" : "9px 12px", borderRadius: 8,
                 fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 3,
                 color: active === t.key ? tone : T.sub,
                 background: active === t.key ? `${tone}14` : "transparent",
@@ -430,7 +464,7 @@ export function Shell({ roleLabel, roleIcon: RoleIcon, tone, identity, tabs, act
             </button>
           ))}
         </nav>
-        <div id="main-content" style={{ flex: 1, padding: 22, maxWidth: 1180 }}>{children}</div>
+        <div id="main-content" style={{ flex: 1, minWidth: 0, padding: narrow ? 12 : 22, maxWidth: 1180 }}>{children}</div>
       </div>
       <VoiceAssistant
         commands={voiceCommands}
@@ -585,6 +619,17 @@ export function GlobalStyle() {
       input:focus, select:focus, textarea:focus { border-color: ${T.primary} !important; }
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-thumb { background: #d6d9e2; border-radius: 4px; }
+      html, body { max-width: 100%; overflow-x: hidden; }
+      img, video, canvas, svg { max-width: 100%; }
+      input, select, textarea, button { max-width: 100%; font-size: inherit; }
+      pre, code { white-space: pre-wrap; word-break: break-word; }
+      @media (max-width: 820px) {
+        /* wide tables scroll sideways inside their card instead of stretching the page */
+        #main-content table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+        #main-content th { white-space: nowrap; }
+        /* 16px inputs stop iPhone Safari zooming in on focus */
+        input, select, textarea { font-size: 16px !important; }
+      }
     `}</style>
   );
 }
