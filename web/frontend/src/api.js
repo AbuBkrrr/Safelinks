@@ -84,7 +84,7 @@ export const api = {
   // --- Auth ---
   login: (email, password) => post("/api/auth/login", { email, password }, { auth: false }),
   signup: (email, password, companyName, phone, securityQuestion, securityAnswer, referralCode) =>
-    post("/api/auth/signup", { email, password, companyName, phone, securityQuestion, securityAnswer, referralCode }, { auth: false }),
+    post("/api/auth/signup", { email, password, companyName, phone, securityQuestion, securityAnswer, referralCode, mkt: (() => { try { return JSON.parse(localStorage.getItem("sl_mkt") || "null") || undefined; } catch (_) { return undefined; } })() }, { auth: false }),
   googleLogin: (idToken) => post("/api/auth/google", { idToken }, { auth: false }),
   getSecurityQuestion: (email) => post("/api/auth/password-reset/question", { email }, { auth: false }),
   verifySecurityAnswer: (email, answer) => post("/api/auth/password-reset/verify-answer", { email, answer }, { auth: false }),

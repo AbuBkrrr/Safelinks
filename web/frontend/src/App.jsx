@@ -14,6 +14,7 @@ import CaptivePortal from "./CaptivePortal.jsx";
 import StandaloneInstaller from "./StandaloneInstaller.jsx";
 import VerifyEmail from "./VerifyEmail.jsx";
 import PaymentCallback from "./PaymentCallback.jsx";
+import PitchPage from "./PitchPage.jsx";
 import DownloadPrompt from "./components/DownloadPrompt";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -49,6 +50,8 @@ function parseRoute() {
   if (portalMatch) return { name: "portal", resellerId: portalMatch[1] };
   const renewMatch = path.match(/^\/r\/([\w-]+)\/?$/);
   if (renewMatch) return { name: "renew", token: renewMatch[1] };
+  const goMatch = path.match(/^\/go(?:\/([\w-]+))?\/?$/);
+  if (goMatch) return { name: "go", slug: goMatch[1] || "" };
   if (path.replace(/\/$/, "") === "/install") return { name: "install" };
   if (path.replace(/\/$/, "") === "/verify-email") return { name: "verify-email" };
   if (path.replace(/\/$/, "") === "/payment-callback") return { name: "payment-callback" };
@@ -199,7 +202,7 @@ function AgentLoginCallback() {
 export default function App() {
   const [route] = useState(parseRoute);
   const [session, setSessionState] = useState(getSession);
-  const [stage, setStage] = useState(session ? session.role : "landing");
+  const [stage, setStage] = useState(session ? session.role : (new URLSearchParams(window.location.search).get("signup") ? "signup_reseller" : "landing"));
   const [toast, setToast] = useState(null);
 
   const notify = useCallback((msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); }, []);
@@ -256,6 +259,7 @@ export default function App() {
   if (route.name === "agent-login-auto") return <AgentLoginAuto />;
   if (route.name === "agent-login-callback") return <AgentLoginCallback />;
 
+  if (route.name === "go") return <PitchPage slug={route.slug} />;
   if (route.name === "renew") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><RenewRedirect token={route.token} /></div>);
   if (route.name === "portal") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><CaptivePortal resellerId={route.resellerId} notify={notify} onExit={() => { window.location.href = "/"; }} /></div>);
   if (route.name === "install") return (<div style={{ minHeight: "100vh" }}><GlobalStyle /><Toast toast={toast} /><StandaloneInstaller onExit={() => { window.location.href = "/"; }} /></div>);
